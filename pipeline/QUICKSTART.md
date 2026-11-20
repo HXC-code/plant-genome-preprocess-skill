@@ -25,7 +25,7 @@ wgdi_pipeline/
 ```
 
 `code/resources/species_abbreviations.tsv` 决定所有产物名，必须随包携带。
-缺少它时程序会退回旧的 `s<show_id>` 命名（`doctor` 会报 FAIL）。
+命名规则（3 位起）：属名首字母 + 种加词 2 个字母（默认前两位，如 `Cercis chinensis` → `Cch`）；被占用则换种加词内其他两字母组合（1+3 位 → `Cci`、1+4 位 → `Ccn`…）；3 位全占满扩到 4 位（`Cchi`），仍冲突继续加长。表里已有的 show_id 一律沿用表内 code，表内没有的新物种按规则现算并避开全部已有 code；只有既无表又无拉丁名才退回 `s<show_id>`。
 
 ---
 
@@ -97,7 +97,7 @@ python -m pgci_preprocess init-project `
 两个参数可以省：
 
 - `--assembly-id`：不写时从 genome 文件名推断（`GWHERCC00000000.genome.fasta.gz` → `GWHERCC00000000`，NCBI 的 `GCF_xxx.x_..._genomic.fna.gz` 保留版本号）。
-- `--species-names`：不写或指向项目内尚未生成的路径时，自动使用包内 `resources/species_abbreviations.tsv`（show_id 在表里才套用缩写，否则保留 `s<show_id>`）。
+- `--species-names`：不写或指向项目内尚未生成的路径时，自动使用包内 `resources/species_abbreviations.tsv`；表里有的 show_id 沿用表内 code，表里没有的按命名规则现算，不再退回 `s<show_id>`。
 
 批量模式：把 `data/downloads` 放好，写 `resources/download_inventory.tsv`，然后 `prepare`。
 

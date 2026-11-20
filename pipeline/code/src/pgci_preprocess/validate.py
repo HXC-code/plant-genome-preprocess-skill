@@ -589,13 +589,11 @@ def sync_compat_links(canonical_root: Path | str, workspace: Path | str) -> list
         code = row.get("code", "").strip()
         if names is not None:
             show_id = str(row.get("show_id", "")).strip()
-            try:
-                if not show_id:
-                    show_id = names.resolve_show_id(code)
-                code = names.code_for(show_id)
-            except Exception as exc:
-                messages.append(f"unresolved species code: {code}: {exc}")
-                continue
+            entry = names.by_show_id.get(show_id) if show_id else None
+            if entry is not None:
+                code = entry.abbreviation
+            # 表里没有的新物种：沿用 index 里已有的（按命名规则算出的）code，
+            # 不再因为“表里查不到”而整条跳过，否则新物种永远缺 compat 链接。
         if not code:
             continue
         destination_dir = workspace / code

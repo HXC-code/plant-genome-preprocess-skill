@@ -114,6 +114,7 @@ def audit_naming(project_root: Path | str, *, table_path: Path | str | None = No
         )
 
     seen: set[str] = set()
+    taken_codes = set(names.by_code)
     for row in inventory_rows:
         show_id = str(row.get("showid", "")).strip()
         if not show_id:
@@ -121,10 +122,24 @@ def audit_naming(project_root: Path | str, *, table_path: Path | str | None = No
         seen.add(show_id)
         problems: list[str] = []
         entry = names.by_show_id.get(show_id)
+        latin_name = str(row.get("Species", ""))
         if entry is None:
-            problems.append("show_id_missing_from_table")
-            code = ""
-            latin_name = str(row.get("Species", ""))
+            # 表里没有的新物种按命名规则现算：属首字母 + 种加词两字母，
+            # 占用则换组合，全部占满再扩到 4 位及更长。
+            from pgci_preprocess.species_codegen import derive_code
+
+            try:
+                code = derive_code(latin_name, taken_codes)
+            except ValueError as exc:
+                code = ""
+                problems.append(f"cannot_derive_code:{exc}")
+            if code:
+                taken_codes.add(code.casefold())
+                inventory_code = str(row.get("species_code", "")).strip()
+                if inventory_code not in {"", code}:
+                    problems.append(
+                        f"inventory_species_code_mismatch:{inventory_code}!={code}"
+                    )
         else:
             code = entry.abbreviation
             latin_name = entry.latin_name

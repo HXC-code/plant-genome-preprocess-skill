@@ -7,6 +7,7 @@ from pgci_preprocess.batch import run_batch
 from pgci_preprocess.legacy_convert import run_legacy_conversion
 from pgci_preprocess.pipeline import PipelineOptions
 from pgci_preprocess.reports import read_tsv
+from pgci_preprocess.species_codegen import derive_code
 
 
 def _write_tsv(path: Path, fields: list[str], rows: list[dict[str, str]]) -> None:
@@ -96,7 +97,9 @@ def test_batch_prepare_run_validate(tmp_path: Path) -> None:
     assert result.run_results and result.run_results[0]["status"] == "OK"
     assert result.validation is not None and result.validation.ok
     assert result.ok
-    assert {row["code"] for row in read_tsv(project / "resources" / "wgdi_v2_index.tsv")} == {"s7"}
+    assert {row["code"] for row in read_tsv(project / "resources" / "wgdi_v2_index.tsv")} == {
+        derive_code("Testus septimus")
+    }
 
 
 def test_batch_count_mismatch_is_a_failure(tmp_path: Path) -> None:
@@ -232,6 +235,7 @@ def test_legacy_conversion_folder_scan_and_finalize(tmp_path: Path) -> None:
     )
     assert len(results) == 1
     assert results[0]["status"] == "OK"
-    assert {row["code"] for row in read_tsv(resources / "wgdi_v2_index.tsv")} == {"s99"}
-    assert {row["code"] for row in read_tsv(resources / "stage_preprocess_v2_summary.tsv")} == {"s99"}
-    assert (project / "analysis_v2" / "s99" / "s99.qc.json").is_file()
+    code = derive_code("Testus nonaginta")
+    assert {row["code"] for row in read_tsv(resources / "wgdi_v2_index.tsv")} == {code}
+    assert {row["code"] for row in read_tsv(resources / "stage_preprocess_v2_summary.tsv")} == {code}
+    assert (project / "analysis_v2" / code / f"{code}.qc.json").is_file()

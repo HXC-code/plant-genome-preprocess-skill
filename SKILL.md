@@ -32,6 +32,14 @@ pipeline/
     └── pyproject.toml
 ```
 
+## 物种缩写规则（当前策略）
+
+- **3 位起**：属名首字母 + 种加词里任取 2 个字母。默认取种加词前两个（`Cercis chinensis` → `Cch`）。
+- **冲突换组合**：`Cch` 已被别的物种占用时，依次尝试种加词内其他两字母组合（第 1+3 位 `ci` → `Cci`、第 1+4 位 `cn` → `Ccn` …）。
+- **3 位占满再扩位**：所有两字母组合都被占用，就升到 4 位（属首 + 种加词 3 个字母，如 `Cchi`），仍冲突继续加长；极端情况才追加数字后缀。
+- **表是快照**：`resources/species_abbreviations.tsv`（2543 行）是已发布物种的既有命名，表里有的 show_id 一律沿用；表里没有的新物种按上面的规则现算，并自动避开表内所有 code。
+- 已注册的物种 code 不会改变，历史产物目录与 gene ID 不受影响。
+
 ## 3 分钟上手
 
 ```powershell
@@ -39,7 +47,6 @@ cd pipeline\code
 
 # 1) 建项目（自动带上物种缩写表与格式例外表，无需手工拷贝）
 python -m pgci_preprocess init-project --project-root D:\my_project
-
 # 2) 把物种目录放进 D:\my_project\data\downloads\<show_id>_<Order>_<Family>(<Species>)
 #    编辑 resources\download_inventory.tsv 四列 gff/genome/cds/pep（留空表示没有）
 

@@ -217,14 +217,9 @@ def init_project(
     if configured_names is None:
         bundled_names = BUNDLED_RESOURCES / "species_abbreviations.tsv"
         if bundled_names.is_file():
-            # 空项目直接带表；注册物种时只有表里确有该 show_id 才带，
-            # 否则保留旧 s<show_id> 命名，避免造出一个 run 解析不了的项目。
-            if not registration_requested:
-                configured_names = bundled_names
-            else:
-                catalog = load_species_names(root, explicit_path=bundled_names)
-                if str(show_id).strip() in catalog.by_show_id:
-                    configured_names = bundled_names
+            # 无论建空项目还是注册物种都带上缩写表：表里的 207+ 个物种直接沿用
+            # 既有缩写，表里没有的新物种按命名规则现算（见 species_codegen）。
+            configured_names = bundled_names
     if configured_names is not None:
         source_names = configured_names
         if not source_names.is_file():
@@ -266,12 +261,6 @@ def init_project(
     if not str(assembly_id).strip() and "genome" in sources:
         assembly_id = _infer_assembly_id(sources["genome"])
     assembly_id = _clean_field(assembly_id, "assembly_id")
-    species_code = resolve_species_code(
-        root,
-        show_id,
-        latin_name=scientific_name,
-        explicit_path=species_names_path,
-    )
     if not re.fullmatch(r"[A-Za-z0-9_.-]+", assembly_id):
         raise ProjectInitError("assembly_id may contain only letters, digits, dot, underscore and hyphen")
     missing_roles = sorted({"genome", "gff", "cds", "pep"} - set(sources))
@@ -291,15 +280,27 @@ def init_project(
     if "species_code" not in inventory_fields:
         insert_at = inventory_fields.index("showid") + 1 if "showid" in inventory_fields else 0
         inventory_fields.insert(insert_at, "species_code")
+    catalog = load_species_names(root, explicit_path=species_names_path)
+    taken_codes = set(catalog.by_code) if catalog is not None else set()
     for inventory_entry in inventory_rows:
         inventory_show_id = str(inventory_entry.get("showid", "")).strip()
         if inventory_show_id:
-            inventory_entry["species_code"] = resolve_species_code(
+            code = resolve_species_code(
                 root,
                 inventory_show_id,
                 latin_name=str(inventory_entry.get("Species", "")),
                 explicit_path=species_names_path,
+                occupied=taken_codes,
             )
+            inventory_entry["species_code"] = code
+            taken_codes.add(code.casefold())
+    species_code = resolve_species_code(
+        root,
+        show_id,
+        latin_name=scientific_name,
+        explicit_path=species_names_path,
+        occupied=taken_codes,
+    )
     required_inventory = {"showid", "Order", "Family", "Species", "gff", "genome", "cds", "pep"}
     missing_columns = sorted(required_inventory - set(inventory_fields))
     if missing_columns:

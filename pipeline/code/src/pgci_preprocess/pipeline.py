@@ -200,6 +200,7 @@ def discover_species(
         if path.is_dir() and "_" in path.name
     }
     species: list[SpeciesInput] = []
+    taken_codes = set(names.by_code) if names is not None else set()
     with inventory.open(encoding="utf-8", newline="") as handle:
         for row in csv.DictReader(handle, delimiter="\t"):
             show_id = row.get("showid", "").strip()
@@ -235,11 +236,20 @@ def discover_species(
             accessions.discard("")
             accession = next(iter(accessions)) if len(accessions) == 1 else "NA"
             species_name = row.get("Species", "").strip()
-            code = (
-                names.code_for(show_id, latin_name=species_name)
-                if names is not None
-                else row.get("species_code", "").strip() or f"s{show_id}"
-            )
+            code = row.get("species_code", "").strip()
+            if not code:
+                if names is not None:
+                    from pgci_preprocess.species_codegen import derive_code
+
+                    if show_id in names.by_show_id:
+                        code = names.code_for(show_id, latin_name=species_name)
+                    elif species_name:
+                        code = derive_code(species_name, taken_codes)
+                    else:
+                        code = f"s{show_id}"
+                else:
+                    code = f"s{show_id}"
+            taken_codes.add(code.casefold())
             species.append(
                 SpeciesInput(
                     show_id=show_id,

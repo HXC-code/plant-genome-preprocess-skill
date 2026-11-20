@@ -165,11 +165,29 @@ def resolve_species_code(
     *,
     latin_name: str = "",
     explicit_path: Path | str | None = None,
+    occupied: set[str] | None = None,
 ) -> str:
+    """Return the code for ``show_id``.
+
+    A row in ``species_abbreviations.tsv`` always wins, so existing projects
+    keep the codes their artifacts already use.  For a species without a row
+    the code is derived from the Latin binomial (genus initial + two epithet
+    letters, widening to three/four letters when the shorter codes are taken),
+    avoiding every code already present in the table or in ``occupied``.
+    """
+
+    from pgci_preprocess.species_codegen import derive_code
+
     names = load_species_names(project_root, explicit_path=explicit_path)
-    if names is None:
-        return f"s{show_id}"
-    return names.code_for(show_id, latin_name=latin_name)
+    taken = {str(code).casefold() for code in (occupied or set())}
+    if names is not None:
+        entry = names.by_show_id.get(str(show_id).strip())
+        if entry is not None:
+            return entry.abbreviation
+        taken |= set(names.by_code)
+    if latin_name:
+        return derive_code(latin_name, taken)
+    return f"s{show_id}"
 
 
 def resolve_show_ids(
