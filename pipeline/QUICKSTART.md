@@ -94,6 +94,11 @@ python -m pgci_preprocess init-project `
   --species-names .\resources\species_abbreviations.tsv
 ```
 
+两个参数可以省：
+
+- `--assembly-id`：不写时从 genome 文件名推断（`GWHERCC00000000.genome.fasta.gz` → `GWHERCC00000000`，NCBI 的 `GCF_xxx.x_..._genomic.fna.gz` 保留版本号）。
+- `--species-names`：不写或指向项目内尚未生成的路径时，自动使用包内 `resources/species_abbreviations.tsv`（show_id 在表里才套用缩写，否则保留 `s<show_id>`）。
+
 批量模式：把 `data/downloads` 放好，写 `resources/download_inventory.tsv`，然后 `prepare`。
 
 ---

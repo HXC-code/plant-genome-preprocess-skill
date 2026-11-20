@@ -135,6 +135,39 @@ def _mirror(source: Path, destination: Path) -> str:
     return transfer
 
 
+_ASSEMBLY_EXTENSIONS = (
+    ".genome.fasta",
+    ".genome.fa",
+    ".genome.fna",
+    ".genome.fas",
+    ".fasta",
+    ".fa",
+    ".fna",
+    ".fas",
+)
+
+
+def _infer_assembly_id(genome: Path | str) -> str:
+    """Derive an assembly id from the genome file name when the user omits one.
+
+    ``GWHBHAK00000000.genome.fasta.gz`` -> ``GWHBHAK00000000`` and
+    ``GCF_000001.1_ASM123v1_genomic.fna.gz`` keeps its versioned accession.
+    Returns an empty string when nothing sensible can be derived, so the caller
+    still reports the explicit error.
+    """
+
+    name = Path(str(genome)).name
+    for compression in (".gz", ".bz2", ".xz"):
+        if name.lower().endswith(compression):
+            name = name[: -len(compression)]
+    lowered = name.lower()
+    for extension in _ASSEMBLY_EXTENSIONS:
+        if lowered.endswith(extension):
+            name = name[: -len(extension)]
+            break
+    return name.strip()
+
+
 def init_project(
     project_root: Path | str,
     *,
@@ -195,7 +228,13 @@ def init_project(
     if configured_names is not None:
         source_names = configured_names
         if not source_names.is_file():
-            raise ProjectInitError(f"species abbreviation table not found: {source_names}")
+            # 用户把 --species-names 指向“项目内尚未生成的路径”时，回落到包内自带的表，
+            # 否则第一次建项目会直接报“找不到表”。
+            bundled_fallback = BUNDLED_RESOURCES / "species_abbreviations.tsv"
+            if bundled_fallback.is_file():
+                source_names = bundled_fallback
+            else:
+                raise ProjectInitError(f"species abbreviation table not found: {source_names}")
         destination_names = resources / "species_abbreviations.tsv"
         if destination_names.exists():
             if _sha256(destination_names) != _sha256(source_names):
@@ -224,6 +263,8 @@ def init_project(
     scientific_name = _safe_component(scientific_name, "scientific_name")
     order = _safe_component(order, "order")
     family = _safe_component(family, "family")
+    if not str(assembly_id).strip() and "genome" in sources:
+        assembly_id = _infer_assembly_id(sources["genome"])
     assembly_id = _clean_field(assembly_id, "assembly_id")
     species_code = resolve_species_code(
         root,

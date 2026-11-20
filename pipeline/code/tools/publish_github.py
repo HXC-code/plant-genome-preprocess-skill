@@ -89,18 +89,43 @@ def request(token: str, method: str, url: str, payload: dict | None = None) -> d
         raise SystemExit(f"{method} {url} -> {exc.code}: {detail}") from exc
 
 
+def has_ref(token: str, owner: str, name: str, branch: str) -> bool:
+    try:
+        request(token, "GET", f"{API}/repos/{owner}/{name}/git/ref/heads/{branch}")
+        return True
+    except SystemExit:
+        return False
+
+
+def seed_empty_repo(token: str, owner: str, name: str, branch: str) -> None:
+    """An empty repository rejects blob creation with 409; seed one commit."""
+    content = base64.b64encode(b"# seed\n").decode()
+    request(token, "PUT", f"{API}/repos/{owner}/{name}/contents/README.md", {
+        "message": "chore: initialize repository", "content": content, "branch": branch,
+    })
+    for _ in range(10):
+        if has_ref(token, owner, name, branch):
+            return
+        time.sleep(1)
+
+
 def ensure_repo(token: str, owner: str, name: str, description: str, private: bool) -> str:
     try:
         info = request(token, "GET", f"{API}/repos/{owner}/{name}")
     except SystemExit:
         info = None
     if info:
-        return info["default_branch"]
+        branch = info.get("default_branch") or "main"
+        if not has_ref(token, owner, name, branch):
+            seed_empty_repo(token, owner, name, branch)
+        return branch
     created = request(token, "POST", f"{API}/user/repos", {
         "name": name, "description": description, "private": private, "auto_init": False,
     })
     time.sleep(2)
-    return created.get("default_branch", "main")
+    branch = created.get("default_branch") or "main"
+    seed_empty_repo(token, owner, name, branch)
+    return branch
 
 
 def push_tree(token: str, owner: str, repo: str, branch: str, files: list[tuple[str, Path]], message: str) -> str:

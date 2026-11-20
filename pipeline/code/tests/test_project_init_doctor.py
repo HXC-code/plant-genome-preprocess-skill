@@ -176,3 +176,44 @@ def test_init_and_doctor_cli_blackbox(tmp_path: Path) -> None:
     assert doctor.returncode == 0, doctor.stderr
     assert json.loads(doctor.stdout)["counts"]["FAIL"] == 0
     assert json.loads((root / "doctor.json").read_text(encoding="utf-8"))["status"] in {"PASS", "WARN"}
+
+
+def test_init_falls_back_to_bundled_table_when_explicit_path_missing(tmp_path: Path) -> None:
+    """First-time projects often point --species-names at the not-yet-created file."""
+
+    root = tmp_path / "fallback-project"
+    result = init_project(
+        root,
+        show_id="1126",
+        scientific_name="Cercis chinensis",
+        order="Fabales",
+        family="Fabaceae",
+        assembly_id="GWHBHAK00000000",
+        sources=_sources(tmp_path),
+        species_names_path=root / "resources" / "species_abbreviations.tsv",
+    )
+    assert (root / "resources" / "species_abbreviations.tsv").is_file()
+    assert result.species_code == "Cci"
+
+
+def test_init_infers_assembly_id_from_genome_file_name(tmp_path: Path) -> None:
+    source = tmp_path / "raw"
+    source.mkdir()
+    genome = source / "GWHBHAK00000000.genome.fasta.gz"
+    genome.write_text(">chr1\nACGTACGT\n", encoding="utf-8")
+    gff = source / "GWHBHAK00000000.gff"
+    gff.write_text("##gff-version 3\n", encoding="utf-8")
+    cds = source / "GWHBHAK00000000.CDS.fasta"
+    cds.write_text(">t1\nACGT\n", encoding="utf-8")
+    pep = source / "GWHBHAK00000000.Protein.faa"
+    pep.write_text(">t1\nMT\n", encoding="utf-8")
+    result = init_project(
+        tmp_path / "inferred-project",
+        show_id="1126",
+        scientific_name="Cercis chinensis",
+        order="Fabales",
+        family="Fabaceae",
+        sources={"genome": genome, "gff": gff, "cds": cds, "pep": pep},
+    )
+    species = discover_species(result.project_root)
+    assert species[0].assembly_id == "GWHBHAK00000000"
