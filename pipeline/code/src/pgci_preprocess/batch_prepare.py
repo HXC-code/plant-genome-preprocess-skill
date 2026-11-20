@@ -27,6 +27,7 @@ from pgci_preprocess.sequence_extract import (
 )
 from pgci_preprocess.species_names import (
     legacy_species_code,
+    load_species_names,
     resolve_species_code,
 )
 
@@ -446,6 +447,8 @@ def prepare_batch(
         raise BatchPreparationError(f"status table missing columns: {', '.join(missing_columns)}")
 
     processed = _discover_processed(project_root)
+    names_catalog = load_species_names(project_root, explicit_path=species_names_path)
+    taken_codes = set(names_catalog.by_code) if names_catalog is not None else set()
     candidates: list[dict[str, str]] = []
     for row in status_rows:
         show_id = str(row.get("show_id", "")).strip()
@@ -456,7 +459,9 @@ def prepare_batch(
             show_id,
             latin_name=str(row.get("Species", "")),
             explicit_path=species_names_path,
+            occupied=taken_codes,
         )
+        taken_codes.add(species_code.casefold())
         if species_code in processed or legacy_species_code(show_id) in processed:
             continue
         candidates.append(row)
@@ -483,13 +488,21 @@ def prepare_batch(
     inventory_by_id = {row.get("showid", ""): row for row in inventory_rows}
     for inventory_row in inventory_rows:
         inventory_show_id = str(inventory_row.get("showid", "")).strip()
-        if inventory_show_id:
-            inventory_row["species_code"] = resolve_species_code(
-                project_root,
-                inventory_show_id,
-                latin_name=str(inventory_row.get("Species", "")),
-                explicit_path=species_names_path,
-            )
+        if not inventory_show_id:
+            continue
+        existing_code = str(inventory_row.get("species_code", "")).strip()
+        if existing_code:
+            taken_codes.add(existing_code.casefold())
+            continue
+        code = resolve_species_code(
+            project_root,
+            inventory_show_id,
+            latin_name=str(inventory_row.get("Species", "")),
+            explicit_path=species_names_path,
+            occupied=taken_codes,
+        )
+        inventory_row["species_code"] = code
+        taken_codes.add(code.casefold())
     assembly_map_path = project_root / "resources" / "assembly_accessions.tsv"
     assembly_fields, assembly_rows = (
         _read_tsv(assembly_map_path)
@@ -512,7 +525,9 @@ def prepare_batch(
             show_id,
             latin_name=species,
             explicit_path=species_names_path,
+            occupied=taken_codes,
         )
+        taken_codes.add(species_code.casefold())
         source_folder = Path(row["folder"]).resolve()
         if not source_folder.is_dir():
             raise BatchPreparationError(f"s{show_id}: species folder missing: {source_folder}")
