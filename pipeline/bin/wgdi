@@ -1,0 +1,85 @@
+#!/usr/bin/env bash
+# Portable WGDI launcher for this workflow repository.
+#
+# Python resolution order:
+#   1. $WGDI_PYTHON (explicit interpreter, e.g. a conda env or venv)
+#   2. ./.wgdi-env/Scripts/python.exe (Windows venv) or ./.wgdi-env/bin/python
+#   3. python3 / python on PATH, accepted only when it can import wgdi
+#
+# Perl is only required by PAML yn00 (-ks).  $WGDI_PERL_BIN (or the folder that
+# contains perl.exe) is prepended to PATH when set; otherwise perl is used from
+# PATH.
+set -euo pipefail
+
+project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+mpl_config="${TMPDIR:-/tmp}/hxc-wgdi-mpl-${USER:-user}"
+mkdir -p "$mpl_config"
+
+export PYTHONPATH="$project_root/vendor${PYTHONPATH:+:$PYTHONPATH}"
+export MPLBACKEND="Agg"
+export MPLCONFIGDIR="$mpl_config"
+
+can_import_wgdi() {
+    "$1" -c "import wgdi" >/dev/null 2>&1
+}
+
+wgdi_python="${WGDI_PYTHON:-}"
+if [[ -z "$wgdi_python" ]]; then
+    for candidate in \
+        "$project_root/.wgdi-env/Scripts/python.exe" \
+        "$project_root/.wgdi-env/bin/python" \
+        "$project_root/.venv/Scripts/python.exe" \
+        "$project_root/.venv/bin/python"; do
+        if [[ -f "$candidate" ]] && can_import_wgdi "$candidate"; then
+            wgdi_python="$candidate"
+            break
+        fi
+    done
+fi
+if [[ -z "$wgdi_python" && -f "$project_root/.wgdi_python" ]]; then
+    wgdi_python="$(head -n 1 "$project_root/.wgdi_python" | tr -d '\r')"
+    if [[ ! -f "$wgdi_python" ]] && ! command -v "$wgdi_python" >/dev/null 2>&1; then
+        echo "错误：.wgdi_python 指向的 Python 不存在：$wgdi_python" >&2
+        exit 1
+    fi
+fi
+if [[ -z "$wgdi_python" ]]; then
+    for candidate in python3 python; do
+        if command -v "$candidate" >/dev/null 2>&1 && can_import_wgdi "$candidate"; then
+            wgdi_python="$(command -v "$candidate")"
+            break
+        fi
+    done
+fi
+if [[ -z "$wgdi_python" ]]; then
+    cat >&2 <<'EOF'
+错误：找不到可用的 WGDI Python 环境。
+请任选其一：
+  1) 运行仓库内的 bootstrap 脚本安装到 .wgdi-env：
+       bash bootstrap_wgdi.sh          # Linux / macOS / Git Bash
+       powershell -File bootstrap_wgdi.ps1   # Windows PowerShell
+  2) 设置 WGDI_PYTHON 指向已安装 wgdi 的 python。
+EOF
+    exit 1
+fi
+if ! can_import_wgdi "$wgdi_python"; then
+    echo "错误：$wgdi_python 无法 import wgdi；请设置 WGDI_PYTHON 或重新运行 bootstrap_wgdi。" >&2
+    exit 1
+fi
+
+wgdi_perl_bin="${WGDI_PERL_BIN:-}"
+if [[ -z "$wgdi_perl_bin" && -d "$project_root/.wgdi-env/Library/bin" ]]; then
+    wgdi_perl_bin="$project_root/.wgdi-env/Library/bin"
+fi
+if [[ -n "$wgdi_perl_bin" && -d "$wgdi_perl_bin" ]]; then
+    export PATH="$wgdi_perl_bin:$PATH"
+fi
+if [[ -n "${WGDI_PERL5LIB:-}" ]]; then
+    export PERL5LIB="$WGDI_PERL5LIB${PERL5LIB:+:$PERL5LIB}"
+fi
+export LC_ALL=C
+export LANG=C
+
+# 通过 wgdi_entry.py 启动：在进程内注入 matplotlib 兼容补丁(cm.get_cmap)，
+# 兼容 matplotlib 3.11（wgdi 0.75 的 block_ks.py 用了已移除的 cm.get_cmap）。
+exec "$wgdi_python" -u "$project_root/bin/wgdi_entry.py" "$@"

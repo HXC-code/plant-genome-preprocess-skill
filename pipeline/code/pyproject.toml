@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pgci-preprocess"
+version = "3.4.1"
+description = "Reproducible plant genome annotation normalization and WGDI input validation"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+gbff = ["biopython>=1.83"]
+test = ["pytest>=8", "biopython>=1.83"]
+
+[project.scripts]
+pgci-preprocess = "pgci_preprocess.cli:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["pgci_preprocess*"]
+exclude = ["pgci_preprocess.bak*", "pgci_preprocess.*.bak*"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+addopts = "-ra"
+

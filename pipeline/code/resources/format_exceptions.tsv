@@ -1,0 +1,3 @@
+show_id	merge_split_genes	gene_span_only	gene_cds_direct	reason
+4200	N	Y	N	gene-only GFF: one representative transcript per gene, protein id equals gene id
+5630	Y	N	Y	NCBI segmented gene rows and CDS parented directly to gene rows; see current14 report
