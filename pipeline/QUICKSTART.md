@@ -237,5 +237,5 @@ python code/tools/build_synthetic_wgdi_smoke.py `
 bash code/tools/run_wgdi_smoke.sh $env:TEMP\plant-genome-smoke
 ```
 
-发布门禁和已通过的 3.5.2 回执见 `VALIDATION.md` 与 `validation/`。
-可直接交接的压缩包为 `dist/plant-genome-preprocess-v3.5.2.zip`。
+发布门禁和已通过的 3.5.3 回执见 `VALIDATION.md` 与 `validation/`。
+可直接交接的压缩包为 `dist/plant-genome-preprocess-v3.5.3.zip`。

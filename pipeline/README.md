@@ -185,7 +185,7 @@ validation gate. WGDI itself is installed from the pinned requirements file;
 the repository no longer contains a second copy of the WGDI source tree.
 
 The prepared handoff archive is
-`dist/plant-genome-preprocess-v3.5.2.zip`. Release archives ship LF shell
+`dist/plant-genome-preprocess-v3.5.3.zip`. Release archives ship LF shell
 scripts (`.gitattributes` + builder normalization), so they run unchanged on
 Linux/WSL as well as Windows Git Bash.
 

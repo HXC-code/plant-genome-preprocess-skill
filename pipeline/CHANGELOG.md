@@ -1,5 +1,14 @@
 # Changelog
 
+## 3.5.3 — 2026-11-21
+
+- Pinned Ruff 0.12.0 and Mypy 1.17.1 in both program and Skill CI so newer
+  default lint rules cannot make previously passing commits fail without a
+  deliberate repository change.
+- Declared the accepted Python lint rule set explicitly in `pyproject.toml`.
+- Forced UTF-8 mode in every shell wrapper that forwards to Python, fixing
+  Windows cp1252 failures in `0check_data.sh` and related entry points.
+
 ## 3.5.2 — 2026-11-21
 
 - Added a strict-LF Linux/WSL full-chain smoke and versioned Linux receipt.

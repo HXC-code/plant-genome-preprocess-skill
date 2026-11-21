@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Thin orchestration wrapper for the Python preprocessor and validator.
 set -euo pipefail
+export PYTHONUTF8=1
+export PYTHONIOENCODING=utf-8
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 PROJECT_ROOT="$SCRIPT_DIR"

@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Run an isolated fixture through DIAMOND and the existing 2-6 WGDI scripts.
 set -euo pipefail
+export PYTHONUTF8=1
+export PYTHONIOENCODING=utf-8
 
 if [[ $# -ne 1 ]]; then
     echo "用法：bash tools/run_wgdi_smoke.sh /absolute/path/to/smoke_wgdi" >&2

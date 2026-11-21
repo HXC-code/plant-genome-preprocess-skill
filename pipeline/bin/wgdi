@@ -10,6 +10,8 @@
 # contains perl.exe) is prepended to PATH when set; otherwise perl is used from
 # PATH.
 set -euo pipefail
+export PYTHONUTF8=1
+export PYTHONIOENCODING=utf-8
 
 project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 mpl_config="${TMPDIR:-/tmp}/hxc-wgdi-mpl-${USER:-user}"

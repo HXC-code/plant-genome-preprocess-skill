@@ -70,8 +70,8 @@ def test_compatibility_wrappers_share_one_implementation() -> None:
     assert "--mode different" in different
     assert "generate_wgdi_configs.py" in same
     assert "--mode same" in same
-    assert len(different.splitlines()) <= 7
-    assert len(same.splitlines()) <= 7
+    assert len(different.splitlines()) <= 9
+    assert len(same.splitlines()) <= 9
 
 
 def test_different_config_is_generated_once_and_removes_tandem(

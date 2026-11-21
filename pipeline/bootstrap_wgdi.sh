@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
+export PYTHONUTF8=1
+export PYTHONIOENCODING=utf-8
 project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 python_bin="${PYTHON:-python}"
 args=("$project_root/code/tools/bootstrap_wgdi.py" --project-root "$project_root")

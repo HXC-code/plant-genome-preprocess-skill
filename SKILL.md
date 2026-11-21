@@ -138,7 +138,7 @@ python -m pytest -q                     # 161 个用例；临时目录受限时�
 - WGDI 使用固定 `wgdi==0.75` 上游包；`bin/wgdi_entry.py` 只维护必要的兼容补丁。
 - PAL2NAL v14 不随 Skill 或发布 ZIP 分发。`bootstrap_wgdi` 会运行
   `code/tools/install_pal2nal.py`，从官方站点下载并校验 SHA-256。
-- `validation/smoke-report-3.5.2.json` 是 Windows 四组比较 PASS 回执；
+- `validation/smoke-report-3.5.3.json` 是 Windows 四组比较 PASS 回执；
   `smoke-report-3.5.2-linux.json` 是 WSL/Linux 四组比较 PASS 回执。
 - `validation/real-species-3.5.2.json` 记录真实 RefSeq 拟南芥两物种的清洗、
   校验、命名、QC 和真实种间子集 WGDI 验证。

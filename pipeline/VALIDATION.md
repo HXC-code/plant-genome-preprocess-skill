@@ -50,7 +50,7 @@ Build and inspect a source release:
 
 ```powershell
 python code/tools/build_release_package.py `
-  --output dist/plant-genome-preprocess-v3.5.2.zip
+  --output dist/plant-genome-preprocess-v3.5.3.zip
 ```
 
 The ZIP includes its own `PACKAGE_SHA256.tsv`; the build command prints the
@@ -76,7 +76,7 @@ derived real-data smoke can additionally be built with
 
 ## Current status
 
-On 2026-11-21 version 3.5.2 passed:
+On 2026-11-21 version 3.5.3 passed:
 
 - Windows synthetic full-chain smoke: four comparisons, eight products each.
 - Linux/WSL strict-LF synthetic full-chain smoke: four comparisons, eight
@@ -106,7 +106,7 @@ inference. The real-species receipt is a preprocessing/data-integrity and
 real-subset execution acceptance. It is not a BUSCO lineage assessment or a
 full-proteome biological WGD conclusion. See:
 
-- `validation/smoke-report-3.5.2.json`
+- `validation/smoke-report-3.5.3.json`
 - `validation/smoke-report-3.5.2-linux.json`
 - `validation/real-species-cross-3.5.2.json`
 - `validation/real-species-3.5.2.json`
