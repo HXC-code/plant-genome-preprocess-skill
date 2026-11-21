@@ -17,7 +17,6 @@ import argparse
 import csv
 import os
 import re
-import sys
 import uuid
 from pathlib import Path
 

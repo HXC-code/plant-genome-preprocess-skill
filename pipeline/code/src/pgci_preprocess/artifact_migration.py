@@ -257,7 +257,7 @@ def _repair_gff_columns(path: Path, code: str) -> int:
             raise NamingViolation(
                 f"{path}: cannot rebuild gene ID from {raw[:60]!r}"
             )
-        gene_id = f"{code}{sequence}g{int(order_field):04d}".encode()
+        gene_id = f"{code}{sequence.decode('ascii')}g{int(order_field):04d}".encode()
         ending = b"\r\n" if raw.endswith(b"\r\n") else b"\n"
         lines[index] = b"\t".join([sequence, gene_id, *fields[1:]]) + ending
         changed += 1
@@ -552,7 +552,7 @@ def migrate_artifacts(
         if not has_legacy and not canonical_complete:
             continue
         if not has_legacy and canonical_complete:
-            problems = []
+            problems: list[str] = []
             for layer, required in (
                 ("clean_v2", CLEAN_REQUIRED_SUFFIXES),
                 ("analysis_v2", ANALYSIS_REQUIRED_SUFFIXES),

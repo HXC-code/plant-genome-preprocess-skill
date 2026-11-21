@@ -127,5 +127,6 @@ python -m pytest -q                     # 151 个用例；临时目录受限时�
 ## 交接与复现
 
 - 发布包结构、0–6 步细节见 `pipeline/QUICKSTART.md`。
+- CI 在 push / PR 时跑 `pytest`、`ruff`、`mypy`，并检查 `pipeline/` 与 canonical 仓库一致；代码变更先在 canonical 仓库落地再同步。
 - 预处理只产出 WGDI 输入，不跑 BLAST/WGDI 本身；4–6 步用 `vendor/wgdi` shim 兼容旧调用。
 - 所有中间产物可删：`analysis_v2/<Abbr>/` 是唯一权威输出，`clean_v2` 是清洗记录，根下 `<Abbr>/` 只是兼容链接。

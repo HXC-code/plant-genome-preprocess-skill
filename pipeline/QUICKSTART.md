@@ -199,7 +199,7 @@ bash 6run_wgdi.sh
 | `doctor` 报 diamond/blastp FAIL | 装工具并加入 PATH，或用 `-BioinfoBin` / `DIAMOND` / `BLASTP` 环境变量 |
 | Windows 路径过长报错 | 项目与临时目录尽量短（<250 字符），或把项目放到盘符根下 |
 | 迁移中断后目录里混着新旧文件名 | 重跑 `migrate-artifacts`（幂等，会补齐 `>` 头、GFF 列与基因 ID） |
-| `pytest` 报 `PermissionError: ...\Temp\pytest-of-*` | 系统临时目录不可写：加 `--basetemp=D:\pt`（目录要短） |
+| `pytest` 报 `PermissionError: ...\Temp\pytest-of-*` | 测试会自动检测默认临时目录是否可写并重定向；也可显式加 `--basetemp=<short-path>` |
 | GBFF 转换报 `extracted CDS and translation qualifier are inconsistent` | 真实 NCBI 文件个别 CDS 与 `/translation` 不一致；默认严格中止，Python API 传 `convert_gbff_to_bundle(..., strict_translation=False)` 可跳过并计数 |
 
 ---

@@ -208,9 +208,16 @@ gene_cds_direct   CDS 直接挂在 gene 上
 发行包副本由 canonical 源同步，不允许手工维护：
 
 ```powershell
+# 旧式 skill-packages/scripts 布局
 python tools/sync_skill_package.py --check
 python tools/sync_skill_package.py
+
+# 发布用的 Skill 仓库镜像（整棵 pipeline/ 树）
+python tools/sync_skill_package.py --pipeline-target <skill-repo>/pipeline --check
+python tools/sync_skill_package.py --pipeline-target <skill-repo>/pipeline
 ```
+
+两个仓库的 GitHub Actions 会在 push / PR 时跑 `pytest`、`ruff`、`mypy`，Skill 仓库还会做上面的镜像漂移检查。
 
 ## 额外格式转换（v2.2.0）
 
@@ -375,7 +382,7 @@ WGDI 配置中的 CDS、PEP、GFF 和 lens 应使用同一套筛选集：
 
 ## 环境注意事项（2026-11-20 实测）
 
-- **pytest 临时目录**：`tests/conftest.py` 会在 basetemp 路径超过 90 字符时自动重定向到短临时根并打印 `PytestWarning`（Windows 传统 260 字符限制下，深层路径会出现"目录建了、文件写不进"的假失败）。仍建议直接使用 `<short-temp-path>` 这类短路径。
+- **pytest 临时目录**：`tests/conftest.py` 在 basetemp 超过 90 字符或默认临时目录不可写时自动重定向到短临时根并打印 `PytestWarning`（Windows 传统 260 字符限制与过期 ACL 会造成大批量假失败）。仍可显式用 `--basetemp=<short-temp-path>`。
 - **Windows 长路径守卫**：`run` 遇到物种目录/输入/输出路径超过 250 字符时返回 `FAIL path_too_long_for_windows`（detail 给出整改建议），不再抛出裸 `FileNotFoundError`。
 - **GFF 结构错误语义**：`GffFormatError` 统一转为 `FAIL gff_format_error`（不再以 `ERROR` 跳过统计）；原始 GTF/GBFF 直接进 run 则返回 `FAIL conversion_required` 并附可执行 `convert-annotation` 命令。
 - **Biopython**：仅 GBFF 转换需要 `biopython>=1.83`；`doctor` 会扫描当前解释器、PATH 上的 `python/python3/py` 以及 `PGCI_PYTHON_CANDIDATES`（`;` 分隔）并列出可用的解释器版本。

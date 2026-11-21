@@ -1,0 +1,39 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout skill package
+        uses: actions/checkout@v4
+        with:
+          path: skill
+      - name: Checkout canonical source
+        uses: actions/checkout@v4
+        with:
+          repository: HXC-code/plant-genome-preprocess
+          path: main
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install package and checks
+        working-directory: skill/pipeline/code
+        run: python -m pip install -e ".[test]" ruff mypy
+      - name: pytest
+        working-directory: skill/pipeline/code
+        run: python -m pytest -q
+      - name: ruff
+        working-directory: skill/pipeline/code
+        run: python -m ruff check src tests scripts tools
+      - name: mypy
+        working-directory: skill/pipeline/code
+        run: python -m mypy src --ignore-missing-imports
+      - name: Skill mirror drift check
+        working-directory: main/code
+        run: python tools/sync_skill_package.py --pipeline-target ../../skill/pipeline --check

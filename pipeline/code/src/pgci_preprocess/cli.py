@@ -777,7 +777,9 @@ def _cmd_migrate_artifacts(args: argparse.Namespace) -> int:
     if args.json:
         print(json.dumps(payload, ensure_ascii=False, indent=2))
     else:
-        counts = payload["species_counts"]
+        counts: dict[str, int] = {}
+        for item in result.species:
+            counts[item.status] = counts.get(item.status, 0) + 1
         print("artifact naming migration")
         for status, count in sorted(counts.items()):
             print(f"  {status}: {count}")
