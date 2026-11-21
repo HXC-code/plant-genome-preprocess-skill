@@ -47,7 +47,12 @@ IGNORED_PARTS = {
 
 
 def _is_ignored(path: Path) -> bool:
-    return any(part in IGNORED_PARTS for part in path.parts)
+    return any(
+        part in IGNORED_PARTS
+        or part.endswith(".egg-info")
+        or part.endswith(".dist-info")
+        for part in path.parts
+    )
 DEFAULT_TARGET = (
     PROJECT_ROOT.parent
     / "skill-packages"

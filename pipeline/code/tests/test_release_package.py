@@ -121,6 +121,9 @@ def test_skill_mirror_uses_the_same_shared_wrappers(tmp_path: Path) -> None:
     mypy_cache = pipeline / "code" / ".mypy_cache"
     mypy_cache.mkdir()
     (mypy_cache / "probe.json").write_text("{}", encoding="utf-8")
+    egg_info = pipeline / "code" / "src" / "pgci_preprocess.egg-info"
+    egg_info.mkdir()
+    (egg_info / "PKG-INFO").write_text("metadata\n", encoding="utf-8")
     check = subprocess.run(
         [sys.executable, str(SYNC), "--pipeline-target", str(pipeline), "--check"],
         text=True,
@@ -139,6 +142,7 @@ def test_skill_mirror_uses_the_same_shared_wrappers(tmp_path: Path) -> None:
     assert resync.returncode == 0, resync.stdout + resync.stderr
     assert (cache / "lastfailed").is_file()
     assert (mypy_cache / "probe.json").is_file()
+    assert (egg_info / "PKG-INFO").is_file()
 
 
 def test_release_normalizes_crlf_shell_scripts_even_from_windows_checkout(
