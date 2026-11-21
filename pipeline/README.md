@@ -10,9 +10,9 @@ DIAMOND/BLAST、共线性、block-Ks 和 Ks-peak 执行链。
 ```
 
 同时生成来源映射、染色体映射、剔除记录、QC、物种索引、哈希清单和命名审计。
-当前版本为 **3.5.4**。
+当前版本为 **3.5.5**。
 
-- [发布包](https://github.com/HXC-code/plant-genome-preprocess/releases/tag/v3.5.4)
+- [发布包](https://github.com/HXC-code/plant-genome-preprocess/releases/tag/v3.5.5)
 - [完整快速上手](QUICKSTART.md)
 - [验证与发布门禁](VALIDATION.md)
 - [Agent Skill 仓库](https://github.com/HXC-code/plant-genome-preprocess-skill)
@@ -34,6 +34,20 @@ DIAMOND/BLAST、共线性、block-Ks 和 Ks-peak 执行链。
 
 若作为论文或社区工具推广，较合适的形态是 software/tool 类工作。当前仍包含实验室
 目录和命名资源，并需要更广泛的物种与平台验证，才能进一步成为通用社区工具。
+
+## 3.5.5 更新
+
+- 新增植物线粒体核心基因识别：对合成 region 检测多个不同的
+  `nad/cob/cox/atp/matR/mttB/ccm` 基因家族，不再套用只适合叶绿体的
+  “小、密、无内含子”假设。
+- 新参数 `--organelle-mt-min-genes` 控制自动排除所需的线粒体核心基因家族数。
+- 只有部分线粒体证据的 region 进入 `review_candidates`，不会被静默排除。
+- 对于基因 ID 完全匿名、没有参考相似度的大而稀疏线粒体 scaffold，工具仍不猜测；
+  QC 的 `organelle_inference.limits` 会明确记录该边界。
+- 新增 `pgci_preprocess readiness` 作为 readiness 的唯一权威读取入口；
+  `validate`、`run_homology.sh` 和 Windows 总控共享同一结构解析逻辑。
+- `6run_wgdi.sh` 新增 8 个 WGDI 产物的内容完整性检查：PNG 魔数、Ks 表头、
+  共线性块和 block-info CSV 表头；截断但非空的文件不再视为完成。
 
 ## 3.5.4 修复的问题
 
@@ -241,6 +255,8 @@ python -m pgci_preprocess batch `
 | `convert-annotation` | 单独转换 GTF、GBFF 或功能 GO 表，不修改原始输入 |
 | `run` | 执行一基因一代表转录本预处理和主序列选择 |
 | `validate` | 校验 index、QC、ID 集合、lens、SHA-256 和兼容链接；`wgdi_ready=no` 默认判 FAIL |
+| `readiness` | 从 QC/index 结构化读取物种准备度，作为各入口共用的权威门禁 |
+| `check-wgdi-outputs` | 检查一个比较目录中 8 个 WGDI 产物的结构和截断 |
 | `batch` | 串联 prepare、可选 normalize 和 run、validate |
 | `audit` | 汇总物种、输入后缀、`wgdi_ready` 分布和失败项目 |
 | `source-manifest build` | 从 index、QC 和修复表生成冻结的来源清单 |
@@ -470,6 +486,15 @@ python code/tools/install_pal2nal.py
 
 ## 验证记录
 
+3.5.5 验证覆盖：
+
+- Python 自动化测试 **188** 项通过；
+- 植物线粒体核心基因识别、readiness 单一权威源和 WGDI 产物完整性检查的测试通过；
+- Windows 合成数据完整 WGDI 链通过，四组比较每组检查 8 个关键产物
+  （`validation/smoke-report-3.5.5.json`）；
+- 运行环境：Python 3.13.9、pandas 2.3.3、WGDI 0.75；
+- Ruff、Mypy 通过。
+
 3.5.4 验证覆盖：
 
 - Python 自动化测试 **172** 项通过；
@@ -495,6 +520,7 @@ python code/tools/install_pal2nal.py
 回执位于：
 
 ```text
+validation/smoke-report-3.5.5.json
 validation/smoke-report-3.5.4.json
 validation/smoke-report-3.5.3.json
 validation/smoke-report-3.5.2-linux.json
@@ -504,14 +530,29 @@ validation/real-species-3.5.2.json
 
 发布门禁和运行环境记录见 [VALIDATION.md](VALIDATION.md)。
 
-## 能力边界
+## 当前不足与适用边界
 
-- 合成数据 smoke 验证执行链和工具兼容性；真实物种子集验证预处理和跨物种执行。
-- 当前验证不包含 BUSCO lineage 完整性检查。
-- 当前真实 WGDI 验证为 chromosome-level 子集，完整全蛋白组生物学 WGD 结论需要
-  对目标物种全集单独运行和分析。
-- DIAMOND/BLAST、WGDI、MUSCLE、PAML、Perl 和 PAL2NAL 均作为独立外部工具安装。
-- 项目源代码使用 [MIT License](LICENSE)；外部工具和数据的许可独立适用。
+以下限制是当前版本的已知边界。它们不否定已经通过的数据处理和执行验证，但意味着
+`PASS`、`ready=yes` 或四件套齐全不能直接解释为组装完整或 WGD 结论可信。
+
+| 类别 | 当前不足 |
+| --- | --- |
+| 细胞器识别 | 叶绿体、明确命名或含多个线粒体核心基因的合成 region 可推断；基因 ID 完全匿名、缺少参考相似度的大而稀疏线粒体仍可能漏判。此类序列需要 `--organelle-pattern` 或人工复核 |
+| 代表转录本 | 当前按最长蛋白、最长 CDS 和稳定 ID 选择，尚未优先使用注释自带的 primary/canonical 标记，也没有表达或 NMD 证据 |
+| 多倍体与杂合 | 尚未建模等位 contig、homeolog 和亚基因组；多倍体或高杂合数据可能被通用去重和拒绝规则错误压缩 |
+| readiness 与组装质量 | `wgdi_ready` 只衡量当前筛选集的基因保留率，不包含 BUSCO 或独立组装完整性证据；`--max-sequences` 还可能限制碎片化组装的序列覆盖 |
+| 阈值可配置性 | 部分 readiness 和细胞器阈值仍是内部默认值，缺少统一的配置来源、版本和依据说明 |
+| 续跑与版本迁移 | 3.5.5 已校验 8 个 WGDI 产物的常见截断/结构错误；仍无阶段级哈希链，QC 版本变化也可能触发大范围重算而非增量迁移 |
+| 规模与超时 | 批处理和 WGDI 阶段以串行为主；真实全蛋白组 Ks 可能超过当前超时，尚无集群编排和细粒度恢复 |
+| 输入覆盖 | 工具从注释开始，不负责对仅有 assembly 的物种运行 Liftoff/BRAKER/Helixer；41/77 的试点覆盖只代表有完整注释的部分 |
+| 验证深度 | 自动化测试以合成数据和有限真实物种为主；多倍体、高杂合、复杂线粒体等硬案例仍缺少带 ground truth 的生物学验收 |
+| 灰度状态 | 当前使用 rejected、`review_candidates` 和 readiness 等级，但尚未提供经过校准的置信度或“存疑但纳入”证据层 |
+| 科学解释 | 工具止于数据准备、执行和证据记录；Ks 峰解释、WGD 定年、速率异质性、饱和校正和 NG86/YN00 取舍仍由专家判断 |
+
+合成 smoke 验证执行链和工具兼容性；真实物种子集验证预处理和跨物种执行。当前真实
+WGDI 验证为 chromosome-level 子集，完整全蛋白组生物学 WGD 结论需要在目标物种全集上
+单独运行并由专家解释。DIAMOND/BLAST、WGDI、MUSCLE、PAML、Perl 和 PAL2NAL 均作为
+独立外部工具安装，其许可独立适用；项目源代码使用 [MIT License](LICENSE)。
 
 ## Skill 包
 

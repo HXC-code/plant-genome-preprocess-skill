@@ -76,7 +76,25 @@ resolve_tool() {
     fi
 }
 
-species_readiness() {
+resolve_python() {
+    if [[ -n "${PYTHON:-}" ]]; then
+        printf '%s\n' "$PYTHON"
+        return 0
+    fi
+    command -v python 2>/dev/null || command -v python3 2>/dev/null || true
+}
+
+species_readiness_via_python() {
+    local species_id="$1" py out
+    py="$(resolve_python)"
+    [[ -n "$py" ]] || return 1
+    out="$(PYTHONPATH="$project_root/code/src${PYTHONPATH:+:$PYTHONPATH}" \
+        "$py" -m pgci_preprocess readiness \
+        --project-root "$project_root" --species "$species_id" 2>/dev/null)" || return 1
+    printf '%s\n' "${out#*$'\t'}"
+}
+
+species_readiness_grep() {
     local species_id="$1"
     local ready=""
     local qc_path
@@ -119,6 +137,15 @@ species_readiness() {
         done
     fi
     printf '%s\n' "$ready"
+}
+
+species_readiness() {
+    local species_id="$1" ready
+    if ready="$(species_readiness_via_python "$species_id")"; then
+        printf '%s\n' "$ready"
+        return 0
+    fi
+    species_readiness_grep "$species_id"
 }
 
 if [[ "$engine" == "diamond" ]]; then

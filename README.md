@@ -10,7 +10,7 @@
 
 发布包：
 
-<https://github.com/HXC-code/plant-genome-preprocess/releases/tag/v3.5.4>
+<https://github.com/HXC-code/plant-genome-preprocess/releases/tag/v3.5.5>
 
 ## 仓库定位
 
@@ -21,6 +21,14 @@
 - 程序仓保存权威实现、测试和发布流程。
 - `pipeline/` 是程序仓的版本化镜像，可直接运行，但不是另一套独立代码。
 - `SKILL.md` 规定 Agent 如何识别任务、调用工具、审核结果和继续可选下游流程。
+
+## 3.5.5 更新
+
+- 新增植物线粒体核心基因识别和 `--organelle-mt-min-genes` 阈值。
+- 无法高置信判断的匿名大而稀疏线粒体仍进入人工复核边界，不静默猜测。
+- `readiness` 成为唯一权威读取入口，Python、Shell 和 PowerShell 共用同一结构解析逻辑。
+- `6run_wgdi.sh` 检查 8 个 WGDI 产物的 PNG 魔数、Ks 表头、共线性块和 CSV 表头；
+  截断但非空的文件不再视为完成。
 
 ## 3.5.4 修复的问题
 
@@ -189,12 +197,13 @@ python -m pip install -e ".[gbff]"
 
 ## 验证
 
-当前 Skill 镜像版本为 **3.5.4**，包含：
+当前 Skill 镜像版本为 **3.5.5**，包含：
 
-- 172 项 Python 自动化测试；
+- 188 项 Python 自动化测试；
 - Ruff、Mypy 和镜像漂移检查；
 - Windows 与 Linux/WSL 严格 LF shell 检查；
-- Windows 完整合成 WGDI smoke（3.5.4，含 readiness 门禁正路径），四组比较每组 8 个关键产物；
+- Windows 完整合成 WGDI smoke（3.5.5），四组比较每组 8 个关键产物；
+- 植物线粒体核心基因、readiness 单一权威源和 WGDI 产物完整性检查；
 - 41 物种真实数据试点审查修复验收：橡胶树/银白杨叶绿体 contig 被推断排除；
   严格验收 36 PASS / 5 FAIL（拦截 5 个 `wgdi_ready=no` 物种），`--allow-not-ready` 41 PASS；
 - Linux/WSL 完整合成 WGDI smoke（3.5.2），四组比较每组 8 个关键产物；
@@ -206,6 +215,7 @@ python -m pip install -e ".[gbff]"
 验证材料：
 
 ```text
+pipeline/validation/smoke-report-3.5.5.json
 pipeline/validation/smoke-report-3.5.4.json
 pipeline/validation/smoke-report-3.5.3.json
 pipeline/validation/smoke-report-3.5.2-linux.json
@@ -215,6 +225,15 @@ pipeline/validation/real-species-3.5.2.json
 
 发布门禁见 [pipeline/VALIDATION.md](pipeline/VALIDATION.md)，完整使用说明见
 [pipeline/QUICKSTART.md](pipeline/QUICKSTART.md)。
+
+## 当前不足
+
+完整清单见程序仓 README 的“当前不足与适用边界”。使用 Skill 时尤其需要注意：
+
+- 含多个线粒体核心基因的 region 可推断；基因 ID 完全匿名且缺少参考相似度的大而稀疏线粒体仍可能漏判，不能把 `organelle_inference` 为空解释为不存在细胞器。
+- 代表转录本尚未使用 primary/canonical 或表达证据。
+- `wgdi_ready=yes` 只代表当前基因筛选集的保留率，不代表组装完整、没有等位重复或适合直接下 WGD 结论。
+- 多倍体、高杂合、复杂细胞器和大规模 Ks 仍属于需要专项验证与人工判断的场景。
 
 ## 同步与发布
 

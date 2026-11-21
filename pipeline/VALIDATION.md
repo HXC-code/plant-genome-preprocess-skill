@@ -50,7 +50,7 @@ Build and inspect a source release:
 
 ```powershell
 python code/tools/build_release_package.py `
-  --output dist/plant-genome-preprocess-v3.5.4.zip
+  --output dist/plant-genome-preprocess-v3.5.5.zip
 ```
 
 The ZIP includes its own `PACKAGE_SHA256.tsv`; the build command prints the
@@ -75,6 +75,24 @@ derived real-data smoke can additionally be built with
 `build_wgdi_smoke_fixture.py`.
 
 ## Current status
+
+On 2026-11-21 version 3.5.5 passed:
+
+- Plant mitochondrial core-gene inference covers synthetic regions with several
+  distinct `nad`/`cob`/`cox`/`atp`/`matR`/`mttB`/`ccm` families, without
+  applying the chloroplast compactness heuristic to mtDNA.
+- `--organelle-mt-min-genes` is covered by unit tests; ambiguous mitochondrial
+  evidence is routed to `review_candidates`, and opaque large/sparse regions
+  retain the documented manual-review boundary.
+- Readiness has one canonical structural reader used by validation, the shell
+  homology runner and the PowerShell orchestrator. `readiness` parity tests
+  include a decoy top-level key that text matching would misread.
+- `6run_wgdi.sh` validates the structure of all eight WGDI products and rejects
+  truncated PNGs and malformed Ks/collinearity/block-info tables.
+- Windows synthetic full-chain smoke: four comparisons, eight products each
+  (`validation/smoke-report-3.5.5.json`) with Python 3.13.9, pandas 2.3.3 and
+  WGDI 0.75.
+- The local Python suite passed `188` tests; Ruff and Mypy passed.
 
 On 2026-11-21 version 3.5.4 passed:
 
@@ -125,6 +143,7 @@ real-subset execution acceptance. It is not a BUSCO lineage assessment or a
 full-proteome biological WGD conclusion. See:
 
 - `validation/smoke-report-3.5.4.json`
+- `validation/smoke-report-3.5.5.json`
 - `validation/smoke-report-3.5.3.json`
 - `validation/smoke-report-3.5.2-linux.json`
 - `validation/real-species-cross-3.5.2.json`

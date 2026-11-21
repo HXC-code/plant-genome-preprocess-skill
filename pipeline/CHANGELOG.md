@@ -1,5 +1,30 @@
 # Changelog
 
+## 3.5.5 — 2026-11-21
+
+- Added plant mitochondrial detection for synthetic regions using distinct
+  mitochondrial core-gene families (`nad`, `cob`/`cytb`, `cox`, `atp`, `matR`,
+  `mttB`, `ccm`) instead of applying chloroplast size/density assumptions to
+  mtDNA. This catches sparse and large mitochondrial clusters that do not look
+  like compact chloroplast genomes.
+- Added `--organelle-mt-min-genes` to make the automatic mitochondrial
+  core-family threshold configurable. Regions with some mitochondrial core
+  genes but insufficient evidence are written to `review_candidates` rather
+  than silently excluded.
+- Explicitly documents the remaining hard boundary: a large sparse
+  mitochondrial scaffold with opaque gene IDs and no informative sequence name
+  cannot be distinguished without `--organelle-pattern` or reference
+  similarity. The QC record includes this limitation in
+  `organelle_inference.limits`.
+- Added a single authoritative readiness reader and `pgci_preprocess readiness`
+  CLI. Python validation, `run_homology.sh`, and the PowerShell orchestrator now
+  consume the same structural JSON/index logic instead of maintaining separate
+  gate implementations.
+- Added structural content checks for the eight WGDI comparison outputs:
+  PNG magic, Ks headers, collinearity blocks, and block-info CSV headers.
+  `6run_wgdi.sh` no longer treats a non-empty truncated product as complete.
+- Engineering: 188 tests, Ruff and Mypy pass.
+
 ## 3.5.4 — 2026-11-21
 
 Fixes from the 41-species real-data pilot review (WGDI full-chain execution

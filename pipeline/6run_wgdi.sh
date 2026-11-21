@@ -2,10 +2,19 @@
 
 set -euo pipefail
 cd "$(dirname "$0")"
+project_root="$(pwd -P)"
 export MPLBACKEND=Agg
 
 [[ -s folder_list.txt ]] || { echo "错误：folder_list.txt 不存在或为空。"; exit 1; }
 mapfile -t species_ids < folder_list.txt
+
+resolve_python() {
+    if [[ -n "${PYTHON:-}" ]]; then
+        printf '%s\n' "$PYTHON"
+        return 0
+    fi
+    command -v python 2>/dev/null || command -v python3 2>/dev/null || true
+}
 
 check_outputs() {
     local folder="$1"
@@ -48,6 +57,21 @@ check_outputs() {
     if [[ ${#missing[@]} -gt 0 ]]; then
         printf '%s\n' "${missing[@]}" > "$folder/missing_outputs.txt"
         return 1
+    fi
+    # Content-integrity check via the installed package; a truncated PNG or a
+    # garbage table is not a finished result. Degrade to presence-only when
+    # Python/the package is unavailable so the runner never hard-depends on it.
+    local py integrity_out
+    py="$(resolve_python)"
+    if [[ -n "$py" ]]; then
+        if integrity_out="$(PYTHONPATH="$project_root/code/src${PYTHONPATH:+:$PYTHONPATH}" \
+            "$py" -m pgci_preprocess check-wgdi-outputs \
+            --folder "$folder" --prefix "$prefix" 2>/dev/null)"; then
+            :
+        elif [[ -n "$integrity_out" ]]; then
+            printf '%s\n' "$integrity_out" > "$folder/missing_outputs.txt"
+            return 1
+        fi
     fi
     rm -f "$folder/missing_outputs.txt"
     return 0

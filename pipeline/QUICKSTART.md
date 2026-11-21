@@ -152,7 +152,7 @@ python -m pgci_preprocess check-names --project-root D:\my_project
 `validate --refresh-links` 会在项目根建 `<Abbr>/` 兼容目录（下游脚本按这个目录取文件）。
 也可以 `--no-compat-links` 跳过，只用 `analysis_v2` 里的规范文件。
 
-### 细胞器推断与准备度门禁（3.5.4 新增）
+### 细胞器推断与准备度门禁（3.5.4 起）
 
 - **细胞器推断**：无 genome、无显式 region 的简化注释，`run` 会对合成 region
   识别叶绿体/线粒体（序列或基因标识符信号，或高密度、紧凑、基本无内含子的
@@ -161,10 +161,22 @@ python -m pgci_preprocess check-names --project-root D:\my_project
   显式 region 和 genome FASTA 记录永不被启发式改写。可用
   `--organelle-pattern "^(cp|mt)_scaffold"` 之类的正则强制排除指定合成序列，
   或 `--no-organelle-inference` 完全关闭推断。
+- **植物线粒体（3.5.5 新增）**：检测一个 region 中不同的
+  `nad/cob/cox/atp/matR/mttB/ccm` 核心基因家族，不套用叶绿体的紧凑形态假设。
+  `--organelle-mt-min-genes` 可调整自动排除所需家族数；证据不足的候选只进入
+  `review_candidates`。ID 完全匿名且没有参考相似度的稀疏线粒体仍需用
+  `--organelle-pattern` 或人工检查；QC 的 `organelle_inference.limits`
+  会明确记录这个边界。
 - **准备度门禁**：`validate` 对 QC 中 `wgdi_ready=no` 的物种默认判 FAIL
   （`wgdi_not_ready_low_coverage`），避免碎片化物种因“四件套齐全”被误用。
   只做数据完整性归档/复核时显式加 `--allow-not-ready`。
   下游 `run_homology.sh` / `run_all_pipeline.ps1` 同样跳过 `ready=no` 物种。
+- **readiness 单一权威源（3.5.5）**：`python -m pgci_preprocess readiness`
+  按物种结构化读取 QC，缺失时回退 index；Python、Shell 和 PowerShell 不再各自
+  实现不同的 JSON 文本匹配规则。
+- **下游产物完整性（3.5.5）**：`6run_wgdi.sh` 调用
+  `python -m pgci_preprocess check-wgdi-outputs` 检查 8 个产物的 PNG 魔数、
+  Ks 表头、共线性块和 CSV 表头；截断但非空的文件不会标记为完成。
 
 ### 命名规则（务必理解）
 
@@ -261,5 +273,5 @@ python code/tools/build_synthetic_wgdi_smoke.py `
 bash code/tools/run_wgdi_smoke.sh $env:TEMP\plant-genome-smoke
 ```
 
-发布门禁和已通过的 3.5.4 回执见 `VALIDATION.md` 与 `validation/`。
-可直接交接的压缩包为 `dist/plant-genome-preprocess-v3.5.4.zip`。
+发布门禁和已通过的 3.5.5 回执见 `VALIDATION.md` 与 `validation/`。
+可直接交接的压缩包为 `dist/plant-genome-preprocess-v3.5.5.zip`。

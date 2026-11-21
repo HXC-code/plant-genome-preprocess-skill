@@ -107,6 +107,23 @@ function Resolve-BashExecutable {
 function Get-WgdiSpeciesReadiness {
     param([string]$SpeciesId)
 
+    # Authoritative reader shared with validate and run_homology.sh; the
+    # direct JSON/index parsing below is only a degraded fallback.
+    $pythonExe = if ($env:PYTHON) { $env:PYTHON } else { "python" }
+    $srcDir = Join-Path $script:ProjectRoot "code\src"
+    $savedPythonPath = $env:PYTHONPATH
+    try {
+        $env:PYTHONPATH = if ($savedPythonPath) { "$srcDir;$savedPythonPath" } else { $srcDir }
+        $readerOut = & $pythonExe -m pgci_preprocess readiness --project-root $script:ProjectRoot --species $SpeciesId 2>$null
+        if ($LASTEXITCODE -eq 0 -and $readerOut) {
+            $fields = ([string]$readerOut).Split("`t")
+            if ($fields.Count -ge 2) { return $fields[1].Trim() }
+            return ""
+        }
+    }
+    catch { }
+    finally { $env:PYTHONPATH = $savedPythonPath }
+
     $qcPaths = @(
         (Join-Path $script:ProjectRoot ("analysis_v2\" + $SpeciesId + "\" + $SpeciesId + ".qc.json")),
         (Join-Path $script:ProjectRoot ($SpeciesId + "\" + $SpeciesId + ".qc.json")),

@@ -123,9 +123,11 @@ python -m pgci_preprocess init-project --project-root D:\my_project `
 
 - `validate`：逐物种核对 pep/cds/gff/lens 是否存在、基因数是否一致、坐标/链/长度是否合法、兼容链接是否指向同一内容；`--skip-hashes` 可跳过内容哈希（大批量提速）。QC 中 `wgdi_ready=no` 默认判 FAIL；仅做数据完整性归档时显式加 `--allow-not-ready`。
 - `check-names`：缩写表 ↔ 清单 ↔ 索引 ↔ 产物目录四者一致性；输出 `resources/naming_audit.tsv`。
+- `readiness`：从 QC/index 结构化读取物种准备度，是 validate、Shell 和 PowerShell 共用的权威门禁源。
+- `check-wgdi-outputs`：检查一个比较目录中 8 个 WGDI 产物的 PNG 魔数、Ks 表头、共线性块和 CSV 表头。
 - `doctor`：Python 版本、biopython、WGDI/BLAST/DIAMOND、清单表头、缩写表覆盖、输入文件存在性；`--workflow wgdi|full` 还会实际启动 WGDI 入口（`wgdi_probe`），暴露“存在但跑不起来”的环境问题。
 
-## 调用规则（v3.5.4）
+## 调用规则（v3.5.5）
 
 代理执行本 skill 时必须遵守：
 
@@ -133,13 +135,14 @@ python -m pgci_preprocess init-project --project-root D:\my_project `
 2. **报告细胞器推断结果**：`run` 后检查 QC 的 `organelle_inference.inferred` 与 `review_candidates`，向用户列出被排除的序列和待人工复核的高密度 region；不得把 `review_candidates` 当作已排除。
 3. **报告下游跳过**：`run_homology.sh` / `run_all_pipeline.ps1` 跳过的物种记录在 `skipped_species.txt`，汇总时必须一并报告，不得只报成功比较。
 4. **WGDI 环境先探针**：比较模式开始前用 `doctor --workflow full` 确认 `wgdi_probe` PASS；WGDI 必须用 `bootstrap_wgdi` 建的专用环境或 `WGDI_PYTHON` 指定的解释器（Python 3.13 + wgdi 0.75 已验证），不要复用依赖不明的 base/其他 conda 环境。
-5. **旧产物重跑**：3.5.4 的细胞器推断会改变结果；QC 版本不是当前版本的旧 bundle 会被 `run` 自动重算，不要手工改 QC 凑版本。
+5. **旧产物重跑**：3.5.5 的线粒体推断会改变结果；QC 版本不是当前版本的旧 bundle 会被 `run` 自动重算，不要手工改 QC 凑版本。
+6. **完整性不是存在性**：续跑或汇报完成前，必须同时确认 `6run_wgdi.sh` 的内容完整性检查通过；不要用非空文件替代结构校验。
 
 ## 测试
 
 ```powershell
 cd pipeline\code
-python -m pytest -q                     # 172 个用例；临时目录受限时加 --basetemp=<short-path>
+python -m pytest -q                     # 188 个用例；临时目录受限时加 --basetemp=<short-path>
 ```
 
 测试覆盖：多格式项目、GBFF 往返、GTF 转换、命名迁移、兼容链接、校验失败路径、
@@ -152,7 +155,8 @@ python -m pytest -q                     # 172 个用例；临时目录受限时�
 - WGDI 使用固定 `wgdi==0.75` 上游包；`bin/wgdi_entry.py` 只维护必要的兼容补丁。
 - PAL2NAL v14 不随 Skill 或发布 ZIP 分发。`bootstrap_wgdi` 会运行
   `code/tools/install_pal2nal.py`，从官方站点下载并校验 SHA-256。
-- `validation/smoke-report-3.5.4.json` 是 Windows 四组比较 PASS 回执（含 readiness 门禁正路径）；
+- `validation/smoke-report-3.5.5.json` 是当前 Windows 四组比较 PASS 回执（含 readiness 门禁和完整性检查）；
+  `smoke-report-3.5.4.json` 是上一版 Windows 四组比较 PASS 回执；
   `smoke-report-3.5.3.json` 是上一版 Windows 四组比较 PASS 回执；
   `smoke-report-3.5.2-linux.json` 是 WSL/Linux 四组比较 PASS 回执。
 - `validation/real-species-3.5.2.json` 记录真实 RefSeq 拟南芥两物种的清洗、

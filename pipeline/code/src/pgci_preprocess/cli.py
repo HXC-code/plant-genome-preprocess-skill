@@ -24,6 +24,9 @@ from pgci_preprocess.naming_audit import audit_naming
 from pgci_preprocess.naming_audit import render_text as render_naming
 from pgci_preprocess.project_init import ProjectInitError, init_project
 from pgci_preprocess.pipeline import PipelineOptions, run_project
+from pgci_preprocess.organelle import MT_MIN_CORE_GENES
+from pgci_preprocess.readiness import read_readiness_map
+from pgci_preprocess.wgdi_integrity import check_comparison_outputs
 from pgci_preprocess.source_manifest import (
     SourceManifestError,
     build_source_manifest,
@@ -46,6 +49,8 @@ COMMANDS = {
     "convert-annotation",
     "run",
     "validate",
+    "readiness",
+    "check-wgdi-outputs",
     "batch",
     "audit",
     "convert",
@@ -250,6 +255,15 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Disable identifier and compact-region organelle inference.",
     )
+    run.add_argument(
+        "--organelle-mt-min-genes",
+        type=int,
+        default=MT_MIN_CORE_GENES,
+        help=(
+            "Distinct mitochondrial core gene families required to auto-exclude "
+            "a synthetic region as mitochondrion (default: %(default)s)."
+        ),
+    )
     run.add_argument("--species-names", type=Path)
     run.set_defaults(func=_cmd_run)
 
@@ -269,6 +283,30 @@ def build_parser() -> argparse.ArgumentParser:
     )
     validate.add_argument("--report", type=Path)
     validate.set_defaults(func=_cmd_validate)
+
+    readiness = sub.add_parser(
+        "readiness",
+        help="Read WGDI readiness for species (authoritative gate source).",
+    )
+    _add_project_root(readiness)
+    readiness.add_argument(
+        "--species",
+        help="Comma-separated species codes; default: read folder_list.txt.",
+    )
+    readiness.add_argument(
+        "--output",
+        type=Path,
+        help="Write a species_id<TAB>ready TSV here instead of stdout.",
+    )
+    readiness.set_defaults(func=_cmd_readiness)
+
+    integrity = sub.add_parser(
+        "check-wgdi-outputs",
+        help="Content-integrity check of one comparison's 8 WGDI products.",
+    )
+    integrity.add_argument("--folder", type=Path, required=True)
+    integrity.add_argument("--prefix", required=True)
+    integrity.set_defaults(func=_cmd_check_wgdi_outputs)
 
     batch = sub.add_parser(
         "batch",
@@ -554,6 +592,9 @@ def _cmd_normalize_gff(args: argparse.Namespace) -> int:
 
 
 def _cmd_run(args: argparse.Namespace) -> int:
+    if args.organelle_mt_min_genes < 1:
+        print("ERROR: --organelle-mt-min-genes must be >= 1", file=sys.stderr)
+        return 2
     ids = set(_parse_ids(args.species)) or None
     options = PipelineOptions(
         project_root=args.project_root,
@@ -567,6 +608,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
         backfill_regions_from_transcripts=not args.no_transcript_region_backfill,
         infer_organelles=not args.no_organelle_inference,
         organelle_pattern=args.organelle_pattern,
+        organelle_mt_min_genes=args.organelle_mt_min_genes,
         species_names_path=args.species_names,
     )
     try:
@@ -615,6 +657,36 @@ def _cmd_validate(args: argparse.Namespace) -> int:
     print(f"合计: {passed} PASS / {failed} FAIL")
     print(f"报告: {result.report_path}")
     return 0 if result.ok else 1
+
+
+def _cmd_readiness(args: argparse.Namespace) -> int:
+    if args.species:
+        ids = [item.strip() for item in args.species.split(",") if item.strip()]
+    else:
+        folder_list = args.project_root / "folder_list.txt"
+        ids = (
+            [
+                line.strip()
+                for line in folder_list.read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+            if folder_list.is_file()
+            else []
+        )
+    mapping = read_readiness_map(args.project_root, ids)
+    text = "".join(f"{species_id}\t{mapping[species_id]}\n" for species_id in ids)
+    if args.output:
+        args.output.write_text(text, encoding="utf-8")
+    else:
+        sys.stdout.write(text)
+    return 0
+
+
+def _cmd_check_wgdi_outputs(args: argparse.Namespace) -> int:
+    problems = check_comparison_outputs(args.folder, args.prefix)
+    for problem in problems:
+        print(problem)
+    return 1 if problems else 0
 
 
 def _cmd_batch(args: argparse.Namespace) -> int:

@@ -34,7 +34,7 @@ from pgci_preprocess.gff_formats import (
 )
 from pgci_preprocess.input_router import InputRoutingError, select_role_source
 from pgci_preprocess.models import Anomaly, Candidate, Region
-from pgci_preprocess.organelle import infer_synthetic_organelles
+from pgci_preprocess.organelle import MT_MIN_CORE_GENES, infer_synthetic_organelles
 from pgci_preprocess.reports import (
     finalize_project,
     read_tsv as read_report_tsv,
@@ -99,6 +99,7 @@ class PipelineOptions:
     backfill_regions_from_transcripts: bool = True
     infer_organelles: bool = True
     organelle_pattern: str = ""
+    organelle_mt_min_genes: int = MT_MIN_CORE_GENES
     format_exceptions: dict[str, dict[str, bool]] | None = None
     species_names_path: Path | None = None
     # Legacy ``s<show_id>`` bundles are renamed to the canonical abbreviation
@@ -939,6 +940,7 @@ def _process_species_into(
         {key: len(value) for key, value in cds.sequences.items()},
         custom_pattern=options.organelle_pattern,
         enabled=options.infer_organelles,
+        mt_min_core_genes=options.organelle_mt_min_genes,
     )
 
     # Annotations whose CDS rows carry no protein_id (e.g. Phytozome GFF3) are
@@ -1408,6 +1410,7 @@ def _process_species_into(
             "transcript_region_backfill": options.backfill_regions_from_transcripts,
             "organelle_inference": options.infer_organelles,
             "organelle_pattern": options.organelle_pattern,
+            "organelle_mt_min_genes": options.organelle_mt_min_genes,
         },
         "format_exceptions": {
             "merge_split_genes": bool(format_flags.get("merge_split_genes")),

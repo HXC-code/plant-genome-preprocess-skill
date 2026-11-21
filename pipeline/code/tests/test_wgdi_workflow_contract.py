@@ -100,6 +100,10 @@ def test_homology_skips_not_ready_species_and_infrastructure() -> None:
     assert "cleanup_tmp_map" in text
     assert "|| true" in text
     assert "part.${BASHPID:-$$}" in text
+    assert "pgci_preprocess readiness" in text
+    assert "species_readiness_grep" in text
+    six = (WORKFLOW_ROOT / "6run_wgdi.sh").read_text(encoding="utf-8")
+    assert "check-wgdi-outputs" in six
 
 
 def _homology_bash() -> Path | None:

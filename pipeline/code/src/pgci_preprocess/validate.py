@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from pgci_preprocess.artifact_naming import is_canonical_gene_id
+from pgci_preprocess.readiness import extract_qc_readiness
 from pgci_preprocess.species_names import load_species_names
 
 INDEX_RELATIVE = Path("resources") / "wgdi_v2_index.tsv"
@@ -300,10 +301,9 @@ def _check_species(
                 problems.append("qc_status_not_ok")
             if qc.get("code") != canonical_code:
                 problems.append("qc_code_mismatch")
-            selection = qc.get("sequence_selection")
-            selection = selection if isinstance(selection, dict) else {}
-            if selection.get("wgdi_ready") == "no" and not allow_not_ready:
-                ratio = selection.get("ratio", "")
+            if extract_qc_readiness(qc) == "no" and not allow_not_ready:
+                selection = qc.get("sequence_selection")
+                ratio = selection.get("ratio", "") if isinstance(selection, dict) else ""
                 problems.append(f"wgdi_not_ready_low_coverage:ratio={ratio}")
         except (OSError, ValueError, json.JSONDecodeError):
             problems.append("qc_unreadable")
