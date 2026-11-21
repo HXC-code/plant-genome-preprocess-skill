@@ -1,4 +1,4 @@
-# HXC 植物基因组预处理
+# HXC 植物基因组规范化与质控工具
 
 本仓库将植物基因组的原始下载文件规范化为可审计的 WGDI 输入，并提供可选的
 DIAMOND/BLAST、共线性、block-Ks 和 Ks-peak 执行链。
@@ -16,6 +16,24 @@ DIAMOND/BLAST、共线性、block-Ks 和 Ks-peak 执行链。
 - [完整快速上手](QUICKSTART.md)
 - [验证与发布门禁](VALIDATION.md)
 - [Agent Skill 仓库](https://github.com/HXC-code/plant-genome-preprocess-skill)
+
+## 项目定位
+
+本工具把人工整理和审核后的植物基因组预处理规则，固化为可执行、可复现、可审计的
+标准流程，为 DIAMOND/BLAST 和 WGDI 准备一致的输入。
+
+> **一句话定位：** 实验室植物基因组预处理的数据底座与 SOP 执行工具；它保证输入
+> 干净、一致、可追溯，不产出 WGD 生物学结论。
+
+| 层面 | 定位 |
+| --- | --- |
+| 实验室 | **标准预处理流程（SOP）的执行载体**：研究者维护规则，程序负责批量执行、QC 和留痕，人工负责例外审核 |
+| 科学 | **下游分析的数据基础设施**：统一注释、序列、命名和筛选口径，不替代生物学判断 |
+| Agent | `plant-genome-preprocess-skill` 是 Agent 调用与分发层，`pipeline/` 是程序仓的版本化镜像 |
+| 软件类别 | 科学软件中的 **data preprocessing / QC / provenance tool**，不是新算法、WGDI 分析平台或结论生成器 |
+
+若作为论文或社区工具推广，较合适的形态是 software/tool 类工作。当前仍包含实验室
+目录和命名资源，并需要更广泛的物种与平台验证，才能进一步成为通用社区工具。
 
 ## 3.5.4 修复的问题
 
@@ -488,7 +506,6 @@ validation/real-species-3.5.2.json
 
 ## 能力边界
 
-- 预处理结果表示 WGDI 输入已生成并通过数据校验，不包含生物学 WGD 推断。
 - 合成数据 smoke 验证执行链和工具兼容性；真实物种子集验证预处理和跨物种执行。
 - 当前验证不包含 BUSCO lineage 完整性检查。
 - 当前真实 WGDI 验证为 chromosome-level 子集，完整全蛋白组生物学 WGD 结论需要

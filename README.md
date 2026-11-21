@@ -12,6 +12,16 @@
 
 <https://github.com/HXC-code/plant-genome-preprocess/releases/tag/v3.5.4>
 
+## 仓库定位
+
+本仓库不是第二个独立的预处理实现，而是
+[植物基因组规范化与质控工具](https://github.com/HXC-code/plant-genome-preprocess)
+的 **Agent 调用、安装与分发层**：
+
+- 程序仓保存权威实现、测试和发布流程。
+- `pipeline/` 是程序仓的版本化镜像，可直接运行，但不是另一套独立代码。
+- `SKILL.md` 规定 Agent 如何识别任务、调用工具、审核结果和继续可选下游流程。
+
 ## 3.5.4 修复的问题
 
 | # | 原问题 | Skill 中的修复 |
