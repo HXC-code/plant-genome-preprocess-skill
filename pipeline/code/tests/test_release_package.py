@@ -110,6 +110,33 @@ def test_skill_mirror_uses_the_same_shared_wrappers(tmp_path: Path) -> None:
     ).read_text(encoding="utf-8")
     assert not (pipeline / "vendor").exists()
 
+    # Local tool caches must not count as drift, and a sync must not delete
+    # them (skill CI runs pytest/ruff/mypy before the drift check).
+    cache = pipeline / "code" / ".pytest_cache" / "v" / "cache"
+    cache.mkdir(parents=True)
+    (cache / "lastfailed").write_text("{}", encoding="utf-8")
+    mypy_cache = pipeline / "code" / ".mypy_cache"
+    mypy_cache.mkdir()
+    (mypy_cache / "probe.json").write_text("{}", encoding="utf-8")
+    check = subprocess.run(
+        [sys.executable, str(SYNC), "--pipeline-target", str(pipeline), "--check"],
+        text=True,
+        encoding="utf-8",
+        capture_output=True,
+        check=False,
+    )
+    assert check.returncode == 0, check.stdout + check.stderr
+    resync = subprocess.run(
+        [sys.executable, str(SYNC), "--pipeline-target", str(pipeline)],
+        text=True,
+        encoding="utf-8",
+        capture_output=True,
+        check=False,
+    )
+    assert resync.returncode == 0, resync.stdout + resync.stderr
+    assert (cache / "lastfailed").is_file()
+    assert (mypy_cache / "probe.json").is_file()
+
 
 def test_release_normalizes_crlf_shell_scripts_even_from_windows_checkout(
     tmp_path: Path,

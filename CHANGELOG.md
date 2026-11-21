@@ -19,6 +19,10 @@
 - Release tests derive the version and receipt name from the package version,
   assert that archived shell entries contain no CRLF, and unit-test the
   builder's normalization.
+- Mirror drift check and sync now ignore local tool caches and environments
+  (`.pytest_cache`, `.mypy_cache`, `.ruff_cache`, `__pycache__`, `.venv`,
+  `.wgdi-env`); previously the skill CI drift check failed right after running
+  the test suite, and a sync could delete a local WGDI environment.
 
 ## 3.5.0 — 2026-11-21
 

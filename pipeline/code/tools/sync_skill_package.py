@@ -32,6 +32,22 @@ from build_release_package import collect_files as collect_release_files  # noqa
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 CANONICAL = PROJECT_ROOT / "src" / "pgci_preprocess"
 CANONICAL_TESTS = PROJECT_ROOT / "tests"
+# Local tool caches and environments are never part of the mirror. Without
+# this guard the skill CI drift check fails right after pytest/ruff/mypy run,
+# and a sync would delete a user's .wgdi-env inside the pipeline directory.
+IGNORED_PARTS = {
+    "__pycache__",
+    ".mypy_cache",
+    ".pytest_cache",
+    ".ruff_cache",
+    ".venv",
+    ".wgdi-env",
+    ".git",
+}
+
+
+def _is_ignored(path: Path) -> bool:
+    return any(part in IGNORED_PARTS for part in path.parts)
 DEFAULT_TARGET = (
     PROJECT_ROOT.parent
     / "skill-packages"
@@ -143,7 +159,7 @@ def compare_pipeline(pipeline_root: Path) -> list[str]:
     for path in pipeline_root.rglob("*"):
         if (
             path.is_file()
-            and "__pycache__" not in path.parts
+            and not _is_ignored(path)
             and path.resolve() not in expected
         ):
             problems.append(f"stale: {path.relative_to(pipeline_root).as_posix()}")
@@ -158,12 +174,12 @@ def sync_pipeline(pipeline_root: Path) -> list[str]:
         shutil.copy2(source, destination)
     expected = {destination.resolve() for _source, destination, _label in pairs}
     for path in sorted(pipeline_root.rglob("*"), reverse=True):
-        if not path.is_file() or "__pycache__" in path.parts or path.resolve() in expected:
+        if not path.is_file() or _is_ignored(path) or path.resolve() in expected:
             continue
         path.unlink()
         removed.append(path.relative_to(pipeline_root).as_posix())
     for path in sorted(pipeline_root.rglob("*"), reverse=True):
-        if path.is_dir() and not any(path.iterdir()):
+        if path.is_dir() and not _is_ignored(path) and not any(path.iterdir()):
             path.rmdir()
     return removed
 
