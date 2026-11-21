@@ -12,6 +12,18 @@
 
 <https://github.com/HXC-code/plant-genome-preprocess/releases/tag/v3.5.4>
 
+## 3.5.4 修复的问题
+
+| # | 原问题 | Skill 中的修复 |
+|---|---|---|
+| 1 | 简化注释的叶绿体/线粒体序列可能进入核基因组 WGDI 集 | 对合成 region 做可审计的细胞器推断，QC 写入 `organelle_inference`；支持 `--organelle-pattern` 与 `--no-organelle-inference` |
+| 2 | `wgdi_ready=no` 没有硬门禁 | `validate` 默认 FAIL，`--allow-not-ready` 仅用于归档；下游跳过未就绪或无记录物种 |
+| 3 | 只有 GFF + CDS + PEP 时无法注册项目 | `init-project` 的 genome 和 assembly ID 改为可选 |
+| 4 | 同源扫描误把 `bin/`、`code/` 等目录当物种 | `run_homology.sh` 与 Windows 总控排除基础设施目录 |
+| 5 | 生成的 WGDI 脚本包含 Windows 反斜杠 | 自动转换为 Git Bash/Linux 可用的 `/d/...` 路径 |
+| 6 | 临时文件清理失败导致成功任务返回非零 | 清理容错，并使用按进程区分的临时结果文件 |
+| 7 | Windows `TMPDIR` 和 WGDI 解释器错误缺少预检 | 启动器规范化临时路径；`doctor` 通过 `wgdi_probe` 实际启动 WGDI 入口 |
+
 ## Skill 可以完成的工作
 
 | 能力 | 内容 |

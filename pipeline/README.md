@@ -17,6 +17,18 @@ DIAMOND/BLAST、共线性、block-Ks 和 Ks-peak 执行链。
 - [验证与发布门禁](VALIDATION.md)
 - [Agent Skill 仓库](https://github.com/HXC-code/plant-genome-preprocess-skill)
 
+## 3.5.4 修复的问题
+
+| # | 原问题 | 3.5.4 修复结果 |
+|---|---|---|
+| 1 | 无 genome、无显式 region 的简化注释无法识别细胞器，叶绿体/线粒体序列进入核基因组 WGDI 集 | 对合成 region 使用标识符信号和紧凑基因集推断；证据写入 QC `organelle_inference`，模糊候选写入 `review_candidates`；支持 `--organelle-pattern` 和 `--no-organelle-inference` |
+| 2 | `wgdi_ready=no` 仍可通过 `validate`，下游仅检查四件套是否存在 | `validate` 默认报 `wgdi_not_ready_low_coverage`；归档检查可显式使用 `--allow-not-ready`；`run_homology.sh` 和 `run_all_pipeline.ps1` 跳过未就绪或无准备度记录的物种 |
+| 3 | `init-project` 强制要求 genome 和 assembly ID，三件套物种无法正常注册 | GFF + CDS + PEP 三件套可直接注册，`--genome` 与 `--assembly-id` 均可省略 |
+| 4 | `run_homology.sh` 将 `bin/`、`code/`、`resources/` 等基础设施目录误认为物种目录 | 下游扫描明确排除基础设施目录，`skipped_species.txt` 不再产生虚假的 `bin` 记录 |
+| 5 | 生成的 `run.sh` 使用 Windows 反斜杠路径，Git Bash/Linux 无法正确执行 | WGDI 入口统一转换为 Bash 路径，例如 `D:\path` 转换为 `/d/path` |
+| 6 | 临时文件清理失败会使成功的比对任务返回退出码 1 | 清理 trap 容错；中间结果使用按进程区分的 `.part.<pid>` 文件，成功结果不再被清理错误污染 |
+| 7 | Windows `TMPDIR` 和 WGDI 环境错误只能在正式运行时暴露 | `bin/wgdi` 规范化 Windows 临时路径并在不可写时回退；`doctor --workflow wgdi|full` 新增实际启动入口的 `wgdi_probe` 检查 |
+
 ## 项目可以完成的工作
 
 | 工作 | 具体能力 |
