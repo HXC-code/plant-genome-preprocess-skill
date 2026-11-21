@@ -31,7 +31,7 @@ resources/download_inventory.tsv
 
 ## 新项目初始化与依赖预检（v3.2.0）
 
-预处理项目根与 0–6 执行根是两个不同目录：前者含 `data/downloads` 和 `resources`，后者含
+预处理项目根与分析执行根是两个不同目录：前者含 `data/downloads` 和 `resources`，后者含
 `0check_data.sh` 至 `6run_wgdi.sh` 以及 `<Abbr>/` 四件套兼容目录，不要混用。
 
 ```powershell
@@ -131,7 +131,7 @@ python scripts/validate_wgdi_dataset.py --expected-count 109 --no-compat-links
 --accession-policy strict     # strict/legacy
 ```
 
-## 0–6 同源搜索与 WGDI 执行（可选下游层）
+## 同源搜索与 WGDI 执行（可选下游层）
 
 本章脚本不属于预处理核心，`pgci_preprocess run` 不会调用它们。只想把原始数据
 标准化为 WGDI 输入时，到上一章的 `run` / `validate` / `check-names` 即可结束。
@@ -144,13 +144,15 @@ python scripts/validate_wgdi_dataset.py --expected-count 109 --no-compat-links
 export PATH="$PWD/bin:$PATH"  # 提供项目内 WGDI wrapper
 # 非本机路径时设置 DIAMOND、WGDI_PYTHON、WGDI_PERL_BIN，或把工具加入 PATH
 bash 0check_data.sh             # 可选：预处理项目根存在时执行完整预处理和验证
-bash 1run_diamond.sh            # 默认 very-sensitive + 1e-5
+bash run_homology.sh            # 默认 DIAMOND, very-sensitive + 1e-5
 bash 2run_pre_wgdi.sh
 bash 3blast_to_wgdi.sh          # 复制比对结果，保留 Auto_pep 原始文件
-bash 4run_wgdi_different.sh
-bash 5run_wgdi_same.sh
+python tools/generate_wgdi_configs.py --mode all
 bash 6run_wgdi.sh               # 检查每个比较的 8 个关键结果
 ```
+
+`1run_diamond.sh`、`1run_blast.sh`、`4run_wgdi_different.sh` 和
+`5run_wgdi_same.sh` 是兼容入口；新脚本只需要维护共享实现。
 
 WGDI 的串联重复过滤由 `tandem=false` 控制，本项目默认开启。上游 `-r <config>` 原语义是
 保留率分析，不能改作串联重复开关；项目 wrapper 因此扩展了末尾单独 `-r` 或
@@ -173,12 +175,14 @@ powershell -ExecutionPolicy Bypass -File .\run_all_pipeline.ps1 `
 
 总控默认不自动重跑已有完成状态；确需处理失效或未完成步骤时，检查日志后显式使用
 `-RetryIncomplete`。WGDI wrapper 可用 `WGDI_PYTHON`、`WGDI_PERL_BIN`、`WGDI_PERL5LIB`
-覆盖本机路径。
+覆盖本机路径；MUSCLE、yn00、PAL2NAL 也可分别用 `WGDI_MUSCLE`、`WGDI_YN00`、
+`WGDI_PAL2NAL` 覆盖。默认 Ks 列为 `ks_NG86`，可通过 `WGDI_KS_COL=ks_YN00`
+在短序列冒烟或特定数据上切换。
 
 ## 独立真实数据 smoke
 
 `tools/build_wgdi_smoke_fixture.py` 可从既有四件套和历史种内 `.icl` 选择一个小型共线性子集，
-复制 0–6 脚本到全新目录；历史比对只用于选基因，DIAMOND 必须重新计算：
+复制分析脚本到全新目录；历史比对只用于选基因，DIAMOND 必须重新计算：
 
 ```powershell
 python tools/build_wgdi_smoke_fixture.py --workflow-root <wgdi_pipeline> `

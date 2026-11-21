@@ -3,13 +3,14 @@
 
 Source layout (this repository):
 
-    wgdi_pipeline/                  pipeline entry scripts, bin/, vendor/
+    wgdi_pipeline/                  pipeline entry scripts and bin/
     wgdi_pipeline/code/             preprocessing source (src/, scripts/, tools/, tests/)
 
 Release layout (what the other person receives):
 
     wgdi_pipeline/
-        QUICKSTART.md, *.sh, *.ps1, requirements*.txt, bin/, vendor/
+        README.md, LICENSE, QUICKSTART.md, VALIDATION.md, *.sh, *.ps1,
+        requirements*.txt, bin/
         code/
             src/pgci_preprocess/...
             scripts/ tools/ tests/ docs/
@@ -22,6 +23,7 @@ import argparse
 import hashlib
 import json
 import sys
+import time
 import zipfile
 from datetime import datetime, timezone
 from pathlib import Path
@@ -32,8 +34,16 @@ sys.path.insert(0, str(CODE_ROOT / "src"))
 from pgci_preprocess.version import __version__ as VERSION  # noqa: E402
 
 TOP_LEVEL_FILES = (
+    ".gitignore",
+    "README.md",
     "QUICKSTART.md",
+    "VALIDATION.md",
+    "CHANGELOG.md",
+    "CONTRIBUTING.md",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md",
     "run_all_pipeline.ps1",
+    "run_homology.sh",
     "bootstrap_wgdi.ps1",
     "bootstrap_wgdi.sh",
     "requirements-wgdi-validated.txt",
@@ -47,7 +57,6 @@ TOP_LEVEL_FILES = (
     "6run_wgdi.sh",
     "bin/wgdi",
     "bin/wgdi_entry.py",
-    "vendor/sitecustomize.py",
 )
 CODE_FILES = (
     "README.md",
@@ -62,12 +71,33 @@ CODE_GLOBS = (
     "tests/*.py",
     "tools/*.py",
     "tools/*.sh",
+    "tools/pal2nal.v14/*.pl",
+    "tools/pal2nal.v14/README",
     "docs/**/*.md",
 )
-# WGDI 兼容 shim（4–6 步脚本依赖）；大体积 vendor/_Bio_py311_unused 不打包
-PIPELINE_GLOBS = (
-    "vendor/wgdi/*.py",
-)
+PIPELINE_GLOBS = ("validation/*.json",)
+
+# bash on Linux/WSL rejects CRLF shell scripts. Windows checkouts (autocrlf)
+# and Windows-built archives must therefore never carry CRLF into a release.
+_SHELL_SUFFIXES = (".sh",)
+_SHELL_NAMES = ("bin/wgdi",)
+
+
+def _is_shell_entry(arc: str) -> bool:
+    return arc.endswith(_SHELL_SUFFIXES) or arc in _SHELL_NAMES
+
+
+def release_bytes(path: Path, arc: str) -> bytes:
+    """Return the exact bytes stored in the archive for one entry.
+
+    Shell scripts are normalized to LF so a release built on a CRLF Windows
+    checkout still runs under Linux/WSL bash. All other files are stored
+    byte-for-byte (third-party material such as PAL2NAL is never rewritten).
+    """
+    data = path.read_bytes()
+    if _is_shell_entry(arc):
+        data = data.replace(b"\r\n", b"\n")
+    return data
 
 
 def sha256(path: Path) -> str:
@@ -113,22 +143,35 @@ def main() -> int:
     output.parent.mkdir(parents=True, exist_ok=True)
     entries = collect_files()
     manifest_lines = ["path\tsha256\tbytes"]
+    payloads: list[tuple[str, bytes, int]] = []
     for path, arc in entries:
-        manifest_lines.append(f"{arc}\t{sha256(path)}\t{path.stat().st_size}")
+        data = release_bytes(path, arc)
+        digest = hashlib.sha256(data).hexdigest()
+        manifest_lines.append(f"{arc}\t{digest}\t{len(data)}")
+        mode = 0o755 if _is_shell_entry(arc) else 0o644
+        payloads.append((arc, data, mode))
     info = {
         "name": "pgci-preprocess-wgdi-workflow",
         "version": VERSION,
         "created_utc": datetime.now(timezone.utc).isoformat(),
         "scope": (
             "Canonical preprocessing source, tests, 0-6 execution scripts, wrappers, "
-            "compatibility shims and smoke tools; no raw data or previous result directories."
+            "release checks and installation guides; no raw data or generated results."
         ),
         "file_count": len(entries),
         "entry_layout": "wgdi_pipeline/code/<source tree>; launchers at wgdi_pipeline/<name>",
+        "release_gate": "VALIDATION.md",
     }
     with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
-        for path, arc in entries:
-            archive.write(path, "wgdi_pipeline/" + arc)
+        for (arc, data, mode), (path, _arc) in zip(payloads, entries, strict=True):
+            zip_info = zipfile.ZipInfo(
+                "wgdi_pipeline/" + arc,
+                date_time=time.localtime(path.stat().st_mtime)[:6],
+            )
+            zip_info.create_system = 3  # Unix: preserve the executable bit on extraction
+            zip_info.external_attr = mode << 16
+            zip_info.compress_type = zipfile.ZIP_DEFLATED
+            archive.writestr(zip_info, data, compresslevel=9)
         archive.writestr("wgdi_pipeline/PACKAGE_SHA256.tsv", "\n".join(manifest_lines) + "\n")
         archive.writestr("wgdi_pipeline/PACKAGE_INFO.json", json.dumps(info, ensure_ascii=False, indent=2) + "\n")
     with zipfile.ZipFile(output) as archive:

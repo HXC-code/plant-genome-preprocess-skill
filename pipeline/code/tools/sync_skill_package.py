@@ -23,7 +23,11 @@ from __future__ import annotations
 import argparse
 import hashlib
 import shutil
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from build_release_package import collect_files as collect_release_files  # noqa: E402
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 CANONICAL = PROJECT_ROOT / "src" / "pgci_preprocess"
@@ -35,19 +39,6 @@ DEFAULT_TARGET = (
     / "scripts"
     / "pgci_preprocess"
 )
-PIPELINE_DOC_PAIRS = (
-    (PROJECT_ROOT.parent / "README.md", Path("README.md")),
-    (PROJECT_ROOT.parent / "QUICKSTART.md", Path("QUICKSTART.md")),
-    (PROJECT_ROOT / "README.md", Path("code/README.md")),
-    (PROJECT_ROOT.parent / "LICENSE", Path("../LICENSE")),
-)
-PIPELINE_SOURCE_DIRS = (
-    (CANONICAL, Path("code/src/pgci_preprocess")),
-    (CANONICAL_TESTS, Path("code/tests")),
-    (PROJECT_ROOT / "tools", Path("code/tools")),
-)
-
-
 def _digest(path: Path) -> str:
     # Git may check out CRLF on Windows and LF on Linux; compare normalized bytes.
     return hashlib.sha256(path.read_bytes().replace(b"\r\n", b"\n")).hexdigest()
@@ -130,43 +121,50 @@ def sync(target: Path) -> list[str]:
 
 def _pipeline_pairs(pipeline_root: Path) -> list[tuple[Path, Path, str]]:
     pairs = [
-        (source, pipeline_root / relative, relative.as_posix())
-        for source, relative in PIPELINE_DOC_PAIRS
-        if source.is_file()
+        (source, pipeline_root / relative, relative)
+        for source, relative in collect_release_files()
     ]
-    for source_dir, relative_target in PIPELINE_SOURCE_DIRS:
-        for name, source in sorted(_python_files(source_dir).items()):
-            relative = relative_target / name
-            pairs.append((source, pipeline_root / relative, relative.as_posix()))
+    for name in (".gitignore", "LICENSE", "CHANGELOG.md", "CONTRIBUTING.md"):
+        source = PROJECT_ROOT.parent / name
+        if source.is_file():
+            pairs.append((source, pipeline_root.parent / name, f"../{name}"))
     return pairs
 
 
 def compare_pipeline(pipeline_root: Path) -> list[str]:
     problems: list[str] = []
-    for source, destination, label in _pipeline_pairs(pipeline_root):
+    pairs = _pipeline_pairs(pipeline_root)
+    for source, destination, label in pairs:
         if not destination.is_file():
             problems.append(f"missing: {label}")
         elif _digest(source) != _digest(destination):
             problems.append(f"drift: {label}")
-    for source_dir, relative_target in PIPELINE_SOURCE_DIRS:
-        target_dir = pipeline_root / relative_target
-        stale = set(_python_files(target_dir)) - set(_python_files(source_dir))
-        for name in sorted(stale):
-            problems.append(f"stale: {(target_dir / name).relative_to(pipeline_root).as_posix()}")
+    expected = {destination.resolve() for _source, destination, _label in pairs}
+    for path in pipeline_root.rglob("*"):
+        if (
+            path.is_file()
+            and "__pycache__" not in path.parts
+            and path.resolve() not in expected
+        ):
+            problems.append(f"stale: {path.relative_to(pipeline_root).as_posix()}")
     return problems
 
 
 def sync_pipeline(pipeline_root: Path) -> list[str]:
     removed: list[str] = []
-    for source, destination, _label in _pipeline_pairs(pipeline_root):
+    pairs = _pipeline_pairs(pipeline_root)
+    for source, destination, _label in pairs:
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, destination)
-    for source_dir, relative_target in PIPELINE_SOURCE_DIRS:
-        target_dir = pipeline_root / relative_target
-        stale = set(_python_files(target_dir)) - set(_python_files(source_dir))
-        for name in sorted(stale):
-            (target_dir / name).unlink()
-            removed.append((target_dir / name).relative_to(pipeline_root).as_posix())
+    expected = {destination.resolve() for _source, destination, _label in pairs}
+    for path in sorted(pipeline_root.rglob("*"), reverse=True):
+        if not path.is_file() or "__pycache__" in path.parts or path.resolve() in expected:
+            continue
+        path.unlink()
+        removed.append(path.relative_to(pipeline_root).as_posix())
+    for path in sorted(pipeline_root.rglob("*"), reverse=True):
+        if path.is_dir() and not any(path.iterdir()):
+            path.rmdir()
     return removed
 
 

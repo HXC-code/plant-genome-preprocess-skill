@@ -40,6 +40,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+$env:HOMOLOGY_EVALUE = $HomologyEvalue
 $env:DIAMOND_EVALUE = $HomologyEvalue
 $env:BLAST_EVALUE = $HomologyEvalue
 $env:DIAMOND_SENSITIVITY = $DiamondSensitivity
@@ -1151,7 +1152,7 @@ try {
             exit 2
         }
 
-        Write-PipelineMessage "HXC 自动分析总控" "White"
+        Write-PipelineMessage "HXC WGDI 分析总控（步骤 1–6；预处理/验收请先运行第 0 步）" "White"
         Write-PipelineMessage "步骤范围：$StartStep-$EndStep | 项目目录：$script:ProjectRoot" "DarkGray"
         if ($RetryIncomplete) {
             Write-PipelineMessage "已启用：重新执行未完成步骤。" "Yellow"
@@ -1252,7 +1253,7 @@ try {
 
         $allComplete = @($allStatus | Where-Object { -not $_.Valid }).Count -eq 0
         if ($allComplete) {
-            Write-PipelineMessage "全部 6 个步骤及关键产物检查通过。" "Green"
+            Write-PipelineMessage "WGDI 分析步骤 1–6 及关键产物检查通过。" "Green"
             exit 0
         }
 

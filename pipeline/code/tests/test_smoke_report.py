@@ -51,6 +51,15 @@ def test_smoke_receipt_requires_all_outputs_and_preserves_blast(tmp_path: Path) 
     assert passed.returncode == 0, passed.stdout + passed.stderr
     report = json.loads((root / "smoke_report.json").read_text(encoding="utf-8"))
     assert report["status"] == "PASS"
+    assert report["schema_version"] == "wgdi-smoke-v2"
+    assert set(report["environment"]["tools"]) == {
+        "diamond",
+        "blastp",
+        "makeblastdb",
+        "muscle",
+        "yn00",
+        "perl",
+    }
     assert len(report["comparisons"][0]["outputs"]) == 8
     assert report["comparisons"][0]["auto_pep_blast_preserved_and_identical"] is True
 

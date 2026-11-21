@@ -1,9 +1,10 @@
-# Python packages in the pced environment that completed the 2026-11-19 real-data WGDI smoke.
+# Python packages validated by the 2026-11-21 isolated full-chain smoke.
+# pandas 3.x changes string-dtype assignment semantics used by WGDI 0.75.
 # Install into a new virtual environment; DIAMOND/BLAST, MUSCLE, yn00, Perl and Bash are external tools.
 wgdi==0.75
 matplotlib==3.11.2
 numpy==2.4.6
 scipy==1.17.1
-pandas==3.0.6
+pandas==2.3.3
 biopython==1.88
 tabulate==0.10.0

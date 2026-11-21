@@ -1,9 +1,8 @@
-"""WGDI 启动入口：先注入 matplotlib 兼容补丁，再运行 wgdi.run。
-
-规避 sitecustomize/PYTHONPATH 在 Git Bash + Windows Python 混合环境下的路径问题：
-补丁在进程内直接执行，100% 生效。不影响 Ks 等非绘图流程。
-"""
+"""Launch pinned upstream WGDI with the compatibility patches managed here."""
 import sys
+import os
+import shutil
+from pathlib import Path
 
 # 兼容 matplotlib >= 3.9：wgdi 0.75 的 block_ks.py 用了已移除的 cm.get_cmap
 try:
@@ -19,6 +18,52 @@ except Exception:
     pass
 
 import wgdi.base as _wgdi_base
+
+_project_root = Path(__file__).resolve().parent.parent
+_original_config = _wgdi_base.config
+
+
+def _resolve_tool(environment_name: str, legacy_environment: str, command: str):
+    configured = os.environ.get(environment_name) or os.environ.get(legacy_environment)
+    return configured or shutil.which(command)
+
+
+def _config_with_portable_tools():
+    items = dict(_original_config())
+    overrides = {
+        "mafft_path": _resolve_tool("WGDI_MAFFT", "MAFFT", "mafft"),
+        "muscle_path": _resolve_tool("WGDI_MUSCLE", "MUSCLE", "muscle"),
+        "yn00_path": _resolve_tool("WGDI_YN00", "YN00", "yn00"),
+        "iqtree_path": _resolve_tool("WGDI_IQTREE", "IQTREE", "iqtree"),
+        "trimal_path": _resolve_tool("WGDI_TRIMAL", "TRIMAL", "trimal"),
+        "fasttree_path": _resolve_tool("WGDI_FASTTREE", "FASTTREE", "fasttree"),
+        "divvier_path": _resolve_tool("WGDI_DIVVIER", "DIVVIER", "divvier"),
+    }
+    pal2nal = (
+        os.environ.get("WGDI_PAL2NAL")
+        or os.environ.get("PAL2NAL")
+        or _project_root / "code" / "tools" / "pal2nal.v14" / "pal2nal.pl"
+    )
+    if Path(pal2nal).is_file():
+        overrides["pal2nal_path"] = str(pal2nal)
+    for key, value in overrides.items():
+        if value:
+            items[key] = value
+    return list(items.items())
+
+
+_wgdi_base.config = _config_with_portable_tools
+
+_original_str_to_bool = _wgdi_base.str_to_bool
+
+
+def _str_to_bool(value):
+    if isinstance(value, bool):
+        return value
+    return _original_str_to_bool(value)
+
+
+_wgdi_base.str_to_bool = _str_to_bool
 
 # Workflow extension: ``-r`` as the final argument means "remove tandem
 # duplicates during tandem-aware WGDI stages".  Upstream ``-r <config>`` remains

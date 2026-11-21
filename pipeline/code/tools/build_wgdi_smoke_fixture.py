@@ -11,6 +11,7 @@ import argparse
 import hashlib
 import json
 import shutil
+import tomllib
 from collections import defaultdict
 from pathlib import Path
 
@@ -83,6 +84,32 @@ def write_fasta(path: Path, ids: set[str], records: dict[str, str], order: list[
         for gene_id in order:
             if gene_id in ids:
                 handle.write(f">{gene_id}\n{records[gene_id]}\n")
+
+
+def install_smoke_runtime(workflow: Path, output: Path) -> None:
+    """Copy the shared workflow entry points needed by an isolated smoke run."""
+    for name in (
+        "0check_data.sh",
+        "run_homology.sh",
+        "1run_blast.sh",
+        "1run_diamond.sh",
+        "2run_pre_wgdi.sh",
+        "3blast_to_wgdi.sh",
+        "4run_wgdi_different.sh",
+        "5run_wgdi_same.sh",
+        "6run_wgdi.sh",
+        "run_all_pipeline.ps1",
+    ):
+        shutil.copy2(workflow / name, output / name)
+    shutil.copytree(workflow / "bin", output / "bin")
+    config_generator = workflow / "code" / "tools" / "generate_wgdi_configs.py"
+    target_generator = output / "code" / "tools" / "generate_wgdi_configs.py"
+    target_generator.parent.mkdir(parents=True)
+    shutil.copy2(config_generator, target_generator)
+    pal2nal = workflow / "code" / "tools" / "pal2nal.v14" / "pal2nal.pl"
+    target_pal2nal = output / "code" / "tools" / "pal2nal.v14" / "pal2nal.pl"
+    target_pal2nal.parent.mkdir(parents=True)
+    shutil.copy2(pal2nal, target_pal2nal)
 
 
 def main() -> int:
@@ -179,16 +206,13 @@ def main() -> int:
     write_fasta(target_species / f"{code}.cds", selected, cds, selected_order)
     write_fasta(target_species / f"{code}.pep", selected, pep, selected_order)
 
-    for name in (
-        "0check_data.sh", "1run_blast.sh", "1run_diamond.sh", "2run_pre_wgdi.sh",
-        "3blast_to_wgdi.sh", "4run_wgdi_different.sh", "5run_wgdi_same.sh",
-        "6run_wgdi.sh", "run_all_pipeline.ps1",
-    ):
-        shutil.copy2(workflow / name, output / name)
-    shutil.copytree(workflow / "bin", output / "bin")
+    install_smoke_runtime(workflow, output)
 
     manifest = {
         "status": "FIXTURE_READY_NOT_WGDI_RUN",
+        "workflow_version": tomllib.loads(
+            (workflow / "code" / "pyproject.toml").read_text(encoding="utf-8")
+        )["project"]["version"],
         "species": code,
         "source_species_dir": str(species_dir),
         "source_self_icl": str(args.self_icl.resolve()),

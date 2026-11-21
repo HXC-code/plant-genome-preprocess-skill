@@ -1,6 +1,7 @@
 # 快速上手：从自己的原始下载数据到 WGDI 输入
 
-本包只包含**代码**：预处理程序、0–6 步执行脚本、WGDI 启动器。不含任何原始数据、也不含已生成的结果目录。
+本包只包含**代码**：预处理程序、可选的下游比对/WGDI 执行层和 WGDI 启动器。
+不含任何原始数据、也不含已生成的结果目录。
 拿到包的人只要有 Python 和少量外部程序，就能从自己的数据生成 WGDI 能直接跑的
 `<Abbr>.pep / .cds / .new.gff / .lens`，并按缩写命名。
 
@@ -13,10 +14,12 @@ wgdi_pipeline/
 ├── QUICKSTART.md                  # 本页
 ├── bootstrap_wgdi.ps1 / .sh        # 一键创建 WGDI 运行环境（.wgdi-env）
 ├── bin/wgdi                        # 可移植启动器（自动找 .wgdi-env / PATH）
-├── 0check_data.sh … 6run_wgdi.sh   # 可选：下游比对 / WGDI 执行
-├── run_all_pipeline.ps1            # 可选：Windows 一键串联 0–6
+├── run_homology.sh                 # DIAMOND/BLAST 共用实现
+├── 0check_data.sh … 6run_wgdi.sh   # 兼容入口
+├── run_all_pipeline.ps1            # Windows 分析总控（1–6）
 ├── requirements-wgdi-validated.txt # 可选：WGDI 依赖钉版清单
-├── vendor/                         # 可选：WGDI 兼容 shim
+├── VALIDATION.md                   # 发布和端到端验证门禁
+├── THIRD_PARTY_NOTICES.md          # 外部工具许可说明
 └── code/                           # 预处理源码（唯一代码树）
     ├── src/pgci_preprocess/        # Python 包
     ├── scripts/ tools/ tests/ docs/
@@ -34,7 +37,7 @@ wgdi_pipeline/
 | 用途 | 需要的东西 | 说明 |
 | --- | --- | --- |
 | 预处理 | Python ≥ 3.11 | 纯标准库即可；要转 GBFF 才需要 `biopython>=1.83` |
-| WGDI | Python + `wgdi` 包 | 用 `bootstrap_wgdi` 自动装，不要手改脚本里的解释器路径 |
+| WGDI | Python + `wgdi==0.75` | 用 `bootstrap_wgdi` 或 requirements 安装；只有固定上游来源 |
 | 同源比对 | `diamond` 或 `blastp` + `makeblastdb` | 装好后在 PATH 里即可 |
 | WGDI 依赖 | `muscle`、`yn00`（PAML）、`perl` | 同上，PATH 或 `-BioinfoBin` 指定目录 |
 | Windows 执行 shell 脚本 | Git Bash | `run_all_pipeline.ps1` 会自动找 `git.exe` 同级的 `bash.exe` |
@@ -144,7 +147,7 @@ python -m pgci_preprocess check-names --project-root D:\my_project
 <Abbr>.gene_map.tsv  <Abbr>.chr_map.tsv  <Abbr>.rejected.tsv  <Abbr>.qc.json
 ```
 
-`validate --refresh-links` 会在项目根建 `<Abbr>/` 兼容目录（0–6 步脚本按这个目录取文件）。
+`validate --refresh-links` 会在项目根建 `<Abbr>/` 兼容目录（下游脚本按这个目录取文件）。
 也可以 `--no-compat-links` 跳过，只用 `analysis_v2` 里的规范文件。
 
 ### 命名规则（务必理解）
@@ -163,15 +166,16 @@ python -m pgci_preprocess migrate-artifacts --project-root D:\my_project --prune
 
 ---
 
-## 5. 可选：跑 0–6 步（不属于预处理）
+## 5. 可选：下游比对和 WGDI（不属于预处理）
 
-前面第 3–4 步已经完成预处理，产出 WGDI 可直接读取的四件套。下面 0–6 步是
+前面第 3–4 步已经完成预处理，产出 WGDI 可直接读取的四件套。下面的下游层是
 **可选的下游执行层**：`pgci_preprocess run` 不会调用它们。只有当你还想用本包
 完成 DIAMOND/BLAST 同源比对和 WGDI 分析时才需要；纯预处理用户跳到第 7 节即可。
 
-Windows 一键：
+Windows 分析总控（步骤 1–6；第 0 步负责预处理和验收）：
 
 ```powershell
+bash 0check_data.sh --preprocess --refresh-links
 powershell -ExecutionPolicy Bypass -File .\run_all_pipeline.ps1
 # 外部程序不在 PATH 时：
 # -BioinfoBin D:\bioinfo\bin -DiamondPath D:\bioinfo\bin\diamond.exe
@@ -181,13 +185,15 @@ powershell -ExecutionPolicy Bypass -File .\run_all_pipeline.ps1
 
 ```bash
 bash 0check_data.sh --preprocess --refresh-links
-bash 1run_diamond.sh          # 或 1run_blast.sh
+bash run_homology.sh           # 默认 DIAMOND；设 HOMOLOGY_ENGINE=blast 改变引擎
 bash 2run_pre_wgdi.sh
 bash 3blast_to_wgdi.sh
-bash 4run_wgdi_different.sh
-bash 5run_wgdi_same.sh
+python code/tools/generate_wgdi_configs.py --mode all
 bash 6run_wgdi.sh
 ```
+
+`1run_diamond.sh`、`1run_blast.sh`、`4run_wgdi_different.sh` 和
+`5run_wgdi_same.sh` 继续可用，但只是共享实现的兼容入口。
 
 `bin/wgdi` 会设置 `MPLBACKEND=Agg` 和临时 `MPLCONFIGDIR`，无图形界面的服务器也能跑。
 
@@ -200,6 +206,7 @@ bash 6run_wgdi.sh
 | 产物名还是 `s1234` | 既没有缩写表记录，也没有拉丁名；补 `--scientific-name` 或清单 `Species` 列。若表丢失，`doctor` 会报 `species_abbreviations FAIL` |
 | `validate` 报 `compat_missing_*` | 加 `--refresh-links` 建兼容目录 |
 | `wgdi: not found python with wgdi` | 先跑 `bootstrap_wgdi.ps1/.sh`，或设 `WGDI_PYTHON` |
+| WGDI 仍使用旧机器上的 MUSCLE/yn00 路径 | 新版启动入口会依次读取 `WGDI_MUSCLE`、`MUSCLE`、`WGDI_YN00`、`YN00` 和 PATH；PAL2NAL 默认使用包内脚本 |
 | `doctor` 报 diamond/blastp FAIL | 装工具并加入 PATH，或用 `-BioinfoBin` / `DIAMOND` / `BLASTP` 环境变量 |
 | Windows 路径过长报错 | 项目与临时目录尽量短（<250 字符），或把项目放到盘符根下 |
 | 迁移中断后目录里混着新旧文件名 | 重跑 `migrate-artifacts`（幂等，会补齐 `>` 头、GFF 列与基因 ID） |
@@ -218,3 +225,15 @@ python -m pytest -q                      # 无系统临时目录权限时加 --b
 ```
 
 `validate` 只校验数据完整性：缺少 `resources/species_abbreviations.tsv` 时跳过命名审计（命名问题由 `check-names` / `doctor` 报告），不会因此判 FAIL。两项都通过，才把 `analysis_v2/<Abbr>/` 交给 WGDI 使用。
+
+需要验证完整下游执行时，再在隔离目录运行自包含 smoke：
+
+```powershell
+python code/tools/build_synthetic_wgdi_smoke.py `
+  --output-root $env:TEMP\plant-genome-smoke `
+  --genes-per-species 120 --chromosomes 8 --protein-length 80
+bash code/tools/run_wgdi_smoke.sh $env:TEMP\plant-genome-smoke
+```
+
+发布门禁和已通过的 3.5.1 回执见 `VALIDATION.md` 与 `validation/`。
+可直接交接的压缩包为 `dist/plant-genome-preprocess-v3.5.1.zip`。

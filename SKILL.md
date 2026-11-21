@@ -1,15 +1,15 @@
 ---
 name: plant-genome-preprocess
-description: 植物基因组注释预处理（完整工程版）。把 GFF/GFF3/GTF/GBFF/功能注释 CSV 与 genome/CDS/蛋白 FASTA 清洗成 WGDI 可直接使用的 pep/cds/new.gff/lens，含命名校验、断点续跑、基因清洗与 QC 报告；适用于 200+ 植物物种批量预处理、外部项目复现与数据体检。
+description: 植物基因组预处理与可选 WGDI 比较工作流（完整工程版）。把 GFF/GFF3/GTF/GBFF/功能注释 CSV 与 genome/CDS/蛋白 FASTA 清洗成 WGDI 四件套，含命名校验、断点续跑、基因清洗与 QC；也可继续执行 DIAMOND/BLAST、共线性区块与 block-Ks/Ks-peak 分析。
 ---
 
 # 植物基因组预处理（完整工程）
 
-这个 skill 里放的是**完整可运行的预处理工程**，不是一层调用壳：`pipeline/` 下有源码、测试、资源表、0–6 步脚本和 WGDI 兼容 shim。
+这个 skill 放的是**完整可运行的工程**，不是一层调用壳：`pipeline/` 下有源码、
+测试、资源表、可选下游脚本和固定版本 WGDI 启动入口。
 
-预处理核心到 `pgci_preprocess run` 为止，只产出 WGDI 输入四件套。0–6 步脚本和
-`bin/wgdi`、`vendor/wgdi` 是**可选下游层**，`run` 不会调用它们；只有你还要用
-本包执行 DIAMOND/BLAST 与 WGDI 时才需要。
+预处理核心到 `pgci_preprocess run` 为止，只产出 WGDI 输入四件套。下游层是可选
+模式；`run` 不会调用它。只有需要 DIAMOND/BLAST、共线性和 Ks 分析时才继续。
 
 ## 何时用
 
@@ -23,12 +23,14 @@ description: 植物基因组注释预处理（完整工程版）。把 GFF/GFF3/
 ```
 pipeline/
 ├── QUICKSTART.md               # 面向使用者的完整说明
+├── run_homology.sh             # DIAMOND/BLAST 共用实现
 ├── 0check_data.sh … 6run_wgdi.sh
-├── run_all_pipeline.ps1        # Windows 一键 0–6
+├── run_all_pipeline.ps1        # Windows 分析总控（1–6）
 ├── bootstrap_wgdi.ps1 / .sh    # 建 WGDI 运行环境
 ├── bin/wgdi                    # 可移植启动器
-├── vendor/                     # WGDI 兼容 shim（4–6 步需要）
 ├── requirements-wgdi-validated.txt
+├── VALIDATION.md               # 发布门禁
+├── validation/                 # PASS 的 WGDI smoke 回执
 └── code/                       # 预处理源码（唯一代码树）
     ├── src/pgci_preprocess/    # Python 包
     ├── scripts/ tools/ tests/ docs/
@@ -123,14 +125,17 @@ python -m pgci_preprocess init-project --project-root D:\my_project `
 
 ```powershell
 cd pipeline\code
-python -m pytest -q                     # 151 个用例；临时目录受限时加 --basetemp=<short-path>
+python -m pytest -q                     # 157 个用例；临时目录受限时加 --basetemp=<short-path>
 ```
 
-测试覆盖：多格式项目、GBFF 往返、GTF 转换、命名迁移、兼容链接、校验失败路径、版本一致性。
+测试覆盖：多格式项目、GBFF 往返、GTF 转换、命名迁移、兼容链接、校验失败路径、
+版本一致性、共享脚本契约、发布包和 Skill 镜像。
 
 ## 交接与复现
 
-- 发布包结构、0–6 步细节见 `pipeline/QUICKSTART.md`。
+- 发布包结构和两种使用模式见 `pipeline/QUICKSTART.md`。
 - CI 在 push / PR 时跑 `pytest`、`ruff`、`mypy`，并检查 `pipeline/` 与 canonical 仓库一致；代码变更先在 canonical 仓库落地再同步。
-- 预处理只产出 WGDI 输入，不跑 BLAST/WGDI 本身；0–6 步是可选下游层，用 `vendor/wgdi` shim 兼容旧调用。
+- WGDI 使用固定 `wgdi==0.75` 上游包；`bin/wgdi_entry.py` 只维护必要的兼容补丁。
+- `validation/smoke-report-3.5.1.json` 记录了四组比较、每组 8 个关键产物的 PASS 结果（由真实运行环境以 `--public` 生成）。
+- 预处理与下游比较是两个明确模式，不应把“四件套就绪”解释成 WGDI 已完成。
 - 所有中间产物可删：`analysis_v2/<Abbr>/` 是唯一权威输出，`clean_v2` 是清洗记录，根下 `<Abbr>/` 只是兼容链接。

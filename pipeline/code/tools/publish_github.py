@@ -28,7 +28,12 @@ from pathlib import Path
 API = "https://api.github.com"
 
 PROJECT_ROOT = Path(__file__).resolve().parents[2]      # wgdi_pipeline/
-SKILL_ROOT = Path(os.environ.get("PGCI_SKILL_ROOT", r"D:\lab-task\07_REPORTS\skill_src\plant-genome-preprocess"))
+SKILL_ROOT = Path(
+    os.environ.get(
+        "PGCI_SKILL_ROOT",
+        str(PROJECT_ROOT.parent / "plant-genome-preprocess-skill"),
+    )
+)
 
 SKIP_DIRS = {"__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache", ".git"}
 SKIP_SUFFIX = {".pyc", ".pyo", ".zip"}
@@ -50,7 +55,17 @@ def collect(root: Path, prefix: str = "") -> list[tuple[str, Path]]:
 
 def project_files() -> list[tuple[str, Path]]:
     files = collect(PROJECT_ROOT / "code", "code/")
-    for name in ("QUICKSTART.md", "README.md", "requirements-wgdi-validated.txt"):
+    for name in (
+        ".gitignore",
+        "QUICKSTART.md",
+        "README.md",
+        "VALIDATION.md",
+        "CHANGELOG.md",
+        "CONTRIBUTING.md",
+        "LICENSE",
+        "THIRD_PARTY_NOTICES.md",
+        "requirements-wgdi-validated.txt",
+    ):
         p = PROJECT_ROOT / name
         if p.is_file():
             files.append((name, p))
@@ -59,10 +74,7 @@ def project_files() -> list[tuple[str, Path]]:
     for p in PROJECT_ROOT.glob("*.ps1"):
         files.append((p.name, p))
     files += collect(PROJECT_ROOT / "bin", "bin/")
-    files += collect(PROJECT_ROOT / "vendor" / "wgdi", "vendor/wgdi/")
-    site = PROJECT_ROOT / "vendor" / "sitecustomize.py"
-    if site.is_file():
-        files.append(("vendor/sitecustomize.py", site))
+    files += collect(PROJECT_ROOT / "validation", "validation/")
     return files
 
 

@@ -11,14 +11,14 @@ files WGDI expects:
 
 It also writes QC reports, gene/chromosome maps, a rejection log, a SHA-256
 manifest and a naming audit, so every retained gene can be traced back to the
-original file.
+original file. A separate, optional comparison layer starts from those files
+and runs DIAMOND/BLAST, collinearity and block-level Ks analysis.
 
 The Python package stops before BLAST and WGDI execution. This repository also
-contains the 0–6 execution scripts, but they are an **optional downstream layer**:
-`pgci_preprocess run` never invokes them. If your job is only preprocessing,
-stop after `run` / `validate` / `check-names`. Use the scripts only when you also
-want to run DIAMOND/BLAST and WGDI with this bundled workflow. `wgdi_ready=yes`
-means the inputs are ready, **not** that WGDI has already completed.
+contains an **optional downstream comparison layer**: `pgci_preprocess run`
+never invokes it. If your job is only preprocessing, stop after `run` /
+`validate` / `check-names`. `wgdi_ready=yes` means the inputs are ready, not
+that WGDI has completed.
 
 For a complete end-to-end handoff guide, start from **QUICKSTART.md**.
 
@@ -48,13 +48,15 @@ from a suffix alone.
 
 ```text
 .
-├── 0check_data.sh              # optional downstream layer
-├── 1run_blast.sh ... 6run_wgdi.sh  # optional downstream layer
-├── run_all_pipeline.ps1        # optional downstream layer
+├── run_homology.sh             # shared DIAMOND/BLAST implementation
+├── 0check_data.sh              # preprocess/validation gate
+├── 1run_blast.sh ... 6run_wgdi.sh  # compatibility wrappers for the analysis layer
+├── run_all_pipeline.ps1        # Windows analysis controller, steps 1–6
 ├── requirements-wgdi-validated.txt  # optional downstream layer
 ├── bin/wgdi                    # optional downstream layer
 ├── bin/wgdi_entry.py           # optional downstream layer
-├── vendor/sitecustomize.py     # optional downstream layer
+├── VALIDATION.md               # release and end-to-end validation gate
+├── THIRD_PARTY_NOTICES.md      # separately installed runtime tools
 ├── code/                       # single source tree (this is what gets packaged)
 │   ├── src/pgci_preprocess/
 │   ├── scripts/ tools/ tests/ docs/
@@ -108,8 +110,8 @@ Registration requires four explicit inputs: `--genome`, `--gff`, `--cds` and
 read-only: it neither installs tools nor claims that an external program has
 successfully completed an analysis.
 
-From the workflow root, the full controller defaults to DIAMOND with
-`very-sensitive` and `1e-5`:
+After step 0, the Windows analysis controller runs steps 1–6 and defaults to
+DIAMOND with `very-sensitive` and `1e-5`:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\run_all_pipeline.ps1
@@ -123,7 +125,9 @@ Generated comparison configs default to `tandem = false`, so tandem-repeat
 blocks are removed from correspondence, block-Ks and Ks-peak analyses. Set
 `WGDI_TANDEM=true` before regenerating configs if tandem blocks must be
 retained. The WGDI wrapper accepts `WGDI_PYTHON`, `WGDI_PERL_BIN` and
-`WGDI_PERL5LIB` for non-local installations.
+`WGDI_PERL5LIB` for non-local installations. MUSCLE, yn00, PAL2NAL and the
+optional WGDI tools can be overridden through `WGDI_*` environment variables;
+otherwise they are resolved from the bundled script or `PATH`.
 
 ## Standardize and validate
 
@@ -164,6 +168,18 @@ outputs per comparison. `smoke_report.json` records parameters, file sizes and
 SHA-256 hashes. This receipt applies only to the derived smoke fixture, not to
 a full rerun of every species; step 0 remains covered by preprocessing
 validation.
+
+## Release and handoff
+
+Read `VALIDATION.md` before handing the package to another person. Release
+archives include the README, license, changelog, third-party notices and
+validation gate. WGDI itself is installed from the pinned requirements file;
+the repository no longer contains a second copy of the WGDI source tree.
+
+The prepared handoff archive is
+`dist/plant-genome-preprocess-v3.5.1.zip`. Release archives ship LF shell
+scripts (`.gitattributes` + builder normalization), so they run unchanged on
+Linux/WSL as well as Windows Git Bash.
 
 ## Test
 

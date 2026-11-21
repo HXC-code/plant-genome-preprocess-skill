@@ -15,7 +15,6 @@ project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 mpl_config="${TMPDIR:-/tmp}/hxc-wgdi-mpl-${USER:-user}"
 mkdir -p "$mpl_config"
 
-export PYTHONPATH="$project_root/vendor${PYTHONPATH:+:$PYTHONPATH}"
 export MPLBACKEND="Agg"
 export MPLCONFIGDIR="$mpl_config"
 
