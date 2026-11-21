@@ -13,10 +13,10 @@ wgdi_pipeline/
 ├── QUICKSTART.md                  # 本页
 ├── bootstrap_wgdi.ps1 / .sh        # 一键创建 WGDI 运行环境（.wgdi-env）
 ├── bin/wgdi                        # 可移植启动器（自动找 .wgdi-env / PATH）
-├── 0check_data.sh … 6run_wgdi.sh   # 0–6 步流程
-├── run_all_pipeline.ps1            # Windows 一键串联 0–6
-├── requirements-wgdi-validated.txt # WGDI 依赖钉版清单
-├── vendor/                         # 内置 WGDI 兼容 shim
+├── 0check_data.sh … 6run_wgdi.sh   # 可选：下游比对 / WGDI 执行
+├── run_all_pipeline.ps1            # 可选：Windows 一键串联 0–6
+├── requirements-wgdi-validated.txt # 可选：WGDI 依赖钉版清单
+├── vendor/                         # 可选：WGDI 兼容 shim
 └── code/                           # 预处理源码（唯一代码树）
     ├── src/pgci_preprocess/        # Python 包
     ├── scripts/ tools/ tests/ docs/
@@ -163,7 +163,11 @@ python -m pgci_preprocess migrate-artifacts --project-root D:\my_project --prune
 
 ---
 
-## 5. 跑 0–6 步
+## 5. 可选：跑 0–6 步（不属于预处理）
+
+前面第 3–4 步已经完成预处理，产出 WGDI 可直接读取的四件套。下面 0–6 步是
+**可选的下游执行层**：`pgci_preprocess run` 不会调用它们。只有当你还想用本包
+完成 DIAMOND/BLAST 同源比对和 WGDI 分析时才需要；纯预处理用户跳到第 7 节即可。
 
 Windows 一键：
 

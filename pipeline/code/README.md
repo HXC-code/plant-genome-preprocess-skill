@@ -131,7 +131,11 @@ python scripts/validate_wgdi_dataset.py --expected-count 109 --no-compat-links
 --accession-policy strict     # strict/legacy
 ```
 
-## 0–6 同源搜索与 WGDI 执行
+## 0–6 同源搜索与 WGDI 执行（可选下游层）
+
+本章脚本不属于预处理核心，`pgci_preprocess run` 不会调用它们。只想把原始数据
+标准化为 WGDI 输入时，到上一章的 `run` / `validate` / `check-names` 即可结束。
+只有需要一并执行同源比对和 WGDI 分析时，才继续下面的步骤。
 
 预处理通过只代表“输入就绪”。实际执行在 `wgdi_pipeline` 根目录进行，四件套必须先放在
 `s<code>/` 中并成套使用：

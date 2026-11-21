@@ -14,9 +14,11 @@ manifest and a naming audit, so every retained gene can be traced back to the
 original file.
 
 The Python package stops before BLAST and WGDI execution. This repository also
-contains the 0–6 execution scripts for the downstream comparison and WGDI
-analysis. `wgdi_ready=yes` means the inputs are ready, **not** that WGDI has
-already completed.
+contains the 0–6 execution scripts, but they are an **optional downstream layer**:
+`pgci_preprocess run` never invokes them. If your job is only preprocessing,
+stop after `run` / `validate` / `check-names`. Use the scripts only when you also
+want to run DIAMOND/BLAST and WGDI with this bundled workflow. `wgdi_ready=yes`
+means the inputs are ready, **not** that WGDI has already completed.
 
 For a complete end-to-end handoff guide, start from **QUICKSTART.md**.
 
@@ -46,13 +48,13 @@ from a suffix alone.
 
 ```text
 .
-├── 0check_data.sh
-├── 1run_blast.sh ... 6run_wgdi.sh
-├── run_all_pipeline.ps1
-├── requirements-wgdi-validated.txt
-├── bin/wgdi
-├── bin/wgdi_entry.py
-├── vendor/sitecustomize.py
+├── 0check_data.sh              # optional downstream layer
+├── 1run_blast.sh ... 6run_wgdi.sh  # optional downstream layer
+├── run_all_pipeline.ps1        # optional downstream layer
+├── requirements-wgdi-validated.txt  # optional downstream layer
+├── bin/wgdi                    # optional downstream layer
+├── bin/wgdi_entry.py           # optional downstream layer
+├── vendor/sitecustomize.py     # optional downstream layer
 ├── code/                       # single source tree (this is what gets packaged)
 │   ├── src/pgci_preprocess/
 │   ├── scripts/ tools/ tests/ docs/

@@ -7,6 +7,10 @@ description: 植物基因组注释预处理（完整工程版）。把 GFF/GFF3/
 
 这个 skill 里放的是**完整可运行的预处理工程**，不是一层调用壳：`pipeline/` 下有源码、测试、资源表、0–6 步脚本和 WGDI 兼容 shim。
 
+预处理核心到 `pgci_preprocess run` 为止，只产出 WGDI 输入四件套。0–6 步脚本和
+`bin/wgdi`、`vendor/wgdi` 是**可选下游层**，`run` 不会调用它们；只有你还要用
+本包执行 DIAMOND/BLAST 与 WGDI 时才需要。
+
 ## 何时用
 
 - 拿到植物基因组的注释（GFF/GFF3/GTF/GBFF）与序列（genome/CDS/蛋白），要转成 WGDI 的 `pep/cds/new.gff/lens`；
@@ -128,5 +132,5 @@ python -m pytest -q                     # 151 个用例；临时目录受限时�
 
 - 发布包结构、0–6 步细节见 `pipeline/QUICKSTART.md`。
 - CI 在 push / PR 时跑 `pytest`、`ruff`、`mypy`，并检查 `pipeline/` 与 canonical 仓库一致；代码变更先在 canonical 仓库落地再同步。
-- 预处理只产出 WGDI 输入，不跑 BLAST/WGDI 本身；4–6 步用 `vendor/wgdi` shim 兼容旧调用。
+- 预处理只产出 WGDI 输入，不跑 BLAST/WGDI 本身；0–6 步是可选下游层，用 `vendor/wgdi` shim 兼容旧调用。
 - 所有中间产物可删：`analysis_v2/<Abbr>/` 是唯一权威输出，`clean_v2` 是清洗记录，根下 `<Abbr>/` 只是兼容链接。
