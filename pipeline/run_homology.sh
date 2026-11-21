@@ -6,11 +6,20 @@ shopt -s nullglob
 cd "$(dirname "$0")"
 project_root="$(pwd -P)"
 engine="${HOMOLOGY_ENGINE:-diamond}"
+allow_not_ready="${HOMOLOGY_ALLOW_NOT_READY:-false}"
 
 case "$engine" in
     diamond|blast) ;;
     *)
         echo "错误：HOMOLOGY_ENGINE 必须是 diamond 或 blast，实际为：$engine"
+        exit 2
+        ;;
+esac
+case "${allow_not_ready,,}" in
+    true|1|yes) allow_not_ready=true ;;
+    false|0|no|"") allow_not_ready=false ;;
+    *)
+        echo "错误：HOMOLOGY_ALLOW_NOT_READY 必须是 true 或 false，实际为：$allow_not_ready"
         exit 2
         ;;
 esac
@@ -67,6 +76,51 @@ resolve_tool() {
     fi
 }
 
+species_readiness() {
+    local species_id="$1"
+    local ready=""
+    local qc_path
+    local index_path
+    for qc_path in \
+        "$project_root/analysis_v2/$species_id/$species_id.qc.json" \
+        "$project_root/plant-genome-resources/analysis_v2/$species_id/$species_id.qc.json" \
+        "$project_root/$species_id/$species_id.qc.json"; do
+        if [[ -f "$qc_path" ]]; then
+            if grep -Eq '"wgdi_ready"[[:space:]]*:[[:space:]]*"yes"' "$qc_path"; then
+                ready="yes"
+            elif grep -Eq '"wgdi_ready"[[:space:]]*:[[:space:]]*"marginal"' "$qc_path"; then
+                ready="marginal"
+            elif grep -Eq '"wgdi_ready"[[:space:]]*:[[:space:]]*"no"' "$qc_path"; then
+                ready="no"
+            fi
+            [[ -n "$ready" ]] && break
+        fi
+    done
+    if [[ -z "$ready" ]]; then
+        for index_path in \
+            "$project_root/resources/wgdi_v2_index.tsv" \
+            "$project_root/plant-genome-resources/resources/wgdi_v2_index.tsv"; do
+            if [[ -f "$index_path" ]]; then
+                ready="$(awk -F '\t' -v code="$species_id" '
+                    NR == 1 {
+                        for (i = 1; i <= NF; i++) {
+                            if ($i == "code") code_col = i
+                            if ($i == "wgdi_ready") ready_col = i
+                        }
+                        next
+                    }
+                    code_col && ready_col && $code_col == code {
+                        print $ready_col
+                        exit
+                    }
+                ' "$index_path")"
+                [[ -n "$ready" ]] && break
+            fi
+        done
+    fi
+    printf '%s\n' "$ready"
+}
+
 if [[ "$engine" == "diamond" ]]; then
     resolve_tool "$tool_path" "DIAMOND"
 else
@@ -86,8 +140,13 @@ else
         "$threads" > "Auto_pep/blast_run_settings.tsv"
 fi
 
-map_tmp="$(mktemp)"
-trap 'rm -f "$map_tmp"' EXIT
+map_tmp="species_map.tsv.tmp.$$"
+cleanup_tmp_map() {
+    local status=$?
+    command rm -f -- "$map_tmp" 2>/dev/null || true
+    return "$status"
+}
+trap cleanup_tmp_map EXIT
 skipped_file="skipped_species.txt"
 : > "$skipped_file"
 
@@ -100,7 +159,7 @@ complete_count=0
 for species_dir in */; do
     species_dir="${species_dir%/}"
     case "$species_dir" in
-        Auto_*|_pipeline_*|.*) continue ;;
+        Auto_*|_pipeline_*|analysis_v2|bin|clean_v2|code|data|dist|external|resources|validation|wgdi_run|.*) continue ;;
     esac
 
     pep_files=("$species_dir"/*.pep)
@@ -130,6 +189,15 @@ for species_dir in */; do
     done
     if [[ ${#missing[@]} -gt 0 ]]; then
         echo "$species_dir：缺少 ${missing[*]}" >> "$skipped_file"
+        continue
+    fi
+    readiness="$(species_readiness "$species_id")"
+    if [[ "$readiness" == "no" && "$allow_not_ready" != true ]]; then
+        echo "$species_dir：wgdi_ready=no，已跳过；如需显式复核可设 HOMOLOGY_ALLOW_NOT_READY=true" >> "$skipped_file"
+        continue
+    fi
+    if [[ -z "$readiness" && "$allow_not_ready" != true ]]; then
+        echo "$species_dir：缺少可读取的 wgdi_ready 记录，已跳过；如需显式复核可设 HOMOLOGY_ALLOW_NOT_READY=true" >> "$skipped_file"
         continue
     fi
 
@@ -186,10 +254,9 @@ for base_id in "${species_ids[@]}"; do
     mkdir -p "Auto_pep/${base_id}_pep"
     for target_id in "${species_ids[@]}"; do
         output="Auto_pep/${base_id}_pep/${base_id}_${target_id}.blast"
-        partial="${output}.part"
+        partial="${output}.part.${BASHPID:-$$}"
         log="Auto_pep/${base_id}_pep/${base_id}_${target_id}.${engine}.log"
         db_prefix="$project_root/Auto_pep/db/$target_id"
-        rm -f "$partial"
         echo "${engine_label}：$base_id -> $target_id"
         if [[ "$engine" == "diamond" ]]; then
             "$tool_path" blastp \

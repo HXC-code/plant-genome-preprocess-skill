@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import csv
+import io
 import json
 import os
 import subprocess
@@ -125,7 +127,10 @@ def test_doctor_detects_missing_registered_input(tmp_path: Path) -> None:
     assert "input_files" in failed
 
 
-def test_full_doctor_accepts_explicit_executable_paths(tmp_path: Path) -> None:
+def test_full_doctor_accepts_explicit_executable_paths(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     result = _register(tmp_path)
     tools = tmp_path / "tools"
     tools.mkdir()
@@ -134,10 +139,23 @@ def test_full_doctor_accepts_explicit_executable_paths(tmp_path: Path) -> None:
         path = tools / name
         path.write_text("test placeholder\n", encoding="utf-8")
         overrides[name] = str(path)
+    monkeypatch.setattr(
+        "pgci_preprocess.doctor.subprocess.run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(
+            args[0],
+            0,
+            stdout="wgdi 0.75\n",
+            stderr="",
+        ),
+    )
     report = run_doctor(result.project_root, workflow="full", executables=overrides)
     assert report["status"] in {"PASS", "WARN"}
     assert report["counts"]["FAIL"] == 0
     assert report["diamond_settings"] == {"evalue": "1e-5", "sensitivity": "very-sensitive"}
+    assert any(
+        item["name"] == "wgdi_probe" and item["status"] == "PASS"
+        for item in report["checks"]
+    )
 
 
 def test_init_and_doctor_cli_blackbox(tmp_path: Path) -> None:
@@ -217,3 +235,35 @@ def test_init_infers_assembly_id_from_genome_file_name(tmp_path: Path) -> None:
     )
     species = discover_species(result.project_root)
     assert species[0].assembly_id == "GWHBHAK00000000"
+
+
+def test_init_registers_three_piece_bundle_without_genome(tmp_path: Path) -> None:
+    sources = _sources(tmp_path)
+    del sources["genome"]
+    result = init_project(
+        tmp_path / "three-piece-project",
+        show_id="1126",
+        scientific_name="Cercis chinensis",
+        order="Fabales",
+        family="Fabaceae",
+        sources=sources,
+    )
+    species = discover_species(result.project_root)
+    assert len(species) == 1
+    assert species[0].genome_name == ""
+    assert species[0].assembly_id == ""
+    inventory = (result.project_root / "resources" / "download_inventory.tsv").read_text(
+        encoding="utf-8"
+    )
+    rows = list(csv.DictReader(io.StringIO(inventory), delimiter="\t"))
+    row = next(item for item in rows if item["showid"] == "1126")
+    assert row["genome"] == ""
+    manifest = json.loads(
+        (
+            result.project_root
+            / "resources"
+            / "project_init"
+            / f"{result.species_code}.json"
+        ).read_text(encoding="utf-8")
+    )
+    assert "genome" not in manifest["sources"]

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import shlex
 import shutil
 import stat
@@ -42,6 +43,16 @@ def resolve_wgdi_entry(project_root: Path) -> Path | str:
         raise FileNotFoundError("找不到 WGDI：wgdi（可用 WGDI 环境变量指定）")
 
 
+def _bash_path(value: Path | str) -> str:
+    """Render an absolute Windows path for Bash without backslash escapes."""
+
+    text = value.as_posix() if isinstance(value, Path) else str(value)
+    match = re.fullmatch(r"([A-Za-z]):/(.+)", text.replace("\\", "/"))
+    if match:
+        return f"/{match.group(1).lower()}/{match.group(2)}"
+    return text
+
+
 def _run_script(
     left: str,
     right: str,
@@ -66,7 +77,7 @@ cat "{left}.pep" "{right}.pep" > all.pep
         if remove_tandem
         else "WGDI_TANDEM_ARGS=()"
     )
-    entry = shlex.quote(str(wgdi_entry))
+    entry = shlex.quote(_bash_path(wgdi_entry))
     prefix = left if left == right else f"{left}_{right}"
     return f"""#!/usr/bin/env bash
 set -euo pipefail

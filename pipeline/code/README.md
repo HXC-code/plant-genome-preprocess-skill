@@ -47,8 +47,10 @@ python -m pgci_preprocess doctor --project-root <project> --workflow full `
   --muscle <muscle.exe> --yn00 <yn00.exe> --perl <perl.exe>
 ```
 
-`doctor` 只读，不安装软件、不创建目录、不修改项目。工具检查表示“路径可解析”，不等于
-外部程序已经实际运行；真实执行由独立 smoke 验收。GBFF 转换还需 `biopython>=1.83`，建议在新
+`doctor` 只读，不安装软件、不创建目录、不修改项目。工具检查表示“路径可解析”；
+`--workflow wgdi|full` 额外运行 `wgdi_probe`：实际启动 WGDI 入口读版本，
+暴露“存在但跑不起来”的解释器/环境问题（例如用错 Python 环境导致异常退出）。
+完整执行链仍由独立 smoke 验收。GBFF 转换还需 `biopython>=1.83`，建议在新
 虚拟环境中安装本项目（Python ≥ 3.11），不要复用依赖冲突不明的 base 环境。Windows 建议使用较短的项目和临时目录；
 过长的物种目录与 pytest 临时路径可能触发传统路径长度限制。
 
@@ -61,7 +63,8 @@ python -m pip install -r ..\requirements-wgdi-validated.txt
 ```
 
 
-`init-project` 的一次性显式登记仍要求 genome、GFF、CDS、PEP 四个不同源文件。批量
+`init-project` 的一次性显式登记要求 GFF、CDS、PEP 三个不同源文件；genome 可选
+（只有三件套时长度由 CDS 计算、region 由转录本回填，`--assembly-id` 也可留空）。批量
 `prepare` 则支持 GTF/GBFF 自动转换，以及 `genome + GFF` 自动提取缺失的 CDS/PEP；
 角色先由列名确定，后缀只作提示，最终以文件内容和角色兼容性复核。
 
@@ -129,7 +132,20 @@ python scripts/validate_wgdi_dataset.py --expected-count 109 --no-compat-links
 --gff-format auto             # auto/standard/transcript_only/simplified5/gene_span/gene_cds_direct
 --protein-normalization auto  # auto/strict/evm-dot
 --accession-policy strict     # strict/legacy
+--organelle-pattern <regex>   # 强制排除匹配的合成序列 ID（细胞器）
+--no-organelle-inference      # 关闭合成 region 的细胞器推断
 ```
+
+无 genome、无显式 region 的简化注释，`run` 会对合成 region 做细胞器推断：
+序列/基因标识符信号（chloroplast/plastid/mitochondrion、cp/chrc/mt、plastid 基因名）
+或“高密度 + 紧凑 + 基本无内含子”的基因集会被标记为细胞器并排除；拿不准的
+高密度 region 只列入 QC `organelle_inference.review_candidates` 供人工复核。
+显式 region 行和 genome FASTA 记录永不被启发式改写。排除证据与计数写入
+`organelle_inference` 和 `n_organelle_genes`。
+
+`validate` 默认将 QC 中 `wgdi_ready=no` 的物种判 FAIL
+（`wgdi_not_ready_low_coverage`）；仅做数据完整性归档时显式加
+`--allow-not-ready`（`0check_data.sh` 同名参数透传）。
 
 ## 同源搜索与 WGDI 执行（可选下游层）
 
@@ -150,6 +166,12 @@ bash 3blast_to_wgdi.sh          # 复制比对结果，保留 Auto_pep 原始文
 python tools/generate_wgdi_configs.py --mode all
 bash 6run_wgdi.sh               # 检查每个比较的 8 个关键结果
 ```
+
+`run_homology.sh` 按 QC/index 的 `wgdi_ready` 跳过 `ready=no` 和没有可读准备度
+记录的物种（写入 `skipped_species.txt`），并把 `bin/`、`code/`、`resources/` 等
+基础设施目录排除在物种扫描之外；确需复核未就绪物种时设
+`HOMOLOGY_ALLOW_NOT_READY=true`。生成的 `run.sh` 使用 Bash 安全的 POSIX 路径
+（Windows `D:\...` → `/d/...`）。
 
 `1run_diamond.sh`、`1run_blast.sh`、`4run_wgdi_different.sh` 和
 `5run_wgdi_same.sh` 是兼容入口；新脚本只需要维护共享实现。

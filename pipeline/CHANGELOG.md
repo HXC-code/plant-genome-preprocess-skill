@@ -1,5 +1,49 @@
 # Changelog
 
+## 3.5.4 — 2026-11-21
+
+Fixes from the 41-species real-data pilot review (WGDI full-chain execution
+and program audit report). Two scientific-correctness/data-reliability issues,
+three medium and two minor robustness issues are addressed.
+
+- Organelle inference for genome-less annotations: simplified/transcript-only
+  GFFs without a genome FASTA previously could not identify chloroplast or
+  mitochondrial contigs, so short organelle sequences entered the nuclear WGDI
+  set. `run` now infers organelles among *synthetic* regions from direct
+  identifier signals (chloroplast/plastid/mitochondrion names, `cp`/`chrc`/`mt`
+  accessions, plastid gene ids) or a dense, compact, mostly intronless gene set.
+  Ambiguous dense regions are listed as `review_candidates` instead of being
+  silently excluded. Authoritative `region` rows and genome FASTA records are
+  never reclassified. New flags: `--organelle-pattern <regex>` for explicit
+  synthetic-sequence exclusion and `--no-organelle-inference` to disable it.
+  QC records the evidence under `organelle_inference` and counts excluded genes
+  in `n_organelle_genes`. Verified on the pilot: Hevea brasiliensis
+  `NC_015308.1` (83 genes) and Populus alba `NC_008235.1` (83 genes) are now
+  excluded from the WGDI set.
+- Readiness hard gate: `validate` now fails bundles whose QC reports
+  `wgdi_ready=no` (`wgdi_not_ready_low_coverage`); `--allow-not-ready` (also
+  `0check_data.sh --allow-not-ready`) restores archival/data-integrity checks.
+  `run_homology.sh` and `run_all_pipeline.ps1` skip `ready=no` species and
+  species without a readable readiness record; `HOMOLOGY_ALLOW_NOT_READY=true`
+  overrides explicitly. Pilot acceptance: 36 PASS / 5 FAIL strict, 41 PASS with
+  `--allow-not-ready`.
+- `init-project` registers three-piece bundles (GFF + CDS + PEP) without a
+  genome FASTA; `--genome` and `--assembly-id` are now optional.
+- Generated WGDI `run.sh` entries use Bash-safe POSIX paths (`/d/...`) instead
+  of Windows backslashes, so Git Bash / Linux no longer mis-escape the entry.
+- `bin/wgdi` normalizes Windows `TMPDIR` values and falls back to a
+  project-local temp root when the system temp dir is not writable.
+  `doctor --workflow wgdi|full` now actually launches the WGDI entry
+  (`wgdi_probe`) instead of only checking existence.
+- `run_homology.sh` no longer scans infrastructure directories (`bin/`,
+  `code/`, `resources/`, ...) as species, tolerates temp-file cleanup failure
+  without polluting the exit code, and writes per-process `.part.<pid>` outputs.
+- The synthetic smoke fixture records `wgdi_ready=yes` QC so the readiness gate
+  is exercised on its pass path; a new functional test executes
+  `run_homology.sh` against ready / not-ready / unrecorded species.
+- Engineering: 172 tests, Ruff and Mypy pass; Windows synthetic full-chain smoke
+  receipt `validation/smoke-report-3.5.4.json` (4 comparisons × 8 products).
+
 ## 3.5.3 — 2026-11-21
 
 - Pinned Ruff 0.12.0 and Mypy 1.17.1 in both program and Skill CI so newer

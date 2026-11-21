@@ -50,7 +50,7 @@ def _executable_check(
     requested: str,
     env_name: str,
     candidates: tuple[Path, ...],
-) -> None:
+) -> str:
     resolved = _resolve_executable(requested, env_name=env_name, candidates=candidates)
     if not resolved:
         resolved = shutil.which(name) or ""
@@ -59,6 +59,42 @@ def _executable_check(
     else:
         hint = f"; set {env_name} or pass an explicit path" if env_name else ""
         checks.append(DoctorCheck(name, "FAIL", f"not found{hint}"))
+    return resolved
+
+
+def _wgdi_probe(check_name: str, executable: str) -> DoctorCheck:
+    """Run the actual launcher so import and startup failures fail doctor."""
+
+    path = Path(executable)
+    command = [executable, "--version"]
+    if path.is_file() and path.suffix.casefold() not in {".exe", ".cmd", ".bat"}:
+        bash = shutil.which("bash")
+        if not bash:
+            return DoctorCheck(
+                check_name,
+                "FAIL",
+                "bash is required to run the WGDI launcher",
+            )
+        command = [bash, executable, "--version"]
+    try:
+        completed = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        return DoctorCheck(check_name, "FAIL", str(exc))
+    output = (completed.stdout or completed.stderr).strip().splitlines()
+    detail = output[-1] if output else "no version output"
+    if completed.returncode == 0:
+        return DoctorCheck(check_name, "PASS", detail)
+    return DoctorCheck(
+        check_name,
+        "FAIL",
+        f"exit={completed.returncode}: {detail}",
+    )
 
 
 def _biopython_interpreters() -> list[str]:
@@ -286,13 +322,15 @@ def run_doctor(
             (),
         )
     if workflow in {"wgdi", "full"}:
-        _executable_check(
+        wgdi = _executable_check(
             checks,
             "wgdi",
             overrides.get("wgdi", ""),
             "WGDI",
             (root / "bin" / "wgdi", root.parent / "bin" / "wgdi"),
         )
+        if wgdi:
+            checks.append(_wgdi_probe("wgdi_probe", wgdi))
         for name in ("muscle", "yn00"):
             _executable_check(
                 checks,

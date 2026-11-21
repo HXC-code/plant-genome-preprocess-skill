@@ -37,6 +37,11 @@ python code/tools/generate_wgdi_configs.py --mode all
 bash 6run_wgdi.sh
 ```
 
+The homology runner gates on the preprocessing QC: species with
+`wgdi_ready=no` (or no readable readiness record) are skipped and listed in
+`skipped_species.txt`; `HOMOLOGY_ALLOW_NOT_READY=true` overrides explicitly.
+`validate` applies the same gate (`--allow-not-ready` for archival checks).
+
 The numbered wrappers remain supported:
 
 - `1run_diamond.sh` and `1run_blast.sh` select the shared homology runner.

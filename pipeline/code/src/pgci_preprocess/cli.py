@@ -240,6 +240,16 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Fail when a GFF has no region rows and no genome can resolve them.",
     )
+    run.add_argument(
+        "--organelle-pattern",
+        default="",
+        help="Regex for synthetic sequence IDs that must be excluded as organelles.",
+    )
+    run.add_argument(
+        "--no-organelle-inference",
+        action="store_true",
+        help="Disable identifier and compact-region organelle inference.",
+    )
     run.add_argument("--species-names", type=Path)
     run.set_defaults(func=_cmd_run)
 
@@ -252,6 +262,11 @@ def build_parser() -> argparse.ArgumentParser:
     validate.add_argument("--no-compat-links", action="store_true")
     validate.add_argument("--skip-hashes", action="store_true")
     validate.add_argument("--refresh-links", action="store_true")
+    validate.add_argument(
+        "--allow-not-ready",
+        action="store_true",
+        help="Accept wgdi_ready=no bundles for archival/data-integrity validation.",
+    )
     validate.add_argument("--report", type=Path)
     validate.set_defaults(func=_cmd_validate)
 
@@ -550,6 +565,8 @@ def _cmd_run(args: argparse.Namespace) -> int:
         protein_normalization=args.protein_normalization,
         accession_policy=args.accession_policy,
         backfill_regions_from_transcripts=not args.no_transcript_region_backfill,
+        infer_organelles=not args.no_organelle_inference,
+        organelle_pattern=args.organelle_pattern,
         species_names_path=args.species_names,
     )
     try:
@@ -584,6 +601,7 @@ def _cmd_validate(args: argparse.Namespace) -> int:
                 expected_count=args.expected_count,
                 require_compat_links=not args.no_compat_links,
                 verify_hashes=not args.skip_hashes,
+                allow_not_ready=args.allow_not_ready,
                 report_path=args.report,
             )
         )

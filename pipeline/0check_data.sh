@@ -13,6 +13,7 @@ PREPROCESS_SPECIES=""
 REFRESH_LINKS=false
 REQUIRE_COMPAT=true
 VERIFY_HASHES=true
+ALLOW_NOT_READY=false
 POSITIONAL_ROOT=""
 
 usage() {
@@ -28,6 +29,7 @@ Options:
   --refresh-links        Refresh legacy root s<show_id> compatibility links
   --no-compat-links      Validate canonical analysis_v2 data only
   --skip-hashes          Skip output SHA-256 verification
+  --allow-not-ready      Accept wgdi_ready=no bundles for data-integrity checks
   -h, --help             Show this help
 
 Exit codes:
@@ -76,6 +78,10 @@ while (($# > 0)); do
             ;;
         --skip-hashes)
             VERIFY_HASHES=false
+            shift
+            ;;
+        --allow-not-ready)
+            ALLOW_NOT_READY=true
             shift
             ;;
         -h|--help)
@@ -178,6 +184,9 @@ if [[ "$REQUIRE_COMPAT" == false ]]; then
 fi
 if [[ "$VERIFY_HASHES" == false ]]; then
     validator_args+=(--skip-hashes)
+fi
+if [[ "$ALLOW_NOT_READY" == true ]]; then
+    validator_args+=(--allow-not-ready)
 fi
 
 echo "验收项目: $PROJECT_ROOT"

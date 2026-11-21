@@ -10,7 +10,7 @@
 
 发布包：
 
-<https://github.com/HXC-code/plant-genome-preprocess/releases/tag/v3.5.3>
+<https://github.com/HXC-code/plant-genome-preprocess/releases/tag/v3.5.4>
 
 ## Skill 可以完成的工作
 
@@ -23,7 +23,7 @@
 | 注释修复 | 补 region、补 mRNA、修复 gene/mRNA/CDS 层级和拆分基因 |
 | 代表转录本选择 | 每个基因保留一个最长蛋白候选，并按 CDS 长度和稳定 ID 消歧 |
 | 主序列选择 | 使用主染色体、基因数阈值、累计覆盖率和序列数上限生成 WGDI 序列集 |
-| 数据验收 | 检查 ID、坐标、链、长度、翻译、哈希、兼容链接和命名一致性 |
+| 数据验收 | 检查 ID、坐标、链、长度、翻译、哈希、兼容链接和命名一致性；`wgdi_ready=no` 默认拦截 |
 | 追溯报告 | 生成 gene map、chromosome map、rejected、QC、index 和 manifest |
 | 旧项目迁移 | 将 `s<show_id>` 命名迁移为物种缩写并刷新兼容链接 |
 | 冻结来源 | 构建和验证 role-level source manifest |
@@ -56,7 +56,7 @@ analysis_v2/<Abbr>/
 | GFF/GFF3 + genome + CDS + 蛋白 | 执行完整清洗、校验和 WGDI 输入生成 |
 | GTF + genome/CDS/蛋白 | 转换 GTF 后进入标准流程 |
 | GBFF/GenBank | 提取 GFF3、CDS、蛋白，可选导出 genome |
-| GFF + CDS + 蛋白，无 genome | 从 CDS 计算长度，并在需要时由转录本回填 region |
+| GFF + CDS + 蛋白，无 genome | 从 CDS 计算长度，并在需要时由转录本回填 region；合成 region 做细胞器推断，`init-project` 可无 genome 注册 |
 | 多个同角色候选 | 在 inventory 中用 `A|B` 表示候选，按内容兼容性选择 |
 | 旧 `s<show_id>` 项目 | 支持 dry-run、bundle 重命名、基因 ID 迁移和兼容链接刷新 |
 | 现有完整项目 | 支持 `validate`、`check-names`、`audit` 和 source manifest 验收 |
@@ -167,12 +167,15 @@ python -m pip install -e ".[gbff]"
 
 ## 验证
 
-当前 Skill 镜像版本为 **3.5.3**，包含：
+当前 Skill 镜像版本为 **3.5.4**，包含：
 
-- 161 项 Python 自动化测试；
+- 172 项 Python 自动化测试；
 - Ruff、Mypy 和镜像漂移检查；
 - Windows 与 Linux/WSL 严格 LF shell 检查；
-- Windows 和 Linux 完整合成 WGDI smoke，四组比较每组 8 个关键产物；
+- Windows 完整合成 WGDI smoke（3.5.4，含 readiness 门禁正路径），四组比较每组 8 个关键产物；
+- 41 物种真实数据试点审查修复验收：橡胶树/银白杨叶绿体 contig 被推断排除；
+  严格验收 36 PASS / 5 FAIL（拦截 5 个 `wgdi_ready=no` 物种），`--allow-not-ready` 41 PASS；
+- Linux/WSL 完整合成 WGDI smoke（3.5.2），四组比较每组 8 个关键产物；
 - NCBI RefSeq `Arabidopsis thaliana` TAIR10.1 与
   `Arabidopsis lyrata` v1.0 的真实物种预处理；
 - 真实物种子集 `Ath` chromosome 1 对 `Aly` chromosome 364 的双方向 WGDI
@@ -181,6 +184,7 @@ python -m pip install -e ".[gbff]"
 验证材料：
 
 ```text
+pipeline/validation/smoke-report-3.5.4.json
 pipeline/validation/smoke-report-3.5.3.json
 pipeline/validation/smoke-report-3.5.2-linux.json
 pipeline/validation/real-species-cross-3.5.2.json

@@ -122,9 +122,10 @@ python -m pgci_preprocess init-project `
   --species-names .\resources\species_abbreviations.tsv
 ```
 
-两个参数可以省：
+三个参数可以省：
 
-- `--assembly-id`：不写时从 genome 文件名推断（`GWHERCC00000000.genome.fasta.gz` → `GWHERCC00000000`，NCBI 的 `GCF_xxx.x_..._genomic.fna.gz` 保留版本号）。
+- `--genome`：只有 GFF + CDS + PEP 三件套时可不传；长度由 CDS 计算，region 缺失时由转录本坐标回填。无 genome 的简化注释还会对合成 region 做细胞器推断（见第 4 节）。
+- `--assembly-id`：不写时从 genome 文件名推断（`GWHERCC00000000.genome.fasta.gz` → `GWHERCC00000000`，NCBI 的 `GCF_xxx.x_..._genomic.fna.gz` 保留版本号）；无 genome 时可留空。
 - `--species-names`：不写或指向项目内尚未生成的路径时，自动使用包内 `resources/species_abbreviations.tsv`；表里有的 show_id 沿用表内 code，表里没有的按命名规则现算并避开表内全部 code。表外物种请提供 `--scientific-name`（批量时填清单 `Species` 列），以便生成缩写。
 
 批量模式：把 `data/downloads` 放好，写 `resources/download_inventory.tsv`，然后 `prepare`。
@@ -150,6 +151,20 @@ python -m pgci_preprocess check-names --project-root D:\my_project
 
 `validate --refresh-links` 会在项目根建 `<Abbr>/` 兼容目录（下游脚本按这个目录取文件）。
 也可以 `--no-compat-links` 跳过，只用 `analysis_v2` 里的规范文件。
+
+### 细胞器推断与准备度门禁（3.5.4 新增）
+
+- **细胞器推断**：无 genome、无显式 region 的简化注释，`run` 会对合成 region
+  识别叶绿体/线粒体（序列或基因标识符信号，或高密度、紧凑、基本无内含子的
+  基因集），排除后计入 QC 的 `n_organelle_genes`，证据在 `organelle_inference`。
+  拿不准的高密度 region 只列入 `review_candidates` 供人工复核，不会静默排除。
+  显式 region 和 genome FASTA 记录永不被启发式改写。可用
+  `--organelle-pattern "^(cp|mt)_scaffold"` 之类的正则强制排除指定合成序列，
+  或 `--no-organelle-inference` 完全关闭推断。
+- **准备度门禁**：`validate` 对 QC 中 `wgdi_ready=no` 的物种默认判 FAIL
+  （`wgdi_not_ready_low_coverage`），避免碎片化物种因“四件套齐全”被误用。
+  只做数据完整性归档/复核时显式加 `--allow-not-ready`。
+  下游 `run_homology.sh` / `run_all_pipeline.ps1` 同样跳过 `ready=no` 物种。
 
 ### 命名规则（务必理解）
 
@@ -196,7 +211,13 @@ bash 6run_wgdi.sh
 `1run_diamond.sh`、`1run_blast.sh`、`4run_wgdi_different.sh` 和
 `5run_wgdi_same.sh` 继续可用，但只是共享实现的兼容入口。
 
-`bin/wgdi` 会设置 `MPLBACKEND=Agg` 和临时 `MPLCONFIGDIR`，无图形界面的服务器也能跑。
+`run_homology.sh` 会按 QC/index 的 `wgdi_ready` 跳过未就绪物种（记录在
+`skipped_species.txt`），也不把 `bin/`、`resources/` 等目录当物种扫描；
+确需复核时设 `HOMOLOGY_ALLOW_NOT_READY=true`。生成的 WGDI `run.sh` 使用
+Bash 安全的 POSIX 路径（`/d/...`），Git Bash 与 Linux 均可直接执行。
+
+`bin/wgdi` 会设置 `MPLBACKEND=Agg` 和临时 `MPLCONFIGDIR`，无图形界面的服务器也能跑；
+Windows 反斜杠 `TMPDIR` 会被规范化，系统临时目录不可写时回退到项目内 `.wgdi-tmp`。
 
 ---
 
@@ -206,6 +227,9 @@ bash 6run_wgdi.sh
 | --- | --- |
 | 产物名还是 `s1234` | 既没有缩写表记录，也没有拉丁名；补 `--scientific-name` 或清单 `Species` 列。若表丢失，`doctor` 会报 `species_abbreviations FAIL` |
 | `validate` 报 `compat_missing_*` | 加 `--refresh-links` 建兼容目录 |
+| `validate` 报 `wgdi_not_ready_low_coverage` | 该物种 `wgdi_ready=no`（碎片化、保留率过低），不适合 WGDI；仅做数据完整性复核时加 `--allow-not-ready` |
+| 怀疑某条合成序列是细胞器但未被排除 | 看 QC 的 `organelle_inference.review_candidates`；确认后 `run --organelle-pattern <正则>` 重跑该物种 |
+| WGDI 报 `TMPDIR` 相关错误或 `mkdir /tmp` 失败 | 新版 `bin/wgdi` 已规范化 Windows `TMPDIR` 并自动回退；仍失败时检查项目目录写权限 |
 | `wgdi: not found python with wgdi` | 先跑 `bootstrap_wgdi.ps1/.sh`，或设 `WGDI_PYTHON` |
 | WGDI 仍使用旧机器上的 MUSCLE/yn00 路径 | 新版启动入口会依次读取 `WGDI_MUSCLE`、`MUSCLE`、`WGDI_YN00`、`YN00` 和 PATH |
 | `PAL2NAL 未安装` | 运行 `python code/tools/install_pal2nal.py`，或用 `WGDI_PAL2NAL` 指向已有脚本 |
@@ -237,5 +261,5 @@ python code/tools/build_synthetic_wgdi_smoke.py `
 bash code/tools/run_wgdi_smoke.sh $env:TEMP\plant-genome-smoke
 ```
 
-发布门禁和已通过的 3.5.3 回执见 `VALIDATION.md` 与 `validation/`。
-可直接交接的压缩包为 `dist/plant-genome-preprocess-v3.5.3.zip`。
+发布门禁和已通过的 3.5.4 回执见 `VALIDATION.md` 与 `validation/`。
+可直接交接的压缩包为 `dist/plant-genome-preprocess-v3.5.4.zip`。

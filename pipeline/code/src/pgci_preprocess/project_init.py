@@ -182,8 +182,9 @@ def init_project(
     """Initialize directories or register one species without modifying source files.
 
     With no species arguments this creates only the standard directory and TSV
-    headers. Registration is deliberately explicit: genome, GFF/GFF3, CDS and
-    protein paths are required and no role is inferred from a suffix.
+    headers. Registration requires explicit GFF/GFF3, CDS and protein paths;
+    genome FASTA and assembly identity are optional. No biological role is
+    inferred from a suffix.
     """
 
     root = Path(project_root).expanduser().resolve()
@@ -260,21 +261,25 @@ def init_project(
     family = _safe_component(family, "family")
     if not str(assembly_id).strip() and "genome" in sources:
         assembly_id = _infer_assembly_id(sources["genome"])
-    assembly_id = _clean_field(assembly_id, "assembly_id")
-    if not re.fullmatch(r"[A-Za-z0-9_.-]+", assembly_id):
+    assembly_id = (
+        _clean_field(assembly_id, "assembly_id") if str(assembly_id).strip() else ""
+    )
+    if assembly_id and not re.fullmatch(r"[A-Za-z0-9_.-]+", assembly_id):
         raise ProjectInitError("assembly_id may contain only letters, digits, dot, underscore and hyphen")
-    missing_roles = sorted({"genome", "gff", "cds", "pep"} - set(sources))
+    missing_roles = sorted({"gff", "cds", "pep"} - set(sources))
     if missing_roles:
         raise ProjectInitError(f"missing explicit input roles: {', '.join(missing_roles)}")
 
     source_paths: dict[str, Path] = {}
     for role in ("genome", "gff", "cds", "pep"):
+        if role not in sources:
+            continue
         source = Path(sources[role]).expanduser().resolve()
         if not source.is_file() or source.stat().st_size == 0:
             raise ProjectInitError(f"missing or empty {role} input: {source}")
         source_paths[role] = source
-    if len(set(source_paths.values())) != 4:
-        raise ProjectInitError("genome, gff, cds and pep must be four distinct source files")
+    if len(set(source_paths.values())) != len(source_paths):
+        raise ProjectInitError("registered input roles must reference distinct source files")
 
     inventory_fields, inventory_rows = _read_tsv(inventory_path)
     if "species_code" not in inventory_fields:
@@ -337,7 +342,7 @@ def init_project(
                 "Order": order,
                 "Family": family,
                 "Species": scientific_name,
-                "genome": source_paths["genome"].name,
+                "genome": source_paths["genome"].name if "genome" in source_paths else "",
                 "gff": source_paths["gff"].name,
                 "cds": source_paths["cds"].name,
                 "pep": source_paths["pep"].name,
@@ -345,20 +350,30 @@ def init_project(
         )
         inventory_rows.append(inventory_row)
         inventory_rows.sort(key=lambda row: (0, int(row["showid"])) if str(row.get("showid", "")).isdigit() else (1, str(row.get("showid", ""))))
-        assembly_row = {field: "" for field in assembly_fields}
-        assembly_row.update(
-            {
-                "show_id": show_id,
-                "assembly_id": assembly_id,
-                "source": "init-project",
-                "evidence_path": str(source_paths["gff"]),
-                "evidence_sha256": _sha256(source_paths["gff"]),
-            }
-        )
-        assembly_rows.append(assembly_row)
-        assembly_rows.sort(key=lambda row: (0, int(row["show_id"])) if str(row.get("show_id", "")).isdigit() else (1, str(row.get("show_id", ""))))
         _atomic_write(inventory_path, _serialize_tsv(inventory_fields, inventory_rows))
-        _atomic_write(assembly_map_path, _serialize_tsv(assembly_fields, assembly_rows))
+        if assembly_id:
+            assembly_row = {field: "" for field in assembly_fields}
+            assembly_row.update(
+                {
+                    "show_id": show_id,
+                    "assembly_id": assembly_id,
+                    "source": "init-project",
+                    "evidence_path": str(source_paths["gff"]),
+                    "evidence_sha256": _sha256(source_paths["gff"]),
+                }
+            )
+            assembly_rows.append(assembly_row)
+            assembly_rows.sort(
+                key=lambda row: (
+                    (0, int(row["show_id"]))
+                    if str(row.get("show_id", "")).isdigit()
+                    else (1, str(row.get("show_id", "")))
+                )
+            )
+            _atomic_write(
+                assembly_map_path,
+                _serialize_tsv(assembly_fields, assembly_rows),
+            )
         manifest = {
             "show_id": show_id,
             "species_code": species_code,
@@ -372,6 +387,7 @@ def init_project(
                     "transfer": transfers[role],
                 }
                 for role in ("genome", "gff", "cds", "pep")
+                if role in source_paths
             },
         }
         _atomic_write(

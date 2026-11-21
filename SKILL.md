@@ -65,7 +65,7 @@ python -m pgci_preprocess check-names --project-root D:\my_project
 python -m pgci_preprocess doctor   --project-root D:\my_project
 ```
 
-单物种可用一条命令注册（文件自动镜像/转换/校验）：
+单物种可用一条命令注册（文件自动镜像/转换/校验；`--genome` 可省，只有 GFF+CDS+PEP 三件套也能注册）：
 
 ```powershell
 python -m pgci_preprocess init-project --project-root D:\my_project `
@@ -94,7 +94,7 @@ python -m pgci_preprocess init-project --project-root D:\my_project `
 
 一次 `run` 会完成：
 
-1. **注释解析与层级修复**：缺 region 时用 genome 回填；缺 mRNA 时由 CDS 合成转录本；`gene`/`mRNA`/`CDS` 层级不一致时合并或拆分并记账。
+1. **注释解析与层级修复**：缺 region 时用 genome 回填；缺 mRNA 时由 CDS 合成转录本；`gene`/`mRNA`/`CDS` 层级不一致时合并或拆分并记账。无 genome、无显式 region 的简化注释还会对合成 region 做**细胞器推断**（标识符信号或高密度紧凑基因集），证据写入 QC `organelle_inference`；`--organelle-pattern <正则>` 可强制排除指定合成序列，`--no-organelle-inference` 可关闭。
 2. **基因模型筛选**：CDS 长度非 3 倍数、含内部终止、翻译与 `/translation` 不一致、缺 `protein_id`、坐标越界或链方向错误的记录被剔除。
 3. **序列选择**：按 `--min-genes-per-sequence`（默认 50）、`--coverage`（默认 0.90）、`--max-sequences`（默认 200）挑主序列，保证 WGDI 输入既不太碎也不丢太多基因。
 4. **去重与改名**：同一 `gene_id` 跨物种重复、同一蛋白对应多基因、切分基因同名等都会消歧。
@@ -106,7 +106,9 @@ python -m pgci_preprocess init-project --project-root D:\my_project `
 | --- | --- |
 | 目录为空 | 该物种不进入索引，`run` 汇总里不出现；`doctor` 计数为 0 |
 | 只有 genome、没有注释 | `run` 报 `annotation_missing`，不会凭空造 GFF |
-| 只有注释/CDS/蛋白、没有 genome | 允许；长度由 CDS 计算，region 缺失时用转录本回填 |
+| 只有注释/CDS/蛋白、没有 genome | 允许；`init-project` 可无 `--genome` 注册；长度由 CDS 计算，region 缺失时用转录本回填，合成 region 会做细胞器推断 |
+| 简化 GFF 混入叶绿体/线粒体 contig | 推断排除并计入 `n_organelle_genes`；拿不准的高密度 region 列入 `review_candidates` 供人工复核，不静默排除 |
+| `wgdi_ready=no` 的碎片化物种 | `validate` 默认 FAIL（`wgdi_not_ready_low_coverage`），下游跳过；仅数据完整性复核时显式 `--allow-not-ready` |
 | 只有 GBFF | 自动转 GFF3/CDS/PEP；无 CDS 的“基因组版 GBFF”会明确报错 |
 | 只有 GTF | 转 GFF3 后继续；序列长度需 genome 回填 |
 | 同目录多套重复（GCF + GWH） | 清单里用 `A|B` 选择器，或直接写唯一文件名；打分平局会报歧义而不是乱选 |
@@ -117,15 +119,25 @@ python -m pgci_preprocess init-project --project-root D:\my_project `
 
 ## 校验与命名
 
-- `validate`：逐物种核对 pep/cds/gff/lens 是否存在、基因数是否一致、坐标/链/长度是否合法、兼容链接是否指向同一内容；`--skip-hashes` 可跳过内容哈希（大批量提速）。
+- `validate`：逐物种核对 pep/cds/gff/lens 是否存在、基因数是否一致、坐标/链/长度是否合法、兼容链接是否指向同一内容；`--skip-hashes` 可跳过内容哈希（大批量提速）。QC 中 `wgdi_ready=no` 默认判 FAIL；仅做数据完整性归档时显式加 `--allow-not-ready`。
 - `check-names`：缩写表 ↔ 清单 ↔ 索引 ↔ 产物目录四者一致性；输出 `resources/naming_audit.tsv`。
-- `doctor`：Python 版本、biopython、WGDI/BLAST/DIAMOND、清单表头、缩写表覆盖、输入文件存在性。
+- `doctor`：Python 版本、biopython、WGDI/BLAST/DIAMOND、清单表头、缩写表覆盖、输入文件存在性；`--workflow wgdi|full` 还会实际启动 WGDI 入口（`wgdi_probe`），暴露“存在但跑不起来”的环境问题。
+
+## 调用规则（v3.5.4）
+
+代理执行本 skill 时必须遵守：
+
+1. **不得静默绕过准备度门禁**：不要为了凑 PASS 默认加 `--allow-not-ready` 或 `HOMOLOGY_ALLOW_NOT_READY=true`。先向用户报告哪些物种 `wgdi_ready=no`（保留率多少），由用户决定是否仅做完整性复核。
+2. **报告细胞器推断结果**：`run` 后检查 QC 的 `organelle_inference.inferred` 与 `review_candidates`，向用户列出被排除的序列和待人工复核的高密度 region；不得把 `review_candidates` 当作已排除。
+3. **报告下游跳过**：`run_homology.sh` / `run_all_pipeline.ps1` 跳过的物种记录在 `skipped_species.txt`，汇总时必须一并报告，不得只报成功比较。
+4. **WGDI 环境先探针**：比较模式开始前用 `doctor --workflow full` 确认 `wgdi_probe` PASS；WGDI 必须用 `bootstrap_wgdi` 建的专用环境或 `WGDI_PYTHON` 指定的解释器（Python 3.13 + wgdi 0.75 已验证），不要复用依赖不明的 base/其他 conda 环境。
+5. **旧产物重跑**：3.5.4 的细胞器推断会改变结果；QC 版本不是当前版本的旧 bundle 会被 `run` 自动重算，不要手工改 QC 凑版本。
 
 ## 测试
 
 ```powershell
 cd pipeline\code
-python -m pytest -q                     # 161 个用例；临时目录受限时加 --basetemp=<short-path>
+python -m pytest -q                     # 172 个用例；临时目录受限时加 --basetemp=<short-path>
 ```
 
 测试覆盖：多格式项目、GBFF 往返、GTF 转换、命名迁移、兼容链接、校验失败路径、
@@ -138,7 +150,8 @@ python -m pytest -q                     # 161 个用例；临时目录受限时�
 - WGDI 使用固定 `wgdi==0.75` 上游包；`bin/wgdi_entry.py` 只维护必要的兼容补丁。
 - PAL2NAL v14 不随 Skill 或发布 ZIP 分发。`bootstrap_wgdi` 会运行
   `code/tools/install_pal2nal.py`，从官方站点下载并校验 SHA-256。
-- `validation/smoke-report-3.5.3.json` 是 Windows 四组比较 PASS 回执；
+- `validation/smoke-report-3.5.4.json` 是 Windows 四组比较 PASS 回执（含 readiness 门禁正路径）；
+  `smoke-report-3.5.3.json` 是上一版 Windows 四组比较 PASS 回执；
   `smoke-report-3.5.2-linux.json` 是 WSL/Linux 四组比较 PASS 回执。
 - `validation/real-species-3.5.2.json` 记录真实 RefSeq 拟南芥两物种的清洗、
   校验、命名、QC 和真实种间子集 WGDI 验证。

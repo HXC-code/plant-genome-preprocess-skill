@@ -35,6 +35,7 @@ class ValidationOptions:
     expected_count: int | None = None
     require_compat_links: bool = True
     verify_hashes: bool = True
+    allow_not_ready: bool = False
     report_path: Path | None = None
 
 
@@ -135,6 +136,7 @@ def _check_species(
     canonical_root: Path,
     *,
     expected_code: str = "",
+    allow_not_ready: bool = False,
 ) -> tuple[dict[str, object], set[str]]:
     code = row.get("code", "").strip()
     canonical_code = expected_code.strip() or code
@@ -298,6 +300,11 @@ def _check_species(
                 problems.append("qc_status_not_ok")
             if qc.get("code") != canonical_code:
                 problems.append("qc_code_mismatch")
+            selection = qc.get("sequence_selection")
+            selection = selection if isinstance(selection, dict) else {}
+            if selection.get("wgdi_ready") == "no" and not allow_not_ready:
+                ratio = selection.get("ratio", "")
+                problems.append(f"wgdi_not_ready_low_coverage:ratio={ratio}")
         except (OSError, ValueError, json.JSONDecodeError):
             problems.append("qc_unreadable")
     else:
@@ -469,6 +476,7 @@ def validate_project(options: ValidationOptions) -> ValidationReport:
             row,
             canonical_root,
             expected_code=display_code(row),
+            allow_not_ready=options.allow_not_ready,
         )
         code = display_code(row)
         result["code"] = code

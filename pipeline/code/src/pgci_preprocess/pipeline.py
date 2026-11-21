@@ -34,6 +34,7 @@ from pgci_preprocess.gff_formats import (
 )
 from pgci_preprocess.input_router import InputRoutingError, select_role_source
 from pgci_preprocess.models import Anomaly, Candidate, Region
+from pgci_preprocess.organelle import infer_synthetic_organelles
 from pgci_preprocess.reports import (
     finalize_project,
     read_tsv as read_report_tsv,
@@ -96,6 +97,8 @@ class PipelineOptions:
     protein_normalization: str = "auto"
     accession_policy: str = "strict"
     backfill_regions_from_transcripts: bool = True
+    infer_organelles: bool = True
+    organelle_pattern: str = ""
     format_exceptions: dict[str, dict[str, bool]] | None = None
     species_names_path: Path | None = None
     # Legacy ``s<show_id>`` bundles are renamed to the canonical abbreviation
@@ -583,6 +586,8 @@ def _existing_qc(
         return None
     if qc.get("status") != "OK" or str(qc.get("show_id", "")) != species.show_id:
         return None
+    if qc.get("pipeline_version") != PIPELINE_VERSION:
+        return None
     required = [
         analysis_final / f"{artifact_code}.pep",
         analysis_final / f"{artifact_code}.cds",
@@ -928,6 +933,13 @@ def _process_species_into(
     ]
     if fatal_fasta:
         raise PipelineFailure(fatal_fasta[0].code, fatal_fasta[0].detail)
+
+    organelle_inference = infer_synthetic_organelles(
+        parsed,
+        {key: len(value) for key, value in cds.sequences.items()},
+        custom_pattern=options.organelle_pattern,
+        enabled=options.infer_organelles,
+    )
 
     # Annotations whose CDS rows carry no protein_id (e.g. Phytozome GFF3) are
     # resolved against the FASTA keys themselves: the transcript id or its Name
@@ -1394,6 +1406,8 @@ def _process_species_into(
             "protein_normalization": options.protein_normalization,
             "accession_policy": options.accession_policy,
             "transcript_region_backfill": options.backfill_regions_from_transcripts,
+            "organelle_inference": options.infer_organelles,
+            "organelle_pattern": options.organelle_pattern,
         },
         "format_exceptions": {
             "merge_split_genes": bool(format_flags.get("merge_split_genes")),
@@ -1410,6 +1424,7 @@ def _process_species_into(
             "protein_dot_normalized": protein_normalization["records"],
         },
         "region_backfill": region_backfill,
+        "organelle_inference": organelle_inference,
         "protein_normalization": protein_normalization,
         "pipeline_version": PIPELINE_VERSION,
         "inputs": input_info,

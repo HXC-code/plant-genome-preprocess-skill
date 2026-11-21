@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import csv
 import gzip
+import json
 from pathlib import Path
 
 from pgci_preprocess.pipeline import PipelineOptions, discover_species, process_species, run_project
+from pgci_preprocess.validate import ValidationOptions, validate_project
 
 
 def _write_gz(path: Path, text: str) -> None:
@@ -136,6 +138,46 @@ def test_end_to_end_builds_consistent_wgdi_bundle(tmp_path: Path) -> None:
         cds_ids = [line[1:].split()[0] for line in handle if line.startswith(">")]
     gff_ids = [line.split("\t")[1] for line in gff_lines]
     assert pep_ids == cds_ids == gff_ids
+
+
+def test_validate_rejects_not_ready_bundle_unless_explicitly_allowed(
+    tmp_path: Path,
+) -> None:
+    project, _ = _make_project(tmp_path)
+    run_project(
+        project,
+        options=PipelineOptions(
+            project_root=project,
+            min_genes_per_sequence=0,
+            target_gene_coverage=0.9,
+            max_sequences=200,
+        ),
+    )
+    qc_path = project / "analysis_v2" / "s1" / "s1.qc.json"
+    qc = json.loads(qc_path.read_text(encoding="utf-8"))
+    qc["sequence_selection"]["wgdi_ready"] = "no"
+    qc["sequence_selection"]["ratio"] = 0.25
+    qc_path.write_text(json.dumps(qc), encoding="utf-8")
+
+    strict = validate_project(
+        ValidationOptions(
+            project_root=project,
+            require_compat_links=False,
+            verify_hashes=False,
+        )
+    )
+    assert not strict.ok
+    assert "wgdi_not_ready_low_coverage" in strict.rows[0]["problems"]
+
+    archival = validate_project(
+        ValidationOptions(
+            project_root=project,
+            require_compat_links=False,
+            verify_hashes=False,
+            allow_not_ready=True,
+        )
+    )
+    assert archival.ok
 
 
 def test_pipeline_quarantines_multiple_nuclear_taxa(tmp_path: Path) -> None:

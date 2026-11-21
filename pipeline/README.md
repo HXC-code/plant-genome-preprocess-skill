@@ -10,9 +10,9 @@ DIAMOND/BLAST、共线性、block-Ks 和 Ks-peak 执行链。
 ```
 
 同时生成来源映射、染色体映射、剔除记录、QC、物种索引、哈希清单和命名审计。
-当前版本为 **3.5.3**。
+当前版本为 **3.5.4**。
 
-- [发布包](https://github.com/HXC-code/plant-genome-preprocess/releases/tag/v3.5.3)
+- [发布包](https://github.com/HXC-code/plant-genome-preprocess/releases/tag/v3.5.4)
 - [完整快速上手](QUICKSTART.md)
 - [验证与发布门禁](VALIDATION.md)
 - [Agent Skill 仓库](https://github.com/HXC-code/plant-genome-preprocess-skill)
@@ -126,8 +126,8 @@ my_project/
 ```
 
 原始数据和生成结果位于项目目录，代码与文档位于本仓库。`init-project` 会创建
-标准子目录、清单表头和资源文件；单物种注册可同时给出显式的
-`--genome`、`--gff`、`--cds`、`--pep` 路径。
+标准子目录、清单表头和资源文件；单物种注册必须给出显式的 `--gff`、`--cds`、
+`--pep` 路径，`--genome` 与 `--assembly-id` 可选（只有三件套也能注册）。
 
 ## 安装
 
@@ -151,7 +151,9 @@ python -m pip install -e '.[gbff]'
 ```
 
 可选比较层还需要 Bash、DIAMOND 或 BLAST+、WGDI 0.75、MUSCLE、PAML `yn00`
-和 Perl。`doctor` 对 Python 依赖、项目输入和这些外部程序做只读检查。
+和 Perl。`doctor` 对 Python 依赖、项目输入和这些外部程序做只读检查；
+`--workflow wgdi|full` 还会实际启动 WGDI 入口（`wgdi_probe`），暴露解释器
+不兼容等“存在但跑不起来”的问题。
 
 ## 单物种工作流
 
@@ -208,7 +210,7 @@ python -m pgci_preprocess batch `
 | `normalize-gff` | 将 transcript-only GFF 展开为 gene/mRNA/CDS 层级 |
 | `convert-annotation` | 单独转换 GTF、GBFF 或功能 GO 表，不修改原始输入 |
 | `run` | 执行一基因一代表转录本预处理和主序列选择 |
-| `validate` | 校验 index、QC、ID 集合、lens、SHA-256 和兼容链接 |
+| `validate` | 校验 index、QC、ID 集合、lens、SHA-256 和兼容链接；`wgdi_ready=no` 默认判 FAIL |
 | `batch` | 串联 prepare、可选 normalize 和 run、validate |
 | `audit` | 汇总物种、输入后缀、`wgdi_ready` 分布和失败项目 |
 | `source-manifest build` | 从 index、QC 和修复表生成冻结的来源清单 |
@@ -229,7 +231,10 @@ python -m pgci_preprocess batch `
 3. 按 `protein_id` / transcript 关系匹配 CDS 与蛋白序列。
 4. 检查 CDS 长度是否为 3 的倍数、翻译是否一致、是否存在内部终止或非法字符。
 5. 检查坐标、链方向、重复 ID、同一蛋白对应多基因以及拆分基因同名问题。
-6. 排除细胞器序列进入核基因组 WGDI 集，并保留排除原因。
+6. 排除细胞器序列进入核基因组 WGDI 集，并保留排除原因。有 genome 或显式
+   region 时按其判定；无 genome 的简化注释对合成 region 做细胞器推断
+   （标识符信号 + 高密度紧凑基因集），可用 `--organelle-pattern` 显式指定、
+   `--no-organelle-inference` 关闭；证据写入 QC 的 `organelle_inference`。
 7. 按蛋白长度、CDS 长度和稳定 ID 为一个基因选择一个代表转录本。
 8. 选择核基因组主序列，生成新的序列号、基因 ID 和原始 ID 映射。
 9. 写出 `.pep`、`.cds`、`.new.gff`、`.lens` 及全部审计文件。
@@ -347,7 +352,10 @@ python -m pgci_preprocess migrate-artifacts --project-root D:\plant_project --pr
 - `.lens` 与 GFF 序列集合是否一致；
 - QC 与产物中的基因 ID 集合是否一致；
 - 文件 SHA-256 是否与 index/manifest 一致；
-- 可选兼容链接是否指向同一内容。
+- 可选兼容链接是否指向同一内容；
+- QC 的 `wgdi_ready=no` 默认判 FAIL（`wgdi_not_ready_low_coverage`），
+  防止碎片化物种被“文件齐全”误送进 WGDI；仅做数据完整性归档时显式加
+  `--allow-not-ready`。
 
 `check-names` 核对：
 
@@ -356,7 +364,8 @@ python -m pgci_preprocess migrate-artifacts --project-root D:\plant_project --pr
 ```
 
 `audit` 提供只读的项目级概览，包括物种数、文件后缀、准备度分布和失败原因。
-`doctor` 提供依赖与输入就绪检查，不安装外部工具，也不执行 WGDI 分析。
+`doctor` 提供依赖与输入就绪检查，不安装外部工具，也不执行 WGDI 分析
+（`wgdi_probe` 只运行入口的版本探针）。
 
 冻结项目数据时，`source-manifest build` 生成 role-level 来源清单和 sidecar；
 `source-manifest verify` 可重新验证清单及其引用的源文件。
@@ -371,6 +380,11 @@ python -m pgci_preprocess migrate-artifacts --project-root D:\plant_project --pr
 | 灵敏度 | `very-sensitive` |
 | E-value | `1e-5` |
 | tandem blocks | 从 correspondence、block-Ks 和 Ks-peak 中移除 |
+
+`run_homology.sh` 与 `run_all_pipeline.ps1` 会读取 QC/index 的 `wgdi_ready`，
+跳过 `ready=no` 和没有可读准备度记录的物种（写入 `skipped_species.txt`），
+并且不把 `bin/`、`code/`、`resources/` 等基础设施目录当作物种扫描。
+确需复核未就绪物种时显式设置 `HOMOLOGY_ALLOW_NOT_READY=true`。
 
 Windows 总控执行步骤 1–6：
 
@@ -426,10 +440,22 @@ python code/tools/install_pal2nal.py
 
 ## 验证记录
 
-3.5.3 验证覆盖：
+3.5.4 验证覆盖：
 
-- Python 自动化测试 **161** 项通过；
+- Python 自动化测试 **172** 项通过；
 - Ruff、Mypy、Git Bash 语法检查和严格 LF 的 Linux/WSL `bash -n` 通过；
+- Windows 合成数据完整 WGDI 链通过，四组比较每组检查 8 个关键产物
+  （`validation/smoke-report-3.5.4.json`）；
+- 真实数据抽查（41 物种试点审查）：无 genome 三件套注册成功；橡胶树
+  `Hbr` 叶绿体 `NC_015308.1`（83 基因）与银白杨 `Pab` 叶绿体
+  `NC_008235.1`（83 基因）被推断排除，不再进入 WGDI 集；
+- 试点项目严格验收 36 PASS / 5 FAIL（5 个 `wgdi_ready=no` 碎片化物种被
+  门禁拦截），`--allow-not-ready` 归档模式 41 PASS；
+- `doctor` 的 `wgdi_probe` 在专用环境（Python 3.13 + wgdi 0.75）实际启动
+  入口并通过。
+
+3.5.3 及更早验证覆盖：
+
 - Windows 与 Linux/WSL 的合成数据完整 WGDI 链均通过，四组比较每组检查 8 个关键产物；
 - NCBI RefSeq 真实物种 `Arabidopsis thaliana` TAIR10.1 和
   `Arabidopsis lyrata` v1.0 完成清洗、校验、命名和 QC；
@@ -439,6 +465,7 @@ python code/tools/install_pal2nal.py
 回执位于：
 
 ```text
+validation/smoke-report-3.5.4.json
 validation/smoke-report-3.5.3.json
 validation/smoke-report-3.5.2-linux.json
 validation/real-species-cross-3.5.2.json

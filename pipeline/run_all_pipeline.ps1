@@ -104,6 +104,46 @@ function Resolve-BashExecutable {
     throw "没有找到 Git Bash。请安装 Git for Windows，或使用 -BashPath 指定 bash.exe。"
 }
 
+function Get-WgdiSpeciesReadiness {
+    param([string]$SpeciesId)
+
+    $qcPaths = @(
+        (Join-Path $script:ProjectRoot ("analysis_v2\" + $SpeciesId + "\" + $SpeciesId + ".qc.json")),
+        (Join-Path $script:ProjectRoot ($SpeciesId + "\" + $SpeciesId + ".qc.json")),
+        (Join-Path $script:ProjectRoot ("plant-genome-resources\analysis_v2\" + $SpeciesId + "\" + $SpeciesId + ".qc.json"))
+    )
+    foreach ($qcPath in $qcPaths) {
+        if (-not (Test-Path -LiteralPath $qcPath -PathType Leaf)) { continue }
+        try {
+            $qc = Get-Content -LiteralPath $qcPath -Raw -Encoding UTF8 | ConvertFrom-Json
+            return [string]$qc.sequence_selection.wgdi_ready
+        }
+        catch {
+            continue
+        }
+    }
+
+    foreach ($indexPath in @(
+        (Join-Path $script:ProjectRoot "resources\wgdi_v2_index.tsv"),
+        (Join-Path $script:ProjectRoot "plant-genome-resources\resources\wgdi_v2_index.tsv")
+    )) {
+        if (-not (Test-Path -LiteralPath $indexPath -PathType Leaf)) { continue }
+        $rows = @(Import-Csv -LiteralPath $indexPath -Delimiter "`t")
+        $match = $rows | Where-Object { $_.code -eq $SpeciesId } | Select-Object -First 1
+        if ($null -ne $match) { return [string]$match.wgdi_ready }
+    }
+    return ""
+}
+
+function Test-WgdiReadinessAllowsRun {
+    param([string]$Readiness)
+
+    if ($env:HOMOLOGY_ALLOW_NOT_READY -match '^(?i:true|1|yes)$') {
+        return $true
+    }
+    return $Readiness -in @("yes", "marginal")
+}
+
 function Get-PipelineSpecies {
     $listPath = Join-Path $script:ProjectRoot "folder_list.txt"
     if (Test-Path -LiteralPath $listPath -PathType Leaf) {
@@ -120,9 +160,11 @@ function Get-PipelineSpecies {
             Where-Object {
                 $_.Name -notlike "Auto_*" -and
                 $_.Name -notlike "_pipeline_*" -and
+                $_.Name -notin @("analysis_v2", "bin", "clean_v2", "code", "data", "dist", "external", "resources", "validation", "wgdi_run") -and
                 $_.Name -notlike ".*"
             } |
             ForEach-Object { $_.Name } |
+            Where-Object { Test-WgdiReadinessAllowsRun (Get-WgdiSpeciesReadiness $_) } |
             Sort-Object
     )
 }
@@ -166,6 +208,7 @@ function Get-DiscoveredSpeciesInputs {
             $directory.Name -like "_script_backup*" -or
             $directory.Name -like "_wgdi*" -or
             $directory.Name -like "_invalid*" -or
+            $directory.Name -in @("analysis_v2", "bin", "clean_v2", "code", "data", "dist", "external", "resources", "validation", "wgdi_run") -or
             $directory.Name -like ".*") {
             continue
         }
@@ -182,6 +225,9 @@ function Get-DiscoveredSpeciesInputs {
             (Join-Path $directory.FullName ($speciesId + ".lens"))
         )
         if (@($requiredFiles | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf }).Count -ne 4) {
+            continue
+        }
+        if (-not (Test-WgdiReadinessAllowsRun (Get-WgdiSpeciesReadiness $speciesId))) {
             continue
         }
         $entry = [pscustomobject]@{
@@ -824,6 +870,7 @@ function Test-PipelinePrerequisites {
                 Where-Object {
                     $_.Name -notlike "Auto_*" -and
                     $_.Name -notlike "_pipeline_*" -and
+                    $_.Name -notin @("analysis_v2", "bin", "clean_v2", "code", "data", "dist", "external", "resources", "validation", "wgdi_run") -and
                     $_.Name -notlike ".*"
                 }
         )
@@ -856,7 +903,13 @@ function Test-PipelinePrerequisites {
                 }
             }
             if ($allPresent) {
-                $completeSpecies++
+                $readiness = Get-WgdiSpeciesReadiness $speciesId
+                if (Test-WgdiReadinessAllowsRun $readiness) {
+                    $completeSpecies++
+                }
+                else {
+                    $incompleteSpecies++
+                }
             }
             else {
                 $incompleteSpecies++

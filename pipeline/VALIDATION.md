@@ -50,7 +50,7 @@ Build and inspect a source release:
 
 ```powershell
 python code/tools/build_release_package.py `
-  --output dist/plant-genome-preprocess-v3.5.3.zip
+  --output dist/plant-genome-preprocess-v3.5.4.zip
 ```
 
 The ZIP includes its own `PACKAGE_SHA256.tsv`; the build command prints the
@@ -76,6 +76,24 @@ derived real-data smoke can additionally be built with
 
 ## Current status
 
+On 2026-11-21 version 3.5.4 passed:
+
+- Windows synthetic full-chain smoke: four comparisons, eight products each
+  (`validation/smoke-report-3.5.4.json`), including the new readiness gate on
+  its pass path (the fixture records `wgdi_ready=yes` QC).
+- Real-data pilot acceptance (41-species review, `D:\wuchao_wgdi_pilot` data):
+  - Three-piece registration without genome FASTA via `init-project`.
+  - Organelle inference excludes the chloroplast contigs of *Hevea
+    brasiliensis* (`NC_015308.1`, 83 genes; 48,109 WGDI genes / 21 sequences
+    after exclusion) and *Populus alba* (`NC_008235.1`, 83 genes), with
+    auditable evidence in `organelle_inference`.
+  - Strict `validate`: 36 PASS / 5 FAIL — exactly the five `wgdi_ready=no`
+    fragmented species are gated; `--allow-not-ready`: 41 PASS.
+  - `doctor --workflow full` `wgdi_probe` actually launches the WGDI entry
+    and reports 0.75 in the dedicated Python 3.13 environment.
+- The local Python suite passed `172` tests; Ruff, Mypy, Git Bash and strict
+  WSL `bash -n` passed.
+
 On 2026-11-21 version 3.5.3 passed:
 
 - Windows synthetic full-chain smoke: four comparisons, eight products each.
@@ -90,8 +108,8 @@ On 2026-11-21 version 3.5.3 passed:
 - A real-derived Ath chromosome 1 vs Aly chromosome 364 subset passed both
   cross-species WGDI directions with all eight outputs per direction.
 
-The local Python suite passed `161` tests; Ruff, Mypy, Git Bash and strict WSL
-`bash -n` passed.
+The local Python suite passed `161` tests at 3.5.3; Ruff, Mypy, Git Bash and
+strict WSL `bash -n` passed.
 
 Validated runtime:
 
@@ -106,6 +124,7 @@ inference. The real-species receipt is a preprocessing/data-integrity and
 real-subset execution acceptance. It is not a BUSCO lineage assessment or a
 full-proteome biological WGD conclusion. See:
 
+- `validation/smoke-report-3.5.4.json`
 - `validation/smoke-report-3.5.3.json`
 - `validation/smoke-report-3.5.2-linux.json`
 - `validation/real-species-cross-3.5.2.json`

@@ -120,6 +120,26 @@ def write_species(
         ),
         encoding="utf-8",
     )
+    # The homology runner gates on wgdi_ready. The synthetic fixture keeps every
+    # gene on a handful of chromosomes, so it is fully ready; record that the
+    # same way a real preprocessed project does instead of bypassing the gate.
+    qc_dir = root / "analysis_v2" / code
+    qc_dir.mkdir(parents=True, exist_ok=True)
+    qc = {
+        "status": "OK",
+        "code": code,
+        "show_id": code,
+        "sequence_selection": {
+            "method": "synthetic_fixture",
+            "wgdi_ready": "yes",
+            "ratio": 1.0,
+            "selected_sequences": chromosome_count,
+            "retained_genes": len(proteins),
+        },
+    }
+    (qc_dir / f"{code}.qc.json").write_text(
+        json.dumps(qc, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
 
 
 def main() -> int:

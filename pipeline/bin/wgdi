@@ -14,8 +14,25 @@ export PYTHONUTF8=1
 export PYTHONIOENCODING=utf-8
 
 project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
-mpl_config="${TMPDIR:-/tmp}/hxc-wgdi-mpl-${USER:-user}"
-mkdir -p "$mpl_config"
+
+normalize_shell_path() {
+    local value="$1"
+    if [[ "$value" =~ ^([A-Za-z]):[\\/](.*)$ ]]; then
+        local drive="${BASH_REMATCH[1],,}"
+        local remainder="${BASH_REMATCH[2]//\\//}"
+        printf '/%s/%s\n' "$drive" "$remainder"
+    else
+        printf '%s\n' "$value"
+    fi
+}
+
+tmp_root="$(normalize_shell_path "${TMPDIR:-/tmp}")"
+if ! mkdir -p "$tmp_root/hxc-wgdi-mpl-${USER:-user}" 2>/dev/null; then
+    tmp_root="$project_root/.wgdi-tmp"
+    mkdir -p "$tmp_root/hxc-wgdi-mpl-${USER:-user}"
+fi
+export TMPDIR="$tmp_root"
+mpl_config="$tmp_root/hxc-wgdi-mpl-${USER:-user}"
 
 export MPLBACKEND="Agg"
 export MPLCONFIGDIR="$mpl_config"
