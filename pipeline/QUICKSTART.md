@@ -1,4 +1,4 @@
-# 快速上手（把包交给别人时照这一页做）
+# 快速上手：从自己的原始下载数据到 WGDI 输入
 
 本包只包含**代码**：预处理程序、0–6 步执行脚本、WGDI 启动器。不含任何原始数据、也不含已生成的结果目录。
 拿到包的人只要有 Python 和少量外部程序，就能从自己的数据生成 WGDI 能直接跑的
@@ -25,7 +25,7 @@ wgdi_pipeline/
 ```
 
 `code/resources/species_abbreviations.tsv` 决定所有产物名，必须随包携带。
-命名规则（3 位起）：属名首字母 + 种加词 2 个字母（默认前两位，如 `Cercis chinensis` → `Cch`）；被占用则换种加词内其他两字母组合（1+3 位 → `Cci`、1+4 位 → `Ccn`…）；3 位全占满扩到 4 位（`Cchi`），仍冲突继续加长。表里已有的 show_id 一律沿用表内 code，表内没有的新物种按规则现算并避开全部已有 code；只有既无表又无拉丁名才退回 `s<show_id>`。
+命名规则（3 位起）：属名首字母 + 种加词 2 个字母（默认前两位，如 `Cercis chinensis` → `Cch`）；被占用则换种加词内其他两字母组合（1+3 位 → `Cci`、1+4 位 → `Ccn`…）；3 位全占满扩到 4 位（`Cchi`），仍冲突继续加长。表里已有的 show_id 一律沿用表内 code；表外新物种按拉丁名现算并避开表内全部已有 code。只有既无表内记录又完全没有拉丁名时，才会保留旧式 `s<show_id>` 兼容命名，新数据不会出现这种情况。
 
 ---
 
@@ -33,11 +33,22 @@ wgdi_pipeline/
 
 | 用途 | 需要的东西 | 说明 |
 | --- | --- | --- |
-| 预处理 | Python ≥ 3.9 | 纯标准库即可；要转 GBFF 才需要 `biopython>=1.83` |
+| 预处理 | Python ≥ 3.11 | 纯标准库即可；要转 GBFF 才需要 `biopython>=1.83` |
 | WGDI | Python + `wgdi` 包 | 用 `bootstrap_wgdi` 自动装，不要手改脚本里的解释器路径 |
 | 同源比对 | `diamond` 或 `blastp` + `makeblastdb` | 装好后在 PATH 里即可 |
 | WGDI 依赖 | `muscle`、`yn00`（PAML）、`perl` | 同上，PATH 或 `-BioinfoBin` 指定目录 |
 | Windows 执行 shell 脚本 | Git Bash | `run_all_pipeline.ps1` 会自动找 `git.exe` 同级的 `bash.exe` |
+
+安装预处理包（在仓库根目录执行，只需一次）：
+
+```powershell
+cd code
+python -m venv .venv
+# 激活 .venv 后：
+python -m pip install -e ".[gbff]"
+```
+
+不处理 GBFF/GenBank 时可以省略 `[gbff]`。外部程序按上表安装并加入 PATH，或用 `doctor`/总控的参数显式指定。
 
 ---
 
@@ -79,6 +90,19 @@ my_project/
 - 注释 GFF3 / GTF
 - 长度表（lens，可由预处理生成）
 
+你手里的原始下载可以是这些形式；**后缀只是提示，真正决定处理方式的是文件内容**：
+
+| 你有的文件 | 处理方式 |
+| --- | --- |
+| `.gff` / `.gff3`（含 `.gz`） | 直接解析；自动识别 standard、transcript_only、simplified5、gene_span、gene_cds_direct 五种结构 |
+| `.gtf`（含 `.gz`） | 转成 GFF3 后继续 |
+| `.gbff` / `.gbk` / `.gb` / `.genbank`（含 `.gz`） | 提取编码 GFF3 + CDS + PEP，可顺带导出 genome（需 `biopython>=1.83`） |
+| `.gz` / `.bz2` / `.xz` / `.zip` | 按压缩魔数识别，后缀写错或缺失也能读 |
+| `.fa` / `.fasta` / `.fna` / `.faa` / `.fas` 及 `.genome.fasta.gz`、`.CDS.fasta.gz`、`.Protein.faa.gz` 等组合名 | 用文件名语义 + FASTA 首条记录内容判定 genome / CDS / protein 角色 |
+| `*.annotations.csv.gz`、制表符分隔的功能注释表 | 只规范化成功能元数据，不能替代 GFF/CDS/PEP，也不能当坐标文件 |
+
+同一角色有多个候选时，在清单里写 `A|B`；程序按角色兼容性打分，平局会明确报歧义，不会乱选。
+
 注册一个物种（会复制四个源文件到规范目录并写 inventory）：
 
 ```powershell
@@ -97,7 +121,7 @@ python -m pgci_preprocess init-project `
 两个参数可以省：
 
 - `--assembly-id`：不写时从 genome 文件名推断（`GWHERCC00000000.genome.fasta.gz` → `GWHERCC00000000`，NCBI 的 `GCF_xxx.x_..._genomic.fna.gz` 保留版本号）。
-- `--species-names`：不写或指向项目内尚未生成的路径时，自动使用包内 `resources/species_abbreviations.tsv`；表里有的 show_id 沿用表内 code，表里没有的按命名规则现算，不再退回 `s<show_id>`。
+- `--species-names`：不写或指向项目内尚未生成的路径时，自动使用包内 `resources/species_abbreviations.tsv`；表里有的 show_id 沿用表内 code，表里没有的按命名规则现算并避开表内全部 code。表外物种请提供 `--scientific-name`（批量时填清单 `Species` 列），以便生成缩写。
 
 批量模式：把 `data/downloads` 放好，写 `resources/download_inventory.tsv`，然后 `prepare`。
 
@@ -169,7 +193,7 @@ bash 6run_wgdi.sh
 
 | 现象 | 原因 / 处理 |
 | --- | --- |
-| 产物名还是 `s1234` | `code/resources/species_abbreviations.tsv` 丢了；`doctor` 会报 `species_abbreviations FAIL` |
+| 产物名还是 `s1234` | 既没有缩写表记录，也没有拉丁名；补 `--scientific-name` 或清单 `Species` 列。若表丢失，`doctor` 会报 `species_abbreviations FAIL` |
 | `validate` 报 `compat_missing_*` | 加 `--refresh-links` 建兼容目录 |
 | `wgdi: not found python with wgdi` | 先跑 `bootstrap_wgdi.ps1/.sh`，或设 `WGDI_PYTHON` |
 | `doctor` 报 diamond/blastp FAIL | 装工具并加入 PATH，或用 `-BioinfoBin` / `DIAMOND` / `BLASTP` 环境变量 |

@@ -1,37 +1,46 @@
 # HXC Plant Genome Preprocess
 
-Reproducible preprocessing and validation for plant genome annotations. The
-pipeline converts NCBI-style GFF3, CDS FASTA, and protein FASTA into a
-one-gene-one-transcript WGDI-ready dataset.
+Prepare **your own downloaded plant genome data** for WGDI. Hand the tool the
+annotation and sequence files you have; it identifies each file's format and
+biological role by content, normalizes gene models and IDs, and writes the four
+files WGDI expects:
 
-Species analysis codes come from the project's canonical abbreviation table:
-`show_id` remains the internal key, while directories, BLAST files, WGDI panels,
-tree labels and figures use the globally unique abbreviation (for example
-`2720 -> Lcu`). Gene IDs follow `{abbr}{sequence}g{order:04d}`, e.g.
-`Lcu3g0007`. Legacy `s2720` selectors remain accepted as compatibility aliases,
-but newly generated artifacts are always abbreviation-named. **Handing the
-package to another lab: start from `QUICKSTART.md`.**
+```text
+<Abbr>.pep   <Abbr>.cds   <Abbr>.new.gff   <Abbr>.lens
+```
 
-## Scope
+It also writes QC reports, gene/chromosome maps, a rejection log, a SHA-256
+manifest and a naming audit, so every retained gene can be traced back to the
+original file.
 
-This repository covers:
+The Python package stops before BLAST and WGDI execution. This repository also
+contains the 0–6 execution scripts for the downstream comparison and WGDI
+analysis. `wgdi_ready=yes` means the inputs are ready, **not** that WGDI has
+already completed.
 
-- raw file inventory and validation;
-- GFF3, CDS, and protein parsing;
-- canonical cross-species gene IDs;
-- representative transcript selection;
-- CDS/protein translation consistency checks;
-- organelle and taxon contamination filtering;
-- WGDI GFF, lens, CDS, and protein generation;
-- manifest and SHA-256 validation;
-- explicit project initialization and read-only dependency/input doctor;
-- configurable DIAMOND/BLAST and the 0–6 WGDI execution scripts;
-- isolated real-data smoke receipts;
-- a reusable Codex skill package.
+For a complete end-to-end handoff guide, start from **QUICKSTART.md**.
 
-The `pgci_preprocess` Python package ends before BLAST and WGDI execution. This
-workflow repository additionally contains the downstream execution scripts;
-`wgdi_ready=yes` never means that WGDI has already completed.
+## Input formats
+
+Suffixes are only hints. Format and biological role are decided from file
+content, so uncommon or misleading suffixes are handled as long as the content
+is recognizable. Ambiguous candidates are reported as errors rather than
+silently guessed.
+
+| Input | Handling |
+| --- | --- |
+| `.gff` / `.gff3` | Parsed directly; standard, transcript-only, simplified 5-column, gene-span and gene-CDS-direct structures are recognized by content |
+| `.gtf` | Converted to GFF3 (gene/transcript/exon/CDS/start/stop codons) |
+| `.gbff` / `.gbk` / `.gb` / `.genbank` | Coding GFF3 plus CDS/PEP extracted; genome FASTA can be exported too (requires `biopython>=1.83`) |
+| `.annotations.csv.gz` and tab-separated function tables | Normalized to metadata only; **cannot** replace GFF/CDS/PEP or serve as WGDI coordinate input |
+| FASTA family: `.fa`, `.fasta`, `.fna`, `.faa`, `.fas` and compound names such as `.genome.fasta.gz`, `_genomic.fna.gz`, `.CDS.fasta.gz`, `.Protein.faa.gz` | Role (genome / CDS / protein) resolved from filename semantics plus a bounded FASTA content preview |
+| `.gz`, `.bz2`, `.xz`, `.zip` | Detected by compression magic; a wrong or missing suffix does not block reading |
+
+A raw download directory may contain more than one candidate per role. List
+them as `A|B` in the inventory; the tool scores each candidate and selects a
+unique one. For single-species registration, `init-project` takes four explicit
+paths (`--genome`, `--gff`, `--cds`, `--pep`) and never infers a biological role
+from a suffix alone.
 
 ## Repository layout
 
@@ -45,54 +54,57 @@ workflow repository additionally contains the downstream execution scripts;
 ├── bin/wgdi_entry.py
 ├── vendor/sitecustomize.py
 ├── code/                       # single source tree (this is what gets packaged)
-│   ├── scripts/preprocess_wgdi_v2.py
-│   ├── scripts/validate_wgdi_dataset.py
 │   ├── src/pgci_preprocess/
-│   ├── tools/ tests/ docs/
-│   └── resources/species_abbreviations.tsv
-└── plant-genome-resources/     # project data root (NOT code)
+│   ├── scripts/ tools/ tests/ docs/
+│   ├── resources/species_abbreviations.tsv
+│   └── pyproject.toml
+└── plant-genome-resources/     # example project data root (NOT code)
     ├── analysis_v2/<Abbr>/
     ├── clean_v2/<Abbr>/
     └── resources/              # index, manifests, audits
 ```
 
-Raw genome files and generated analysis results are intentionally ignored.
+Raw genome files and generated analysis results are intentionally not tracked.
+Keep code and project data in separate directories.
 
 ## Expected data layout
 
-Place raw downloads and the inventory under:
+Place raw downloads and the inventory under your project root:
 
 ```text
-plant-genome-resources/
+my_project/
 ├── data/downloads/{show_id}_{Order}_{Family}({Species})/
 └── resources/download_inventory.tsv
 ```
 
-Each validated species ends with one GFF, one CDS FASTA, and one protein FASTA.
-The batch preparation path may derive those roles from GTF, GBFF, or a
-genome-plus-GFF source before registration.
+A validated species ends with one GFF, one CDS FASTA and one protein FASTA.
+`prepare` can derive those roles from GTF, GBFF, or a genome-plus-GFF source
+before registration, and records every routing decision in
+`resources/preprocess_batches/_routing.tsv`.
 
 ## Initialize, inspect dependencies, and execute
 
-Use a new virtual environment. The preprocessing package has no mandatory
-non-standard-library dependency unless GBFF conversion is requested; GBFF needs
-`biopython>=1.83`. The complete WGDI environment used for the real smoke is
-pinned in `requirements-wgdi-validated.txt`. Bash, DIAMOND/BLAST, MUSCLE, yn00,
-and Perl are external programs, not Python dependencies.
+Python 3.11 or newer. From the repository root:
 
 ```powershell
-cd plant-genome-resources
+cd code
 python -m pip install -e ".[gbff]"
 python -m pgci_preprocess init-project --project-root <new-project>
 python -m pgci_preprocess doctor --project-root <new-project> --allow-empty
 python -m pgci_preprocess doctor --project-root <project> --workflow full
 ```
 
-`init-project` creates missing nested directories and standard TSV headers. A
-species registration requires four explicit inputs: `--genome`, `--gff`, `--cds`,
-and `--pep`. It never guesses biological roles from an arbitrary suffix and does
-not overwrite an existing species directory. `doctor` is read-only and does not
-install tools or claim that an executable has successfully completed an analysis.
+The `gbff` extra (`biopython>=1.83`) is only needed for GenBank/GBFF input.
+Python dependencies for preprocessing are otherwise standard-library only.
+External programs (Bash, DIAMOND/BLAST, MUSCLE, yn00, Perl) and the WGDI
+environment are described in QUICKSTART.md; they are not Python packages and
+`doctor` only checks their availability.
+
+`init-project` creates missing nested directories and standard TSV headers.
+Registration requires four explicit inputs: `--genome`, `--gff`, `--cds` and
+`--pep`. It never overwrites an existing species directory. `doctor` is
+read-only: it neither installs tools nor claims that an external program has
+successfully completed an analysis.
 
 From the workflow root, the full controller defaults to DIAMOND with
 `very-sensitive` and `1e-5`:
@@ -105,18 +117,11 @@ powershell -ExecutionPolicy Bypass -File .\run_all_pipeline.ps1
 # -CondaEnv <env> -BioinfoBin <external-tool-directory>
 ```
 
-The generated `Auto_pep/diamond_run_settings.tsv` records the actual homology
-settings. BLAST results are copied, not moved, into WGDI comparison directories.
-The WGDI wrapper accepts `WGDI_PYTHON`, `WGDI_PERL_BIN`, and `WGDI_PERL5LIB` for
-non-local installations. Windows users should keep project and pytest temporary
-paths short.
-
-Generated comparison configs default to `tandem = false`, so tandem-repeat blocks
-are removed from correspondence, block-Ks and Ks-peak analyses. Upstream
-`wgdi -r <config>` remains the retention-analysis option. In this workflow's
-wrapper, a final standalone `-r` (or any `--remove-tandem`) is the convenience
-flag that applies the same tandem filter at runtime. Set `WGDI_TANDEM=true`
-before regenerating configs when tandem-repeat blocks must be retained.
+Generated comparison configs default to `tandem = false`, so tandem-repeat
+blocks are removed from correspondence, block-Ks and Ks-peak analyses. Set
+`WGDI_TANDEM=true` before regenerating configs if tandem blocks must be
+retained. The WGDI wrapper accepts `WGDI_PYTHON`, `WGDI_PERL_BIN` and
+`WGDI_PERL5LIB` for non-local installations.
 
 ## Standardize and validate
 
@@ -137,8 +142,7 @@ On a project that does not need root compatibility links:
   --expected-count 20
 ```
 
-The project-specific guide is in
-`plant-genome-resources/docs/data-validation.md`.
+The project-specific guide is in `code/docs/data-validation.md`.
 
 ## End-to-end smoke receipt
 
@@ -147,51 +151,34 @@ self-collinearity file. Historical alignments are used only for gene selection;
 DIAMOND is rerun with the configured settings.
 
 ```powershell
-python plant-genome-resources/tools/build_wgdi_smoke_fixture.py `
+python code/tools/build_wgdi_smoke_fixture.py `
   --workflow-root <workflow-root> --species-dir <workflow-root/Ggl> `
   --self-icl <old/Ggl.icl> --output-root <workflow-root/smoke_wgdi>
-bash plant-genome-resources/tools/run_wgdi_smoke.sh <workflow-root/smoke_wgdi>
+bash code/tools/run_wgdi_smoke.sh <workflow-root/smoke_wgdi>
 ```
 
 The runner executes DIAMOND and scripts 2–6, then requires all eight key WGDI
-outputs per comparison. `smoke_report.json` records parameters, file sizes, and
-SHA-256 hashes. This receipt applies only to the derived smoke fixture, not to a
-full rerun of every species. Step 0 remains covered by preprocessing validation.
-
+outputs per comparison. `smoke_report.json` records parameters, file sizes and
+SHA-256 hashes. This receipt applies only to the derived smoke fixture, not to
+a full rerun of every species; step 0 remains covered by preprocessing
+validation.
 
 ## Test
 
 ```powershell
-cd plant-genome-resources
+cd code
 python -m pytest -q
 ruff check src tests scripts
 mypy src --ignore-missing-imports
 ```
 
-## Codex skill
+## Skill package
 
-The reusable skill package is under:
-
-```text
-skill-packages/plant-genome-wgdi-preprocess/
-```
-
-Install it by copying that directory into:
+The reusable skill package is published separately at
+<https://github.com/HXC-code/plant-genome-preprocess-skill>. Copy the directory
+that contains `SKILL.md` into `%USERPROFILE%\.codex\skills\` (Codex) or
+`%USERPROFILE%\.workbuddy\skills\` (WorkBuddy).
 
 ```text
-%USERPROFILE%\.codex\skills\
+Use $plant-genome-preprocess to standardize and validate this plant genome dataset.
 ```
-
-Example prompt:
-
-```text
-Use $plant-genome-wgdi-preprocess to standardize and validate this plant genome dataset.
-```
-
-## Environment notes (2026-11-20)
-
-- `tests/conftest.py` redirects an over-deep `--basetemp` (>90 chars) to a short temp root and emits a `PytestWarning`; deep Windows paths otherwise hit the legacy 260-char limit and produce misleading "directory exists but file cannot be written" failures.
-- Shell scripts `0check_data.sh`–`6run_wgdi.sh` now use LF line endings (backup: `99_ARCHIVE\shell_lineendings_20261120`); `bash -n` passes under both Git Bash and WSL/Linux.
-- GBFF conversion needs `biopython>=1.83`; `doctor` lists local interpreters that have Biopython when the current one does not.
-- `run` fails fast with `path_too_long_for_windows` when a species/input/output path exceeds ~250 characters, instead of surfacing a bare `FileNotFoundError`.
-

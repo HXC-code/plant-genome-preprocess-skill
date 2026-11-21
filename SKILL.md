@@ -44,6 +44,8 @@ pipeline/
 
 ```powershell
 cd pipeline\code
+# Python ≥ 3.11；处理 GBFF 时安装 biopython
+python -m pip install -e ".[gbff]"
 
 # 1) 建项目（自动带上物种缩写表与格式例外表，无需手工拷贝）
 python -m pgci_preprocess init-project --project-root D:\my_project
@@ -68,7 +70,7 @@ python -m pgci_preprocess init-project --project-root D:\my_project `
 
 ## 支持哪些后缀
 
-注释（按**内容**判定，后缀只作提示；`.gz/.bz2/.xz` 自动识别）：
+注释（按**内容**判定，后缀只作提示，不是白名单；`.gz/.bz2/.xz/.zip` 按压缩魔数识别，后缀写错也能读）：
 
 | 后缀 | 处理 |
 | --- | --- |
@@ -78,7 +80,7 @@ python -m pgci_preprocess init-project --project-root D:\my_project `
 | `.annotations.csv.gz` | 识别为无表头 7 列功能注释（GO/NR/SP/TR），规范化为元数据表，**不当坐标输入** |
 | `.csv` / `.csv.gz` | 仅用于功能注释规范化，缺坐标表头会被拒绝 |
 
-序列（FASTA 家族，含 `.gz`）：`.fa` `.fasta` `.fna` `.faa` `.fa.gz` `.fasta.gz` `.fna.gz` `.faa.gz`，以及常见组合 `.genome.fasta.gz`、`.genome.fa.gz`、`_genomic.fna.gz`、`.CDS.fasta.gz`、`.cds.fa(.gz)`、`.Protein.faa.gz`、`.protein.fa.gz`、`.pep.fa`、`.pro.fa`、`.RNA.fasta.gz`。
+序列（FASTA 家族，含 `.gz/.bz2/.xz/.zip`）：`.fa` `.fasta` `.fna` `.faa` `.fas` 及其压缩形式，以及常见组合 `.genome.fasta.gz`、`.genome.fa.gz`、`_genomic.fna.gz`、`.CDS.fasta.gz`、`.cds.fa(.gz)`、`.Protein.faa.gz`、`.protein.fa.gz`、`.pep.fa`、`.pro.fa`、`.RNA.fasta.gz`。其它扩展名只要内容是 FASTA 也会被读取，角色由文件名语义与首条记录内容共同判定。
 
 命名不是硬编码：代码用“后缀 + FASTA 首记录预览 + 角色打分”决定 genome/cds/pep，避免把 CDS 当 genome、把 RNA 当蛋白。
 
@@ -117,7 +119,7 @@ python -m pgci_preprocess init-project --project-root D:\my_project `
 
 ```powershell
 cd pipeline\code
-python -m pytest -q                     # 135 个用例；临时目录受限时加 --basetemp=D:\pt
+python -m pytest -q                     # 151 个用例；临时目录受限时加 --basetemp=<short-path>
 ```
 
 测试覆盖：多格式项目、GBFF 往返、GTF 转换、命名迁移、兼容链接、校验失败路径、版本一致性。

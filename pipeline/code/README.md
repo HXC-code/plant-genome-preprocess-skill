@@ -7,7 +7,7 @@ CDS/蛋白 FASTA 转换为带全局唯一 ID、可直接进入 BLAST/WGDI 的一
 
 ## 物种代号
 
-物种的表型/图上/目录代号来自 `D:\lab-task\物种缩写表.xlsx`，规范化副本是
+物种的表型/图上/目录代号来自实验室维护的缩写表（例如 `species_abbreviations.xlsx`），规范化副本是
 `resources/species_abbreviations.tsv`。`show_id` 仍是内部稳定主键，分析代号使用表中的
 全局唯一缩写，例如 `show_id=2720` 对应 `Lcu`，`show_id=2725` 对应 `Lsb`。
 
@@ -15,7 +15,7 @@ CDS/蛋白 FASTA 转换为带全局唯一 ID、可直接进入 BLAST/WGDI 的一
 `Lcu`。Excel 缩写表更新后执行：
 
 ```powershell
-python tools/import_species_names.py --input D:\lab-task\物种缩写表.xlsx
+python tools/import_species_names.py --input <path/to/species_abbreviations.xlsx>
 python -m pgci_preprocess migrate-species-names --project-root .
 ```
 
@@ -32,7 +32,7 @@ resources/download_inventory.tsv
 ## 新项目初始化与依赖预检（v3.2.0）
 
 预处理项目根与 0–6 执行根是两个不同目录：前者含 `data/downloads` 和 `resources`，后者含
-`0check_data.sh` 至 `6run_wgdi.sh` 以及 `s<code>` 四件套目录，不要混用。
+`0check_data.sh` 至 `6run_wgdi.sh` 以及 `<Abbr>/` 四件套兼容目录，不要混用。
 
 ```powershell
 # 自动创建嵌套项目根、data/downloads、resources 和两张标准 TSV 表头
@@ -49,7 +49,7 @@ python -m pgci_preprocess doctor --project-root <project> --workflow full `
 
 `doctor` 只读，不安装软件、不创建目录、不修改项目。工具检查表示“路径可解析”，不等于
 外部程序已经实际运行；真实执行由独立 smoke 验收。GBFF 转换还需 `biopython>=1.83`，建议在新
-虚拟环境中安装本项目，不要复用依赖冲突不明的 base 环境。Windows 建议使用较短的项目和临时目录；
+虚拟环境中安装本项目（Python ≥ 3.11），不要复用依赖冲突不明的 base 环境。Windows 建议使用较短的项目和临时目录；
 过长的物种目录与 pytest 临时路径可能触发传统路径长度限制。
 
 ```powershell
@@ -69,7 +69,7 @@ python -m pip install -r ..\requirements-wgdi-validated.txt
 python -m pgci_preprocess init-project --project-root <new-project> `
   --show-id 42 --scientific-name "Example species" --order <order> --family <family> `
   --assembly-id <assembly> `
-  --species-names D:\lab-task\02_PREPROCESS\wgdi_pipeline\plant-genome-resources\resources\species_abbreviations.tsv `
+  --species-names <project-root>/resources/species_abbreviations.tsv `
   --genome <genome.fna.gz> --gff <annotation.gff3.gz> `
   --cds <cds.fa.gz> --pep <protein.faa.gz>
 ```
@@ -80,9 +80,10 @@ python -m pgci_preprocess init-project --project-root <new-project> `
 ## 运行
 
 ```powershell
-cd D:\lab-task\02_PREPROCESS\wgdi_pipeline\plant-genome-resources
+cd <project-root>
 
-# 测试
+# 测试在仓库的 code/ 目录执行
+# cd <repo>/code
 python -m pytest -q
 
 # 正式子命令（convert 为历史兼容入口）
@@ -374,7 +375,7 @@ WGDI 配置中的 CDS、PEP、GFF 和 lens 应使用同一套筛选集：
 
 ## 环境注意事项（2026-11-20 实测）
 
-- **pytest 临时目录**：`tests/conftest.py` 会在 basetemp 路径超过 90 字符时自动重定向到短临时根并打印 `PytestWarning`（Windows 传统 260 字符限制下，深层路径会出现"目录建了、文件写不进"的假失败）。仍建议直接使用 `D:\lab-task\_review_tmp\...` 这类短路径。
+- **pytest 临时目录**：`tests/conftest.py` 会在 basetemp 路径超过 90 字符时自动重定向到短临时根并打印 `PytestWarning`（Windows 传统 260 字符限制下，深层路径会出现"目录建了、文件写不进"的假失败）。仍建议直接使用 `<short-temp-path>` 这类短路径。
 - **Windows 长路径守卫**：`run` 遇到物种目录/输入/输出路径超过 250 字符时返回 `FAIL path_too_long_for_windows`（detail 给出整改建议），不再抛出裸 `FileNotFoundError`。
 - **GFF 结构错误语义**：`GffFormatError` 统一转为 `FAIL gff_format_error`（不再以 `ERROR` 跳过统计）；原始 GTF/GBFF 直接进 run 则返回 `FAIL conversion_required` 并附可执行 `convert-annotation` 命令。
 - **Biopython**：仅 GBFF 转换需要 `biopython>=1.83`；`doctor` 会扫描当前解释器、PATH 上的 `python/python3/py` 以及 `PGCI_PYTHON_CANDIDATES`（`;` 分隔）并列出可用的解释器版本。
