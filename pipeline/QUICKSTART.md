@@ -38,6 +38,7 @@ wgdi_pipeline/
 | --- | --- | --- |
 | 预处理 | Python ≥ 3.11 | 纯标准库即可；要转 GBFF 才需要 `biopython>=1.83` |
 | WGDI | Python + `wgdi==0.75` | 用 `bootstrap_wgdi` 或 requirements 安装；只有固定上游来源 |
+| PAL2NAL | 官方 v14 下载 | `bootstrap_wgdi` 默认安装；也可单独运行 `python code/tools/install_pal2nal.py`；发布包不捆绑 |
 | 同源比对 | `diamond` 或 `blastp` + `makeblastdb` | 装好后在 PATH 里即可 |
 | WGDI 依赖 | `muscle`、`yn00`（PAML）、`perl` | 同上，PATH 或 `-BioinfoBin` 指定目录 |
 | Windows 执行 shell 脚本 | Git Bash | `run_all_pipeline.ps1` 会自动找 `git.exe` 同级的 `bash.exe` |
@@ -206,7 +207,8 @@ bash 6run_wgdi.sh
 | 产物名还是 `s1234` | 既没有缩写表记录，也没有拉丁名；补 `--scientific-name` 或清单 `Species` 列。若表丢失，`doctor` 会报 `species_abbreviations FAIL` |
 | `validate` 报 `compat_missing_*` | 加 `--refresh-links` 建兼容目录 |
 | `wgdi: not found python with wgdi` | 先跑 `bootstrap_wgdi.ps1/.sh`，或设 `WGDI_PYTHON` |
-| WGDI 仍使用旧机器上的 MUSCLE/yn00 路径 | 新版启动入口会依次读取 `WGDI_MUSCLE`、`MUSCLE`、`WGDI_YN00`、`YN00` 和 PATH；PAL2NAL 默认使用包内脚本 |
+| WGDI 仍使用旧机器上的 MUSCLE/yn00 路径 | 新版启动入口会依次读取 `WGDI_MUSCLE`、`MUSCLE`、`WGDI_YN00`、`YN00` 和 PATH |
+| `PAL2NAL 未安装` | 运行 `python code/tools/install_pal2nal.py`，或用 `WGDI_PAL2NAL` 指向已有脚本 |
 | `doctor` 报 diamond/blastp FAIL | 装工具并加入 PATH，或用 `-BioinfoBin` / `DIAMOND` / `BLASTP` 环境变量 |
 | Windows 路径过长报错 | 项目与临时目录尽量短（<250 字符），或把项目放到盘符根下 |
 | 迁移中断后目录里混着新旧文件名 | 重跑 `migrate-artifacts`（幂等，会补齐 `>` 头、GFF 列与基因 ID） |
@@ -235,5 +237,5 @@ python code/tools/build_synthetic_wgdi_smoke.py `
 bash code/tools/run_wgdi_smoke.sh $env:TEMP\plant-genome-smoke
 ```
 
-发布门禁和已通过的 3.5.1 回执见 `VALIDATION.md` 与 `validation/`。
-可直接交接的压缩包为 `dist/plant-genome-preprocess-v3.5.1.zip`。
+发布门禁和已通过的 3.5.2 回执见 `VALIDATION.md` 与 `validation/`。
+可直接交接的压缩包为 `dist/plant-genome-preprocess-v3.5.2.zip`。

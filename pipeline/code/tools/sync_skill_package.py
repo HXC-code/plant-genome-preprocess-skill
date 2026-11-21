@@ -140,7 +140,13 @@ def _pipeline_pairs(pipeline_root: Path) -> list[tuple[Path, Path, str]]:
         (source, pipeline_root / relative, relative)
         for source, relative in collect_release_files()
     ]
-    for name in (".gitignore", "LICENSE", "CHANGELOG.md", "CONTRIBUTING.md"):
+    for name in (
+        ".gitattributes",
+        ".gitignore",
+        "LICENSE",
+        "CHANGELOG.md",
+        "CONTRIBUTING.md",
+    ):
         source = PROJECT_ROOT.parent / name
         if source.is_file():
             pairs.append((source, pipeline_root.parent / name, f"../{name}"))

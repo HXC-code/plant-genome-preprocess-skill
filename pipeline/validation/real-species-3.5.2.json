@@ -1,0 +1,249 @@
+{
+  "schema_version": "real-species-validation-v1",
+  "status": "PASS",
+  "created_at": "2026-11-21T11:41:25.048459+00:00",
+  "workflow_version": "3.5.2",
+  "data_source": "NCBI Datasets v2alpha public RefSeq packages",
+  "scope": "Public RefSeq real-species preprocessing, validation, naming, QC, and a real-derived cross-species WGDI subset.",
+  "not_claimed": "This is not a BUSCO lineage assessment, a complete full-proteome WGDI run, or a biological WGD conclusion.",
+  "species": [
+    {
+      "show_id": "301",
+      "code": "Aly",
+      "species": "Arabidopsis lyrata",
+      "accession": "GCF_000004255.2_v.1.0",
+      "wgdi_ready": "yes",
+      "validation": "PASS",
+      "naming": "PASS",
+      "genes_in_annotation": 34365,
+      "transcripts": 45105,
+      "representative_genes": 28420,
+      "wgdi_genes": 27777,
+      "wgdi_sequences": 9,
+      "rejection_counts": {
+        "alternative_isoform": 9343,
+        "cds_length_not_multiple_of_3": 28,
+        "internal_stop": 579,
+        "organelle_sequence": 130,
+        "protein_id_missing": 5899,
+        "translation_length_mismatch": 706
+      },
+      "input_sha256": {
+        "gff": "d8e60f85ef791b5b3732c9d6179eb301c31728b3c39622c73bbcca5c108670e9",
+        "cds": "5b70213d842b05224677853afc1898f0c308a386767e6beecf13eb1a06eeb0d5",
+        "pep": "ce77c190c527ec99f4732e58beefa59463805e1b2b13049bf303026dbc6fbfdf",
+        "genome": "5f6b7b6bab223eeb349b2aaf753dc03b805b2ac0018b6d2b52011fd8d0546340"
+      }
+    },
+    {
+      "show_id": "367",
+      "code": "Ath",
+      "species": "Arabidopsis thaliana",
+      "accession": "GCF_000001735.4_TAIR10.1",
+      "wgdi_ready": "yes",
+      "validation": "PASS",
+      "naming": "PASS",
+      "genes_in_annotation": 38312,
+      "transcripts": 59912,
+      "representative_genes": 27417,
+      "wgdi_genes": 27417,
+      "wgdi_sequences": 5,
+      "rejection_counts": {
+        "alternative_isoform": 20689,
+        "cds_length_not_multiple_of_3": 35,
+        "gene_missing": 427,
+        "internal_stop": 6,
+        "organelle_sequence": 437,
+        "protein_id_missing": 10901
+      },
+      "input_sha256": {
+        "gff": "63d0744c0a02bffc23b72283ebabeeef39a3e7e6283acec864656fde8eafefb3",
+        "cds": "59590faa90a9ba038d26d562015caa29e4fae1366757f61c096b87b4b12ee8d0",
+        "pep": "1e14d9c64186a78bba3ced49b850d2ffc28a4311f06b52cf272bd7745ba0fb55",
+        "genome": "de99316d1d5597e9a5d40d943ff919c17d59b77116354a5d388b183b6f21075f"
+      }
+    }
+  ],
+  "preprocessing_ok": true,
+  "smoke_report_sha256": "b6c00209ed708a72d7952ff7a28a4ed77b301c7e3a4f3dcc5d5947dd222f289a",
+  "smoke": {
+    "schema_version": "wgdi-smoke-v3",
+    "status": "PASS",
+    "created_at": "2026-11-21T19:41:24.365242+08:00",
+    "workflow_version": "3.5.2",
+    "scope": "Derived real-data fixture; DIAMOND and scripts 2-6 actually executed. Step 0 is covered separately by preprocessing tests/validation.",
+    "not_claimed": "This is not a full WGDI rerun of the 109-species dataset or a new biological WGD inference.",
+    "smoke_root": "<isolated-workspace>",
+    "fixture": {
+      "method": "real preprocessing output subset",
+      "left_code": "Ath",
+      "left_chromosome": "1",
+      "right_code": "Aly",
+      "right_chromosome": "364",
+      "max_genes": 600
+    },
+    "diamond": {
+      "engine": "diamond",
+      "executable": "/usr/local/bin/diamond",
+      "version": "diamond version 2.2.8",
+      "evalue": "1e-5",
+      "sensitivity": "very-sensitive",
+      "max_target_seqs": "20",
+      "threads": "8",
+      "block_size": "4",
+      "comp_based_stats": "0"
+    },
+    "environment": {
+      "os": "Linux-6.18.33.1-microsoft-standard-WSL2-x86_64-with-glibc2.43",
+      "machine": "x86_64",
+      "python": "3.14.4",
+      "wgdi_python": "python",
+      "wgdi_python_version": "3.14.4",
+      "wgdi": "0.75",
+      "tools": {
+        "diamond": {
+          "path": "diamond",
+          "version": "diamond version 2.2.8"
+        },
+        "blastp": {
+          "path": "blastp",
+          "version": "blastp: 2.16.0+"
+        },
+        "makeblastdb": {
+          "path": "makeblastdb",
+          "version": "makeblastdb: 2.16.0+"
+        },
+        "muscle": {
+          "path": "muscle",
+          "version": "muscle 5.2.linux64 [-]"
+        },
+        "yn00": {
+          "path": "yn00",
+          "version": "YN00 in paml version 4.9j, October 2019"
+        },
+        "perl": {
+          "path": "perl",
+          "version": "This is perl 5, version 40, subversion 1 (v5.40.1) built for x86_64-linux-gnu-thread-multi"
+        },
+        "pal2nal": {
+          "path": "pal2nal.pl",
+          "version": "pal2nal.pl  (v14)"
+        }
+      }
+    },
+    "comparisons": [
+      {
+        "left": "Aly",
+        "right": "Ath",
+        "status": "PASS",
+        "auto_pep_blast_preserved_and_identical": true,
+        "outputs": {
+          "dotplot": {
+            "path": "Auto_wgdi/Aly_base/Aly_Ath/Aly_Ath.png",
+            "exists_nonempty": true,
+            "bytes": 82735,
+            "sha256": "afc3360bc18ad5dce9cff96842bc827af723cc2e91afd1bf2f0b3b0ca88dc6aa"
+          },
+          "collinearity": {
+            "path": "Auto_wgdi/Aly_base/Aly_Ath/Aly_Ath.icl",
+            "exists_nonempty": true,
+            "bytes": 18281,
+            "sha256": "ab06c0b6619a76ee1044a78871b0d9e382f8bf5089d7391c450533941ed25780"
+          },
+          "ks": {
+            "path": "Auto_wgdi/Aly_base/Aly_Ath/Aly_Ath.ks",
+            "exists_nonempty": true,
+            "bytes": 27665,
+            "sha256": "b5c6cbbfedf2d1b417a8734ab78fc3a8d95ebad5f7bfb8241258b2e7f1886541"
+          },
+          "blockinfo": {
+            "path": "Auto_wgdi/Aly_base/Aly_Ath/Aly_Ath.bi.csv",
+            "exists_nonempty": true,
+            "bytes": 9298,
+            "sha256": "a038e37f0a0759ecabdde9238d9a472639e5e663db387e8f63601f33275c0ecd"
+          },
+          "correspondence": {
+            "path": "Auto_wgdi/Aly_base/Aly_Ath/Aly_Ath.bi.c.csv",
+            "exists_nonempty": true,
+            "bytes": 8276,
+            "sha256": "47a526b6fdd8cd1f20ff81176802c8ff51f5a7d4a73db7bb17fd8a751623cc07"
+          },
+          "blockks": {
+            "path": "Auto_wgdi/Aly_base/Aly_Ath/Aly_Ath.bk.png",
+            "exists_nonempty": true,
+            "bytes": 199699,
+            "sha256": "50cc6be2fd70a42fa676939737d31b635ca766cd76b5408eec25a92d66769c49"
+          },
+          "kspeaks": {
+            "path": "Auto_wgdi/Aly_base/Aly_Ath/Aly_Ath.kp.png",
+            "exists_nonempty": true,
+            "bytes": 217900,
+            "sha256": "46017c776268b14fe8937d94ca75be1b2bb363d465c3319166515a2219d500de"
+          },
+          "peaksfit": {
+            "path": "Auto_wgdi/Aly_base/Aly_Ath/Aly_Ath.pf.png",
+            "exists_nonempty": true,
+            "bytes": 196252,
+            "sha256": "8c3891689c58accc1fe7b3e2c7469524f8ae01156581c564212602e777c08d0d"
+          }
+        }
+      },
+      {
+        "left": "Ath",
+        "right": "Aly",
+        "status": "PASS",
+        "auto_pep_blast_preserved_and_identical": true,
+        "outputs": {
+          "dotplot": {
+            "path": "Auto_wgdi/Ath_base/Ath_Aly/Ath_Aly.png",
+            "exists_nonempty": true,
+            "bytes": 82166,
+            "sha256": "b4f4ca35b736729fbeb825484f3d6fb79d866fe9363f02250a6e2281fc8ea0fb"
+          },
+          "collinearity": {
+            "path": "Auto_wgdi/Ath_base/Ath_Aly/Ath_Aly.icl",
+            "exists_nonempty": true,
+            "bytes": 18320,
+            "sha256": "26665036b4eb929adfda7401ca9f9a3dd3b9aa3bae398f6626da5a3383a40298"
+          },
+          "ks": {
+            "path": "Auto_wgdi/Ath_base/Ath_Aly/Ath_Aly.ks",
+            "exists_nonempty": true,
+            "bytes": 27763,
+            "sha256": "398ebb251e6fc0bc5edea919dc728d2791a681711aea5fffd56169b0bdf51b99"
+          },
+          "blockinfo": {
+            "path": "Auto_wgdi/Ath_base/Ath_Aly/Ath_Aly.bi.csv",
+            "exists_nonempty": true,
+            "bytes": 9339,
+            "sha256": "aa469c4da4eb6f46e55bb0a5acd97f3af860ea38113950f8589d2dfbd9f5925a"
+          },
+          "correspondence": {
+            "path": "Auto_wgdi/Ath_base/Ath_Aly/Ath_Aly.bi.c.csv",
+            "exists_nonempty": true,
+            "bytes": 8272,
+            "sha256": "3bb741dc84a5cac740e40e121c364a8eaaa5312a434998f6c8b41e815749fa7a"
+          },
+          "blockks": {
+            "path": "Auto_wgdi/Ath_base/Ath_Aly/Ath_Aly.bk.png",
+            "exists_nonempty": true,
+            "bytes": 200675,
+            "sha256": "5b328f86db2876fc7c0f7bc1534918e8fbe693b9db8f366b634047225e094f60"
+          },
+          "kspeaks": {
+            "path": "Auto_wgdi/Ath_base/Ath_Aly/Ath_Aly.kp.png",
+            "exists_nonempty": true,
+            "bytes": 249844,
+            "sha256": "ae4b296fa872651e7a30bc7f815c86f40268191ebb6fce3cb1ca825cc01a7818"
+          },
+          "peaksfit": {
+            "path": "Auto_wgdi/Ath_base/Ath_Aly/Ath_Aly.pf.png",
+            "exists_nonempty": true,
+            "bytes": 171395,
+            "sha256": "991ed22516880993eaeef3205c13e56445df0ae103c9cf0930743429981d204c"
+          }
+        }
+      }
+    ]
+  }
+}

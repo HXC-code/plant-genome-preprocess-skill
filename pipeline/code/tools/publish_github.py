@@ -56,6 +56,7 @@ def collect(root: Path, prefix: str = "") -> list[tuple[str, Path]]:
 def project_files() -> list[tuple[str, Path]]:
     files = collect(PROJECT_ROOT / "code", "code/")
     for name in (
+        ".gitattributes",
         ".gitignore",
         "QUICKSTART.md",
         "README.md",

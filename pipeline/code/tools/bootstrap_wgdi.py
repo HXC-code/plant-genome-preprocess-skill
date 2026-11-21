@@ -10,6 +10,8 @@ import sys
 import venv
 from pathlib import Path
 
+from install_pal2nal import DEFAULT_SHA256, DEFAULT_URL, install as install_pal2nal
+
 
 EXTERNAL_TOOLS = ("diamond", "blastp", "makeblastdb", "muscle", "yn00", "perl")
 
@@ -76,6 +78,19 @@ def bootstrap(args: argparse.Namespace) -> int:
         )
 
     run([str(runtime_python), "-c", "import wgdi, wgdi.run; print('wgdi import OK')"])
+    pal2nal = root / "external" / "pal2nal.v14" / "pal2nal.pl"
+    if args.skip_pal2nal:
+        print("[SKIP] PAL2NAL installation")
+    elif pal2nal.is_file():
+        print(f"PAL2NAL 已安装: {pal2nal}")
+    else:
+        installed = install_pal2nal(
+            DEFAULT_URL,
+            DEFAULT_SHA256,
+            pal2nal.parent,
+            force=False,
+        )
+        print(f"PAL2NAL 已安装: {installed / 'pal2nal.pl'}")
     print(f"\nPython 运行时已就绪: {runtime_python}")
     print(f"启动方式: {root / 'bin' / 'wgdi'} <wgdi 参数>")
 
@@ -95,11 +110,12 @@ def main() -> int:
     parser.add_argument("--requirements", type=Path)
     parser.add_argument("--force", action="store_true")
     parser.add_argument("--skip-external-check", action="store_true")
+    parser.add_argument("--skip-pal2nal", action="store_true")
     parser.add_argument("--allow-unpinned-fallback", action="store_true")
     args = parser.parse_args()
     try:
         return bootstrap(args)
-    except (OSError, RuntimeError, subprocess.CalledProcessError) as exc:
+    except (OSError, RuntimeError, ValueError, subprocess.CalledProcessError) as exc:
         parser.exit(1, f"错误：{exc}\n")
 
 

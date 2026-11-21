@@ -4,6 +4,7 @@ param(
     [string]$EnvDir = "",
     [switch]$Force,
     [switch]$SkipExternalCheck,
+    [switch]$SkipPal2nal,
     [switch]$AllowUnpinnedFallback
 )
 
@@ -24,6 +25,7 @@ if (-not [string]::IsNullOrWhiteSpace($EnvDir)) { $arguments += @("--env-dir", $
 if (-not [string]::IsNullOrWhiteSpace($PythonExe)) { $arguments += @("--python-exe", $PythonExe) }
 if ($Force) { $arguments += "--force" }
 if ($SkipExternalCheck) { $arguments += "--skip-external-check" }
+if ($SkipPal2nal) { $arguments += "--skip-pal2nal" }
 if ($AllowUnpinnedFallback) { $arguments += "--allow-unpinned-fallback" }
 & $python @arguments
 exit $LASTEXITCODE

@@ -41,13 +41,15 @@ def test_release_archive_has_handoff_material_and_no_vendored_wgdi(
         names = set(archive.namelist())
         assert not archive.testzip()
         assert "wgdi_pipeline/README.md" in names
+        assert "wgdi_pipeline/.gitattributes" in names
         assert "wgdi_pipeline/.gitignore" in names
         assert "wgdi_pipeline/LICENSE" in names
         assert "wgdi_pipeline/VALIDATION.md" in names
         assert "wgdi_pipeline/THIRD_PARTY_NOTICES.md" in names
         assert "wgdi_pipeline/run_homology.sh" in names
         assert "wgdi_pipeline/code/tools/generate_wgdi_configs.py" in names
-        assert "wgdi_pipeline/code/tools/pal2nal.v14/pal2nal.pl" in names
+        assert "wgdi_pipeline/code/tools/install_pal2nal.py" in names
+        assert "wgdi_pipeline/code/tools/pal2nal.v14/pal2nal.pl" not in names
         assert "wgdi_pipeline/PACKAGE_SHA256.tsv" in names
         assert "wgdi_pipeline/PACKAGE_INFO.json" in names
         assert (
@@ -102,6 +104,7 @@ def test_skill_mirror_uses_the_same_shared_wrappers(tmp_path: Path) -> None:
         encoding="utf-8"
     )
     assert (pipeline / "validation" / RECEIPT_NAME).is_file()
+    assert (pipeline / "code" / "tools" / "install_pal2nal.py").is_file()
     assert (pipeline / "code" / "docs" / "HANDOFF.md").is_file()
     assert not (pipeline / "code" / "docs" / "REVIEW-README.md").exists()
     assert (pipeline / "code" / "resources" / "species_abbreviations.tsv").is_file()
@@ -151,9 +154,4 @@ def test_release_normalizes_crlf_shell_scripts_even_from_windows_checkout(
     launcher.write_bytes(b"#!/usr/bin/env bash\r\nexec python\r\n")
     assert builder.release_bytes(launcher, "bin/wgdi") == (
         b"#!/usr/bin/env bash\nexec python\n"
-    )
-    third_party = tmp_path / "pal2nal.pl"
-    third_party.write_bytes(b"#!/usr/bin/perl\r\n# upstream bytes\r\n")
-    assert builder.release_bytes(third_party, "code/tools/pal2nal.v14/pal2nal.pl") == (
-        b"#!/usr/bin/perl\r\n# upstream bytes\r\n"
     )

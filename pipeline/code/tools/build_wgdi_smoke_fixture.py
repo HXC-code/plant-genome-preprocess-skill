@@ -12,6 +12,7 @@ import hashlib
 import json
 import shutil
 import tomllib
+import os
 from collections import defaultdict
 from pathlib import Path
 
@@ -106,8 +107,23 @@ def install_smoke_runtime(workflow: Path, output: Path) -> None:
     target_generator = output / "code" / "tools" / "generate_wgdi_configs.py"
     target_generator.parent.mkdir(parents=True)
     shutil.copy2(config_generator, target_generator)
-    pal2nal = workflow / "code" / "tools" / "pal2nal.v14" / "pal2nal.pl"
-    target_pal2nal = output / "code" / "tools" / "pal2nal.v14" / "pal2nal.pl"
+    pal2nal_candidates = (
+        Path(os.environ["WGDI_PAL2NAL"])
+        if os.environ.get("WGDI_PAL2NAL")
+        else None,
+        workflow / "external" / "pal2nal.v14" / "pal2nal.pl",
+        workflow / "code" / "tools" / "pal2nal.v14" / "pal2nal.pl",
+    )
+    pal2nal = next(
+        (path for path in pal2nal_candidates if path and path.is_file()),
+        None,
+    )
+    if pal2nal is None:
+        raise FileNotFoundError(
+            "PAL2NAL is not installed. Run "
+            "`python code/tools/install_pal2nal.py` before building a smoke fixture."
+        )
+    target_pal2nal = output / "external" / "pal2nal.v14" / "pal2nal.pl"
     target_pal2nal.parent.mkdir(parents=True)
     shutil.copy2(pal2nal, target_pal2nal)
 

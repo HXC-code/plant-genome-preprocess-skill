@@ -1,8 +1,8 @@
 {
-  "schema_version": "wgdi-smoke-v2",
+  "schema_version": "wgdi-smoke-v3",
   "status": "PASS",
-  "created_at": "2026-11-21T17:26:12.459577+08:00",
-  "workflow_version": "3.5.1",
+  "created_at": "2026-11-21T19:41:11.126271+08:00",
+  "workflow_version": "3.5.2",
   "scope": "Isolated synthetic fixture; DIAMOND and scripts 2-6 actually executed. Step 0 is covered separately by preprocessing tests/validation.",
   "not_claimed": "This is not a full WGDI rerun of the 109-species dataset or a new biological WGD inference.",
   "smoke_root": "<isolated-workspace>",
@@ -44,16 +44,20 @@
         "version": "makeblastdb: 2.17.0+"
       },
       "muscle": {
-        "path": "muscle.EXE",
+        "path": "muscle.exe",
         "version": "muscle 5.3.win64 [d9725ac]"
       },
       "yn00": {
-        "path": "yn00.EXE",
+        "path": "yn00.exe",
         "version": "YN00 in paml version 4.10.10, 27 Jan 2026"
       },
       "perl": {
         "path": "perl.EXE",
-        "version": "This is perl 5, version 42, subversion 3 (v5.42.3) built for x86_64-cygwin-thread-multi"
+        "version": "This is perl 5, version 44, subversion 0 (v5.44.0) built for MSWin32-x64-multi-thread"
+      },
+      "pal2nal": {
+        "path": "pal2nal.pl",
+        "version": "v14 (downloaded from upstream)"
       }
     }
   },

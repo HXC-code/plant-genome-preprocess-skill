@@ -13,11 +13,19 @@ the bootstrap scripts.
 Consult each upstream distribution for its copyright and license terms. Python
 package metadata and installed license files remain authoritative.
 
-## Bundled third-party script: PAL2NAL v14
+## PAL2NAL v14 (installed separately)
 
-`code/tools/pal2nal.v14/` redistributes the PAL2NAL v14 Perl script and its
-README, used by WGDI's `-ks` stage to convert protein alignments into codon
-alignments. The files are bundled unmodified.
+PAL2NAL is used by WGDI's `-ks` stage to convert protein alignments into codon
+alignments. The workflow release does **not** bundle PAL2NAL. Install it from
+the upstream distribution when Ks analysis is needed:
+
+```bash
+python code/tools/install_pal2nal.py
+```
+
+The installer downloads the official v14 tarball, verifies SHA-256
+`0e458d38571ab6d61078047a9e80d843bb2e733414eeff8b1144d1c6bc13848f`, and
+stores it under the ignored `external/pal2nal.v14/` directory.
 
 - Author: Mikita Suyama (Kyoto University), with David Torrents and Peer Bork.
 - Citation: Suyama, Torrents & Bork (2006), PAL2NAL: robust conversion of
@@ -25,10 +33,13 @@ alignments. The files are bundled unmodified.
   *Nucleic Acids Research* 34:W609–W612.
 - Upstream: <http://www.bork.embl.de/pal2nal/> (the v14 tarball is still served
   there; newer releases exist).
-- License caveat: the v14 distribution ships **no explicit license file**, and
-  the upstream project page does not state license terms. Internal use with
-  attribution is straightforward; **before any public redistribution of this
-  archive, confirm the redistribution terms with the upstream author**.
+- License caveat: the historical v14 distribution ships **no explicit license
+  file**, and the upstream project page does not state license terms for that
+  tarball. The workflow does not redistribute it. Users obtain it directly from
+  upstream and are responsible for complying with the applicable terms.
+- The newer GitHub project (<https://github.com/grp-bork/pal2nal>) declares an
+  MIT license for its current code. That declaration is not being assumed to
+  cover the historical v14 tarball.
 
 ## External executables
 

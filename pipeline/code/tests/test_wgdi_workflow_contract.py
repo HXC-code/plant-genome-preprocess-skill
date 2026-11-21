@@ -128,7 +128,13 @@ def test_bootstrap_wrappers_share_one_python_implementation() -> None:
 
 def test_synthetic_wgdi_fixture_is_self_contained(tmp_path: Path) -> None:
     output = tmp_path / "synthetic"
-    env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
+    fake_pal2nal = tmp_path / "pal2nal.pl"
+    fake_pal2nal.write_text("#!/usr/bin/env perl\n", encoding="utf-8")
+    env = {
+        **os.environ,
+        "PYTHONIOENCODING": "utf-8",
+        "WGDI_PAL2NAL": str(fake_pal2nal),
+    }
     result = subprocess.run(
         [
             sys.executable,
@@ -153,6 +159,6 @@ def test_synthetic_wgdi_fixture_is_self_contained(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stdout + result.stderr
     assert (output / "fixture_manifest.json").is_file()
     assert (output / "run_homology.sh").is_file()
-    assert (output / "code" / "tools" / "pal2nal.v14" / "pal2nal.pl").is_file()
+    assert (output / "external" / "pal2nal.v14" / "pal2nal.pl").is_file()
     assert (output / "SynA" / "SynA.pep").is_file()
     assert (output / "SynB" / "SynB.new.gff").is_file()

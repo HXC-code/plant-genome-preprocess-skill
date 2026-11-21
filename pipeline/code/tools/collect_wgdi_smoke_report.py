@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 import platform
+import re
 import shutil
 import subprocess
 import sys
@@ -49,6 +50,23 @@ def command_output(argv: list[str]) -> str:
     return text.splitlines()[0] if text else ""
 
 
+def binary_version_hint(path: str) -> str:
+    try:
+        result = subprocess.run(
+            ["strings", path],
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            capture_output=True,
+            timeout=30,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return ""
+    match = re.search(r"YN00 in paml version[^\r\n]*", result.stdout)
+    return match.group(0).strip() if match else ""
+
+
 def runtime_environment(
     settings: dict[str, str], *, public: bool
 ) -> dict[str, object]:
@@ -64,18 +82,50 @@ def runtime_environment(
         [wgdi_python, "-c", "import platform; print(platform.python_version())"]
     )
     tools: dict[str, object] = {}
+    workflow_root = Path(__file__).resolve().parents[2]
+    perl_bin = os.environ.get("WGDI_PERL_BIN", "")
+    perl = os.environ.get("WGDI_PERL") or (
+        str(Path(perl_bin) / "perl") if perl_bin else shutil.which("perl")
+    )
+    pal2nal = (
+        os.environ.get("WGDI_PAL2NAL")
+        or os.environ.get("PAL2NAL")
+        or str(workflow_root / "external" / "pal2nal.v14" / "pal2nal.pl")
+    )
     probes = {
-        "diamond": (settings.get("executable") or shutil.which("diamond") or "", ["version"]),
+        "diamond": (
+            settings.get("executable") or shutil.which("diamond") or "",
+            ["version"],
+        ),
         "blastp": (shutil.which("blastp") or "", ["-version"]),
         "makeblastdb": (shutil.which("makeblastdb") or "", ["-version"]),
-        "muscle": (shutil.which("muscle") or "", ["-version"]),
-        "yn00": (shutil.which("yn00") or "", []),
-        "perl": (shutil.which("perl") or "", ["-v"]),
+        "muscle": (
+            os.environ.get("WGDI_MUSCLE")
+            or os.environ.get("MUSCLE")
+            or shutil.which("muscle")
+            or "",
+            ["-version"],
+        ),
+        "yn00": (
+            os.environ.get("WGDI_YN00")
+            or os.environ.get("YN00")
+            or shutil.which("yn00")
+            or "",
+            [],
+        ),
+        "perl": (perl or "", ["-v"]),
+        "pal2nal": (pal2nal if Path(pal2nal).is_file() else "", []),
     }
     for name, (path, arguments) in probes.items():
-        version = command_output([path, *arguments]) if path else ""
+        version = os.environ.get(f"WGDI_{name.upper()}_VERSION", "")
+        if not version:
+            version = command_output([path, *arguments]) if path else ""
         if name == "diamond" and not version:
             version = settings.get("version", "")
+        if name == "pal2nal" and path:
+            version = version or "v14 (downloaded from upstream)"
+        if name == "yn00" and not version and path:
+            version = binary_version_hint(path)
         tools[name] = {
             "path": Path(path).name if public and path else path,
             "version": version,
@@ -155,7 +205,7 @@ def main() -> int:
     all_ok = all_ok and settings.get("sensitivity") == status.get("diamond_sensitivity")
     synthetic = "synthetic" in fixture["selection"].get("method", "").lower()
     report = {
-        "schema_version": "wgdi-smoke-v2",
+        "schema_version": "wgdi-smoke-v3",
         "status": "PASS" if all_ok else "FAIL",
         "created_at": datetime.now().astimezone().isoformat(),
         "workflow_version": fixture.get("workflow_version", "unknown"),

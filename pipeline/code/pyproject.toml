@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pgci-preprocess"
-version = "3.5.1"
+version = "3.5.2"
 description = "Reproducible plant genome annotation normalization and WGDI input validation"
 requires-python = ">=3.11"
 dependencies = []

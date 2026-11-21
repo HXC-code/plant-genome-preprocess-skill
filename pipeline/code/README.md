@@ -179,6 +179,14 @@ powershell -ExecutionPolicy Bypass -File .\run_all_pipeline.ps1 `
 `WGDI_PAL2NAL` 覆盖。默认 Ks 列为 `ks_NG86`，可通过 `WGDI_KS_COL=ks_YN00`
 在短序列冒烟或特定数据上切换。
 
+PAL2NAL v14 不随发布包分发。`bootstrap_wgdi` 默认会从官方站点安装；也可以单独执行：
+
+```powershell
+python tools/install_pal2nal.py
+```
+
+安装器从官方站点下载并校验 SHA-256，文件写入被忽略的 `external/` 目录。
+
 ## 独立真实数据 smoke
 
 `tools/build_wgdi_smoke_fixture.py` 可从既有四件套和历史种内 `.icl` 选择一个小型共线性子集，

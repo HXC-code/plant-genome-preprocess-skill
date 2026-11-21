@@ -34,6 +34,7 @@ sys.path.insert(0, str(CODE_ROOT / "src"))
 from pgci_preprocess.version import __version__ as VERSION  # noqa: E402
 
 TOP_LEVEL_FILES = (
+    ".gitattributes",
     ".gitignore",
     "README.md",
     "QUICKSTART.md",
@@ -71,8 +72,6 @@ CODE_GLOBS = (
     "tests/*.py",
     "tools/*.py",
     "tools/*.sh",
-    "tools/pal2nal.v14/*.pl",
-    "tools/pal2nal.v14/README",
     "docs/**/*.md",
 )
 PIPELINE_GLOBS = ("validation/*.json",)
@@ -92,7 +91,7 @@ def release_bytes(path: Path, arc: str) -> bytes:
 
     Shell scripts are normalized to LF so a release built on a CRLF Windows
     checkout still runs under Linux/WSL bash. All other files are stored
-    byte-for-byte (third-party material such as PAL2NAL is never rewritten).
+    byte-for-byte.
     """
     data = path.read_bytes()
     if _is_shell_entry(arc):

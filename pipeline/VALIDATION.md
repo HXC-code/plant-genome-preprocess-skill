@@ -26,7 +26,9 @@ A release must pass all of the following:
 
 The synthetic preprocessing test is included in the Python test suite. A WGDI
 smoke receipt depends on DIAMOND, MUSCLE, yn00, Perl and WGDI being installed on
-the validation host.
+the validation host. PAL2NAL is installed separately from its official source
+with `python code/tools/install_pal2nal.py`; the release archive does not
+redistribute the historical v14 archive.
 
 ## Local checks
 
@@ -48,7 +50,7 @@ Build and inspect a source release:
 
 ```powershell
 python code/tools/build_release_package.py `
-  --output dist/plant-genome-preprocess-v3.5.1.zip
+  --output dist/plant-genome-preprocess-v3.5.2.zip
 ```
 
 The ZIP includes its own `PACKAGE_SHA256.tsv`; the build command prints the
@@ -74,30 +76,37 @@ derived real-data smoke can additionally be built with
 
 ## Current status
 
-On 2026-11-21 the synthetic full-chain smoke passed four comparisons
-(`SynA/SynA`, `SynA/SynB`, `SynB/SynA`, `SynB/SynB`) for version 3.5.1. Every
-comparison produced the eight required WGDI outputs. The public receipt is
-`validation/smoke-report-3.5.1.json`, generated with `--public` in the same
-Git Bash environment as the run; its 32 output SHA-256 hashes were verified
-identical to the non-public run report. It supersedes the 3.5.0 receipt, whose
-perl entry did not match the archived run.
+On 2026-11-21 version 3.5.2 passed:
 
-The local Python suite passed `157` tests; Ruff, Mypy and all workflow shell
-syntax checks passed, including `bash -n` under WSL (strict LF).
+- Windows synthetic full-chain smoke: four comparisons, eight products each.
+- Linux/WSL strict-LF synthetic full-chain smoke: four comparisons, eight
+  products each.
+- Public RefSeq real-species preprocessing:
+  - `Ath`, Arabidopsis thaliana TAIR10.1: 38,312 annotated genes, 27,417
+    representative/WGDI genes, five selected sequences.
+  - `Aly`, Arabidopsis lyrata v1.0: 34,365 annotated genes, 28,420
+    representative genes, 27,777 WGDI genes, nine selected sequences.
+  - Both species: `wgdi_ready=yes`, validation PASS and naming PASS.
+- A real-derived Ath chromosome 1 vs Aly chromosome 364 subset passed both
+  cross-species WGDI directions with all eight outputs per direction.
 
-The final `dist/plant-genome-preprocess-v3.5.1.zip` was extracted to a clean
-temporary directory, its SHA-256 manifest verified zero-diff, its full Python
-suite passed, every archived shell entry was confirmed LF, and the complete
-four-comparison WGDI smoke passed from the extracted release itself.
+The local Python suite passed `161` tests; Ruff, Mypy, Git Bash and strict WSL
+`bash -n` passed.
 
 Validated runtime:
 
-- Python 3.13.9 and WGDI 0.75
+- Python 3.13.9 on Windows and Python 3.14.4 on WSL, with WGDI 0.75
 - pandas 2.3.3, matplotlib 3.11.2, NumPy 2.4.6, SciPy 1.17.1
 - DIAMOND 2.2.8, MUSCLE 5.3, PAML yn00 4.10.10, Perl 5.42.3 (Git for Windows)
-- Windows 11, using Git Bash
+- WSL Linux: DIAMOND 2.2.8, MUSCLE 5.2, PAML yn00 4.9j, Perl 5.40.1
+- PAL2NAL v14 downloaded from the official site and SHA-256 verified
 
 The smoke is an execution and compatibility test, not a biological WGD
-inference. A Linux full-chain smoke and real-species acceptance remain the
-recommended next validation steps before public release. Python checks and
-release-package checks are automated in CI.
+inference. The real-species receipt is a preprocessing/data-integrity and
+real-subset execution acceptance. It is not a BUSCO lineage assessment or a
+full-proteome biological WGD conclusion. See:
+
+- `validation/smoke-report-3.5.2.json`
+- `validation/smoke-report-3.5.2-linux.json`
+- `validation/real-species-cross-3.5.2.json`
+- `validation/real-species-3.5.2.json`

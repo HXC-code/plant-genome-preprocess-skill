@@ -127,7 +127,15 @@ blocks are removed from correspondence, block-Ks and Ks-peak analyses. Set
 retained. The WGDI wrapper accepts `WGDI_PYTHON`, `WGDI_PERL_BIN` and
 `WGDI_PERL5LIB` for non-local installations. MUSCLE, yn00, PAL2NAL and the
 optional WGDI tools can be overridden through `WGDI_*` environment variables;
-otherwise they are resolved from the bundled script or `PATH`.
+otherwise they are resolved from `PATH`. `bootstrap_wgdi` installs PAL2NAL by
+default; it can also be installed separately before Ks:
+
+```powershell
+python code/tools/install_pal2nal.py
+```
+
+The release archive does not redistribute PAL2NAL because the historical v14
+tarball has no explicit license text. See `THIRD_PARTY_NOTICES.md`.
 
 ## Standardize and validate
 
@@ -177,7 +185,7 @@ validation gate. WGDI itself is installed from the pinned requirements file;
 the repository no longer contains a second copy of the WGDI source tree.
 
 The prepared handoff archive is
-`dist/plant-genome-preprocess-v3.5.1.zip`. Release archives ship LF shell
+`dist/plant-genome-preprocess-v3.5.2.zip`. Release archives ship LF shell
 scripts (`.gitattributes` + builder normalization), so they run unchanged on
 Linux/WSL as well as Windows Git Bash.
 

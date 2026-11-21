@@ -51,6 +51,10 @@ The numbered wrappers remain supported:
   patches.
 - `bin/wgdi` resolves the runtime from `WGDI_PYTHON`, `.wgdi-env`, `.wgdi_python`
   or an importable Python on `PATH`.
+- PAL2NAL is installed separately with
+  `python code/tools/install_pal2nal.py`; it is not included in release
+  archives because the historical v14 distribution has no explicit license
+  text. `bootstrap_wgdi` invokes the installer by default.
 
 ## Validation
 

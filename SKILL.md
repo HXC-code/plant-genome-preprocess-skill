@@ -26,7 +26,7 @@ pipeline/
 ├── run_homology.sh             # DIAMOND/BLAST 共用实现
 ├── 0check_data.sh … 6run_wgdi.sh
 ├── run_all_pipeline.ps1        # Windows 分析总控（1–6）
-├── bootstrap_wgdi.ps1 / .sh    # 建 WGDI 运行环境
+├── bootstrap_wgdi.ps1 / .sh    # 建 WGDI 环境，并从官方站点安装 PAL2NAL
 ├── bin/wgdi                    # 可移植启动器
 ├── requirements-wgdi-validated.txt
 ├── VALIDATION.md               # 发布门禁
@@ -125,7 +125,7 @@ python -m pgci_preprocess init-project --project-root D:\my_project `
 
 ```powershell
 cd pipeline\code
-python -m pytest -q                     # 157 个用例；临时目录受限时加 --basetemp=<short-path>
+python -m pytest -q                     # 161 个用例；临时目录受限时加 --basetemp=<short-path>
 ```
 
 测试覆盖：多格式项目、GBFF 往返、GTF 转换、命名迁移、兼容链接、校验失败路径、
@@ -136,6 +136,11 @@ python -m pytest -q                     # 157 个用例；临时目录受限时�
 - 发布包结构和两种使用模式见 `pipeline/QUICKSTART.md`。
 - CI 在 push / PR 时跑 `pytest`、`ruff`、`mypy`，并检查 `pipeline/` 与 canonical 仓库一致；代码变更先在 canonical 仓库落地再同步。
 - WGDI 使用固定 `wgdi==0.75` 上游包；`bin/wgdi_entry.py` 只维护必要的兼容补丁。
-- `validation/smoke-report-3.5.1.json` 记录了四组比较、每组 8 个关键产物的 PASS 结果（由真实运行环境以 `--public` 生成）。
+- PAL2NAL v14 不随 Skill 或发布 ZIP 分发。`bootstrap_wgdi` 会运行
+  `code/tools/install_pal2nal.py`，从官方站点下载并校验 SHA-256。
+- `validation/smoke-report-3.5.2.json` 是 Windows 四组比较 PASS 回执；
+  `smoke-report-3.5.2-linux.json` 是 WSL/Linux 四组比较 PASS 回执。
+- `validation/real-species-3.5.2.json` 记录真实 RefSeq 拟南芥两物种的清洗、
+  校验、命名、QC 和真实种间子集 WGDI 验证。
 - 预处理与下游比较是两个明确模式，不应把“四件套就绪”解释成 WGDI 已完成。
 - 所有中间产物可删：`analysis_v2/<Abbr>/` 是唯一权威输出，`clean_v2` 是清洗记录，根下 `<Abbr>/` 只是兼容链接。

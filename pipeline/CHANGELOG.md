@@ -1,5 +1,19 @@
 # Changelog
 
+## 3.5.2 — 2026-11-21
+
+- Added a strict-LF Linux/WSL full-chain smoke and versioned Linux receipt.
+- Added real-species acceptance using NCBI RefSeq Arabidopsis thaliana
+  TAIR10.1 and Arabidopsis lyrata v1.0, including a real cross-species WGDI
+  subset receipt.
+- Stopped bundling PAL2NAL v14. Added a verified official-site installer
+  (`code/tools/install_pal2nal.py`) so release archives no longer redistribute
+  a historical archive whose license text is absent.
+- Improved smoke receipts to resolve external tools from their `WGDI_*`
+  environment paths and to record PAL2NAL provenance.
+- Added a real-bundle subset fixture builder for repeatable cross-species
+  validation.
+
 ## 3.5.1 — 2026-11-21
 
 - Release archives now guarantee LF line endings for every shell script and

@@ -28,6 +28,18 @@ def _resolve_tool(environment_name: str, legacy_environment: str, command: str):
     return configured or shutil.which(command)
 
 
+def _pal2nal_path():
+    configured = os.environ.get("WGDI_PAL2NAL") or os.environ.get("PAL2NAL")
+    if configured:
+        path = Path(configured)
+        return path.resolve() if path.is_file() else None
+    candidates = (
+        _project_root / "external" / "pal2nal.v14" / "pal2nal.pl",
+        _project_root / "code" / "tools" / "pal2nal.v14" / "pal2nal.pl",
+    )
+    return next((path for path in candidates if path.is_file()), None)
+
+
 def _config_with_portable_tools():
     items = dict(_original_config())
     overrides = {
@@ -39,12 +51,8 @@ def _config_with_portable_tools():
         "fasttree_path": _resolve_tool("WGDI_FASTTREE", "FASTTREE", "fasttree"),
         "divvier_path": _resolve_tool("WGDI_DIVVIER", "DIVVIER", "divvier"),
     }
-    pal2nal = (
-        os.environ.get("WGDI_PAL2NAL")
-        or os.environ.get("PAL2NAL")
-        or _project_root / "code" / "tools" / "pal2nal.v14" / "pal2nal.pl"
-    )
-    if Path(pal2nal).is_file():
+    pal2nal = _pal2nal_path()
+    if pal2nal:
         overrides["pal2nal_path"] = str(pal2nal)
     for key, value in overrides.items():
         if value:
@@ -70,6 +78,13 @@ _wgdi_base.str_to_bool = _str_to_bool
 # reserved for its original retention analysis.  ``--remove-tandem`` is the
 # unambiguous long form and is accepted anywhere.
 _raw_args = list(sys.argv[1:])
+if "-ks" in _raw_args and _pal2nal_path() is None:
+    print(
+        "错误：PAL2NAL 未安装。请运行 "
+        "`python code/tools/install_pal2nal.py`，或设置 WGDI_PAL2NAL。",
+        file=sys.stderr,
+    )
+    raise SystemExit(2)
 _remove_tandem = "--remove-tandem" in _raw_args or (
     bool(_raw_args) and _raw_args[-1] == "-r"
 )
