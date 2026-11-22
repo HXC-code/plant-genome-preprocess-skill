@@ -20,6 +20,7 @@ from pgci_preprocess.pipeline import (
     SpeciesInput,
     process_species,
 )
+from pgci_preprocess.project_paths import downloads_root as resolve_downloads_root
 from pgci_preprocess.reports import finalize_project, read_tsv
 from pgci_preprocess.species_names import (
     load_species_names,
@@ -49,13 +50,17 @@ def _truthy(value: object) -> bool:
 
 
 def default_downloads_root(project_root: Path | str) -> Path:
-    """Resolve the legacy raw download root from the project layout."""
+    """Resolve the raw download root for the legacy folder-scan converter.
+
+    Prefers an explicit ``01_DATA_DOWNLOAD`` sibling of old lab trees, then the
+    shared layout resolver (``data/`` with ``data/downloads`` compatibility).
+    """
 
     project = Path(project_root).resolve()
     candidate = project.parents[2] / "01_DATA_DOWNLOAD" / "data" / "downloads"
     if candidate.is_dir():
         return candidate
-    return project / "data" / "downloads"
+    return resolve_downloads_root(project)
 
 
 def find_bundle_files(folder: Path, *, include_alt: bool = False) -> BundleFiles | None:

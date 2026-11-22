@@ -70,7 +70,7 @@ def setup(args: argparse.Namespace) -> int:
         print(f"ERROR: refusing setup into non-empty project: {root}", file=sys.stderr)
         return 1
     (root / "resources").mkdir(parents=True, exist_ok=True)
-    (root / "data" / "downloads").mkdir(parents=True, exist_ok=True)
+    (root / "data").mkdir(parents=True, exist_ok=True)
     shutil.copyfile(args.inventory, root / "resources" / "download_inventory.tsv")
     shutil.copyfile(args.assembly_map, root / "resources" / "assembly_accessions.tsv")
     species_names_source = PACKAGE_ROOT / "resources" / "species_abbreviations.tsv"
@@ -125,7 +125,7 @@ def mirror(args: argparse.Namespace) -> int:
             failures += 1
             continue
         folder = species_folder_name(gff["source_path"])
-        destination_dir = root / "data" / "downloads" / folder
+        destination_dir = root / "data" / folder
         destination_dir.mkdir(parents=True, exist_ok=True)
         files: dict[str, dict[str, str]] = {}
         species_ok = True

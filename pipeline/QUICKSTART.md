@@ -11,7 +11,7 @@ cd code
 python -m pgci_preprocess --version
 ```
 
-输出 `pgci_preprocess 3.7.0` 表示本地环境已就绪。
+输出 `pgci_preprocess 3.8.0` 表示本地环境已就绪。
 
 创建项目后，可检查 Python、外部程序和输入文件：
 
@@ -81,14 +81,17 @@ python -m pgci_preprocess init-project --project-root D:\plant_project
 
 ```text
 D:\plant_project\
-├── data\downloads\
+├── data\
+│   └── {show_id}_{Order}_{Family}({Species})\   # 原始数据直接放这一层
 ├── resources\
 │   ├── download_inventory.tsv
 │   ├── species_abbreviations.tsv
 │   └── format_exceptions.tsv
 ├── analysis_v2\
-└── clean_v2\
 ```
+
+旧项目的 `data\downloads\<物种目录>` 仍能直接读：`data/` 里有物种目录时以 `data/` 为准，
+否则回退到 `data\downloads`。把物种目录上提一层就是全部迁移工作。
 
 ### 3.2 注册物种（GFF/GFF3 输入）
 
@@ -179,7 +182,7 @@ python -m pgci_preprocess run `
   --overwrite
 ```
 
-`--overwrite` 会替换相关物种的现有产物。使用前先备份 `analysis_v2`、`clean_v2` 和 `resources`。
+`--overwrite` 会替换相关物种的现有产物。使用前先备份 `analysis_v2` 和 `resources`。
 
 ### 3.5 验证
 
@@ -256,7 +259,6 @@ prepare → 可选 GFF 规范化 → run → validate
 ```text
 resources\preprocess_batches\
 resources\wgdi_v2_index.tsv
-resources\wgdi_v2_manifest_sha256.tsv
 resources\naming_audit.tsv
 data-validation-report.tsv
 ```
@@ -430,7 +432,32 @@ Windows 总控用 `-WithKs`。原因：上游 blockinfo/correspondence 依赖 Ks
 | Windows 路径过长 | 将项目和临时目录放在较短路径下，建议总长度控制在 250 字符以内 |
 | GBFF 翻译严格检查失败 | 检查 `/translation` 与 CDS 是否一致；将该记录列入数据复核 |
 
-## 8. 交付清单
+## 8. 目录瘦身（v3.8.0）
+
+默认不再写筛选前的 `.all.*` 快照（实测占 `analysis_v2` 的 51%）。需要回溯全量候选时：
+
+```powershell
+python -m pgci_preprocess run --project-root D:\plant_project --keep-all
+```
+
+已有项目瘦身（同时更新索引与 SHA-256 清单，**瘦身后 `validate` 仍 PASS**）：
+
+```powershell
+# 先看能省多少
+python -m pgci_preprocess prune --project-root D:\plant_project --all-snapshots --dry-run
+# 确认后执行
+python -m pgci_preprocess prune --project-root D:\plant_project --all-snapshots
+```
+
+根目录的 `<Abbr>/` 兼容目录是硬链接，不占额外空间；若只想让目录列表干净：
+
+```powershell
+python -m pgci_preprocess prune --project-root D:\plant_project --compat-links
+```
+
+不要手动删产物文件：手工删除不会同步索引与清单，`validate` 会报缺失。
+
+## 9. 交付清单
 
 项目交付给下游分析人员前，建议确认：
 

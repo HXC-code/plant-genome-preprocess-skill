@@ -25,6 +25,7 @@ from pgci_preprocess.naming_audit import render_text as render_naming
 from pgci_preprocess.project_init import ProjectInitError, init_project
 from pgci_preprocess.pipeline import PipelineOptions, run_project
 from pgci_preprocess.organelle import MT_MIN_CORE_GENES
+from pgci_preprocess.prune import prune_project
 from pgci_preprocess.readiness import read_readiness_map
 from pgci_preprocess.adjudication import (
     DECISIONS,
@@ -32,11 +33,6 @@ from pgci_preprocess.adjudication import (
     write_adjudication,
 )
 from pgci_preprocess.wgdi_integrity import check_comparison_outputs
-from pgci_preprocess.source_manifest import (
-    SourceManifestError,
-    build_source_manifest,
-    verify_source_manifest,
-)
 from pgci_preprocess.species_names_migration import migrate_species_names
 from pgci_preprocess.validate import (
     ValidationOptions,
@@ -62,10 +58,10 @@ COMMANDS = {
     "batch",
     "audit",
     "convert",
-    "source-manifest",
     "migrate-species-names",
     "migrate-artifacts",
     "check-names",
+    "prune",
 }
 def _default_project_root() -> Path:
     """Locate the project root without assuming code lives inside it.
@@ -99,7 +95,7 @@ def _add_project_root(parser: argparse.ArgumentParser) -> None:
         "--project-root",
         type=Path,
         default=PROJECT_ROOT,
-        help="Directory containing resources/ and data/downloads/ (default: this project).",
+        help="Directory containing resources/ and data/ (default: this project).",
     )
 
 
@@ -223,6 +219,15 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--coverage", type=float, default=0.90)
     run.add_argument("--max-sequences", type=int, default=200)
     run.add_argument(
+        "--keep-all",
+        action="store_true",
+        help=(
+            "Also write the pre-filtering .all.* snapshot (pep/cds/gff/lens of "
+            "every candidate gene). Off by default: nothing downstream reads it "
+            "and it roughly doubles analysis_v2."
+        ),
+    )
+    run.add_argument(
         "--sequence-mode",
         choices=("chromosomes", "adaptive"),
         default="chromosomes",
@@ -302,7 +307,6 @@ def build_parser() -> argparse.ArgumentParser:
     _add_project_root(validate)
     validate.add_argument("--expected-count", type=int)
     validate.add_argument("--no-compat-links", action="store_true")
-    validate.add_argument("--skip-hashes", action="store_true")
     validate.add_argument("--refresh-links", action="store_true")
     validate.add_argument(
         "--allow-not-ready",
@@ -447,31 +451,6 @@ def build_parser() -> argparse.ArgumentParser:
     convert.add_argument("--accession-policy", default="legacy", choices=["strict", "legacy"])
     convert.set_defaults(func=_cmd_convert)
 
-    source_manifest = sub.add_parser(
-        "source-manifest",
-        help="Build or verify a role-level source manifest for a frozen species index.",
-    )
-    manifest_sub = source_manifest.add_subparsers(dest="manifest_command", required=True)
-    manifest_build = manifest_sub.add_parser(
-        "build", help="Build the manifest (and .sha256 sidecar) from index + QC + repairs."
-    )
-    _add_project_root(manifest_build)
-    manifest_build.add_argument("--index", type=Path, help="Frozen index TSV (default: resources/wgdi_v2_index.tsv).")
-    manifest_build.add_argument("--repairs", type=Path, help="Evidence-backed repair TSV applied before verification.")
-    manifest_build.add_argument(
-        "--raw-root", type=Path, action="append", default=[],
-        help="Read-only raw download root searched for hash-verified remaps (repeatable).",
-    )
-    manifest_build.add_argument("--output", type=Path, required=True)
-    manifest_build.add_argument("--json", action="store_true")
-    manifest_verify = manifest_sub.add_parser(
-        "verify", help="Verify the frozen manifest hash and every referenced source file."
-    )
-    manifest_verify.add_argument("--manifest", type=Path, required=True)
-    manifest_verify.add_argument("--no-rehash", action="store_true", help="Check content hash and sizes only.")
-    manifest_verify.add_argument("--json", action="store_true")
-    source_manifest.set_defaults(func=_cmd_source_manifest)
-
     migrate_names = sub.add_parser(
         "migrate-species-names",
         help="Update legacy s<show_id> metadata codes to abbreviations (index/QC only).",
@@ -513,6 +492,31 @@ def build_parser() -> argparse.ArgumentParser:
     check_names.add_argument("--table", type=Path, help="Species abbreviation TSV override.")
     check_names.add_argument("--json", action="store_true")
     check_names.set_defaults(func=_cmd_check_names)
+
+    prune = sub.add_parser(
+        "prune",
+        help=(
+            "Delete optional artifacts from an existing project and rebuild the "
+            "index and SHA-256 manifest so validation stays valid."
+        ),
+    )
+    _add_project_root(prune)
+    prune.add_argument(
+        "--all-snapshots",
+        action="store_true",
+        help="Delete <Abbr>.all.* (pre-filtering snapshot; roughly half of analysis_v2).",
+    )
+    prune.add_argument(
+        "--compat-links",
+        action="store_true",
+        help=(
+            "Delete the root <Abbr>/ hard-link directories used only by the 0-6 "
+            "shell layer. They free no bytes; this only removes clutter."
+        ),
+    )
+    prune.add_argument("--dry-run", action="store_true", help="Report without deleting.")
+    prune.add_argument("--json", action="store_true", help="Print JSON instead of text.")
+    prune.set_defaults(func=_cmd_prune)
     return parser
 
 
@@ -689,6 +693,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
         max_sequences=args.max_sequences,
         min_genes_per_chromosome=args.min_genes_per_chromosome,
         sequence_mode=args.sequence_mode,
+        write_all_sequences=args.keep_all,
         overwrite=args.overwrite,
         gff_format=args.gff_format,
         protein_normalization=args.protein_normalization,
@@ -730,7 +735,6 @@ def _cmd_validate(args: argparse.Namespace) -> int:
                 project_root=workspace,
                 expected_count=args.expected_count,
                 require_compat_links=not args.no_compat_links,
-                verify_hashes=not args.skip_hashes,
                 allow_not_ready=args.allow_not_ready,
                 require_adjudication=args.require_adjudication,
                 report_path=args.report,
@@ -947,50 +951,6 @@ def _cmd_convert(args: argparse.Namespace) -> int:
     return 1 if failures else 0
 
 
-def _cmd_source_manifest(args: argparse.Namespace) -> int:
-    try:
-        if args.manifest_command == "build":
-            _rows, summary = build_source_manifest(
-                args.project_root,
-                index_path=args.index,
-                repairs_path=args.repairs,
-                raw_roots=tuple(args.raw_root),
-                output_path=args.output,
-            )
-            if args.json:
-                print(json.dumps(summary, ensure_ascii=False, indent=2))
-            else:
-                print(f"manifest={summary.get('manifest_path', '')}")
-                print(f"sha256={summary.get('manifest_sha256', '')}")
-                status_counts = summary.get("status_counts")
-                status_counts = status_counts if isinstance(status_counts, dict) else {}
-                blockers = summary.get("blockers")
-                blockers = blockers if isinstance(blockers, list) else []
-                print(f"species={summary.get('species_count', 0)} rows={summary.get('row_count', 0)}")
-                for status, count in sorted(status_counts.items()):
-                    print(f"  {status}: {count}")
-                for blocker in blockers:
-                    print(f"  BLOCKER {blocker}")
-            blockers = summary.get("blockers")
-            return 2 if isinstance(blockers, list) and blockers else 0
-        report = verify_source_manifest(args.manifest, rehash=not args.no_rehash)
-        if args.json:
-            print(json.dumps(report, ensure_ascii=False, indent=2))
-        else:
-            print(f"manifest={report['manifest']}")
-            print(f"sha256={report['manifest_sha256']}")
-            print(f"rows={report['rows']} files_rehashed={report['files_rehashed']}")
-            problems = report.get("problems")
-            problems = problems if isinstance(problems, list) else []
-            for problem in problems:
-                print(f"  PROBLEM {problem}")
-            print("[OK]" if report["ok"] else "[FAIL]")
-        return 0 if bool(report.get("ok")) else 2
-    except SourceManifestError as exc:
-        print(f"ERROR: {exc}", file=sys.stderr)
-        return 1
-
-
 def _cmd_migrate_species_names(args: argparse.Namespace) -> int:
     try:
         result = migrate_species_names(
@@ -1065,6 +1025,40 @@ def _cmd_check_names(args: argparse.Namespace) -> int:
     else:
         print(render_naming(report))
     return 0 if report.ok else 1
+
+
+def _cmd_prune(args: argparse.Namespace) -> int:
+    if not args.all_snapshots and not args.compat_links:
+        print(
+            "ERROR: nothing selected; pass --all-snapshots and/or --compat-links",
+            file=sys.stderr,
+        )
+        return 2
+    try:
+        result = prune_project(
+            args.project_root,
+            all_snapshots=args.all_snapshots,
+            compat_links=args.compat_links,
+            dry_run=args.dry_run,
+        )
+    except Exception as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
+    if args.json:
+        print(json.dumps(result, ensure_ascii=False, indent=2))
+        return 0
+    verb = "would remove" if result["dry_run"] else "removed"
+    print(
+        f"{verb}: files={result['removed_files']} dirs={result['removed_dirs']} "
+        f"bytes={result['removed_bytes']}"
+    )
+    if result["index_rows_updated"]:
+        print(f"index rows updated: {result['index_rows_updated']}")
+    if result["note"]:
+        print(result["note"])
+    if result["dry_run"]:
+        print("dry run: nothing was deleted")
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:

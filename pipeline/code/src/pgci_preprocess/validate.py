@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import csv
-import hashlib
 import json
 import os
 import re
@@ -17,7 +16,6 @@ from pgci_preprocess.readiness import extract_qc_readiness
 from pgci_preprocess.species_names import load_species_names
 
 INDEX_RELATIVE = Path("resources") / "wgdi_v2_index.tsv"
-MANIFEST_RELATIVE = Path("resources") / "wgdi_v2_manifest_sha256.tsv"
 LEGACY_DIR_RE = re.compile(r"^s\d+$")
 BUNDLE_KEYS = ("pep", "cds", "gff", "lens")
 SPECIES_DIR_RE = re.compile(r"^s\d+$")
@@ -36,7 +34,6 @@ class ValidationOptions:
     project_root: Path
     expected_count: int | None = None
     require_compat_links: bool = True
-    verify_hashes: bool = True
     allow_not_ready: bool = False
     require_adjudication: bool = False
     report_path: Path | None = None
@@ -59,12 +56,23 @@ def resolve_layout(project_root: Path | str) -> tuple[Path, Path]:
     raise FileNotFoundError(f"wgdi_v2_index.tsv not found under {project_root}")
 
 
-def _sha256(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1 << 20), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
+def _same_content(left: Path, right: Path) -> bool:
+    """Byte-for-byte comparison without keeping hash artifacts.
+
+    Compatibility directories are hard links, so :func:`os.path.samefile` is
+    the normal fast path. This is only the cross-volume fallback.
+    """
+
+    if left.stat().st_size != right.stat().st_size:
+        return False
+    with left.open("rb") as handle_left, right.open("rb") as handle_right:
+        while True:
+            block_left = handle_left.read(1 << 20)
+            block_right = handle_right.read(1 << 20)
+            if block_left != block_right:
+                return False
+            if not block_left:
+                return True
 
 
 def _safe_project_path(project_root: Path, relative: str) -> Path:
@@ -77,17 +85,6 @@ def _safe_project_path(project_root: Path, relative: str) -> Path:
 def _read_index(path: Path) -> list[dict[str, str]]:
     with path.open(encoding="utf-8", newline="") as handle:
         return list(csv.DictReader(handle, delimiter="\t"))
-
-
-def _read_hash_manifest(path: Path) -> dict[str, str]:
-    if not path.is_file():
-        return {}
-    with path.open(encoding="utf-8", newline="") as handle:
-        return {
-            row["relative_path"]: row["sha256"]
-            for row in csv.DictReader(handle, delimiter="\t")
-            if row.get("relative_path") and row.get("sha256")
-        }
 
 
 def _check_fasta(path: Path, kind: str) -> tuple[set[str], list[str]]:
@@ -503,42 +500,6 @@ def validate_project(options: ValidationOptions) -> ValidationReport:
                 global_gene_ids[gene_id] = code
         rows.append(result)
 
-    if options.verify_hashes:
-        hash_manifest = _read_hash_manifest(canonical_root / MANIFEST_RELATIVE)
-        if not hash_manifest:
-            rows.append(
-                {
-                    "code": "_hashes",
-                    "status": "FAIL",
-                    "genes": "",
-                    "sequences": "",
-                    "pep": "",
-                    "cds": "",
-                    "gff": "",
-                    "lens": "",
-                    "problems": "hash_manifest_missing_or_empty",
-                }
-            )
-        else:
-            for row in index_rows:
-                code = display_code(row)
-                problems = []
-                for key in BUNDLE_KEYS:
-                    relative = row.get(key, "")
-                    expected_hash = hash_manifest.get(relative)
-                    try:
-                        path = _safe_project_path(canonical_root, relative)
-                    except ValueError:
-                        problems.append(f"unsafe_hash_path:{key}")
-                        continue
-                    if not expected_hash:
-                        problems.append(f"hash_missing:{key}")
-                    elif not path.is_file() or _sha256(path) != expected_hash:
-                        problems.append(f"hash_mismatch:{key}")
-                if problems:
-                    for problem in problems:
-                        _add_species_problem(rows, code, problem)
-
     if options.require_compat_links:
         expected_codes = {display_code(row) for row in index_rows}
         known_species_dirs = set(expected_codes)
@@ -563,7 +524,7 @@ def validate_project(options: ValidationOptions) -> ValidationReport:
                         same = os.path.samefile(source, destination)
                     except OSError:
                         same = False
-                    if not same and _sha256(source) != _sha256(destination):
+                    if not same and not _same_content(source, destination):
                         problems.append(f"compat_content_mismatch_{key}")
             if problems:
                 for problem in problems:

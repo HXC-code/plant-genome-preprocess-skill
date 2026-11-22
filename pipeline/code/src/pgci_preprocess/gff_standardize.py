@@ -8,6 +8,7 @@ from urllib.parse import unquote
 
 from pgci_preprocess.fasta import open_text
 from pgci_preprocess.gff_formats import GffFormatError, detect_gff_format
+from pgci_preprocess.project_paths import downloads_root, is_species_directory
 from pgci_preprocess.reports import read_tsv_with_fields, write_tsv
 from pgci_preprocess.species_names import resolve_show_ids, resolve_species_code
 
@@ -231,11 +232,11 @@ def normalize_gff_species(
         show_ids,
         explicit_path=species_names_path,
     )
-    downloads = project / "data" / "downloads"
+    downloads = downloads_root(project)
     directories = {
         path.name.split("_", 1)[0]: path
         for path in downloads.iterdir()
-        if path.is_dir() and "_" in path.name
+        if is_species_directory(path)
     }
 
     results: list[SpeciesNormalizationResult] = []

@@ -12,7 +12,6 @@ PREPROCESS=false
 PREPROCESS_SPECIES=""
 REFRESH_LINKS=false
 REQUIRE_COMPAT=true
-VERIFY_HASHES=true
 ALLOW_NOT_READY=false
 POSITIONAL_ROOT=""
 
@@ -28,7 +27,6 @@ Options:
   --species LIST         With --preprocess, process comma-separated show_ids
   --refresh-links        Refresh legacy root s<show_id> compatibility links
   --no-compat-links      Validate canonical analysis_v2 data only
-  --skip-hashes          Skip output SHA-256 verification
   --allow-not-ready      Accept wgdi_ready=no bundles for data-integrity checks
   -h, --help             Show this help
 
@@ -74,10 +72,6 @@ while (($# > 0)); do
             ;;
         --no-compat-links)
             REQUIRE_COMPAT=false
-            shift
-            ;;
-        --skip-hashes)
-            VERIFY_HASHES=false
             shift
             ;;
         --allow-not-ready)
@@ -181,9 +175,6 @@ if [[ "$REFRESH_LINKS" == true ]]; then
 fi
 if [[ "$REQUIRE_COMPAT" == false ]]; then
     validator_args+=(--no-compat-links)
-fi
-if [[ "$VERIFY_HASHES" == false ]]; then
-    validator_args+=(--skip-hashes)
 fi
 if [[ "$ALLOW_NOT_READY" == true ]]; then
     validator_args+=(--allow-not-ready)

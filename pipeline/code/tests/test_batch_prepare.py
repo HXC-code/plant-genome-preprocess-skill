@@ -42,7 +42,7 @@ def test_prepare_batch_mirrors_and_updates_inventory(tmp_path: Path) -> None:
     project = tmp_path / "project"
     source = tmp_path / "source" / "1_Testales_Testaceae(Testus plantus)"
     status = tmp_path / "current_gap_jobs.tsv"
-    (project / "data" / "downloads").mkdir(parents=True)
+    (project / "data").mkdir(parents=True)
     (project / "resources").mkdir(parents=True)
     source.mkdir(parents=True)
 
@@ -107,7 +107,7 @@ def test_prepare_batch_mirrors_and_updates_inventory(tmp_path: Path) -> None:
     result = prepare_batch(project, status, expected_count=1, batch_tag="test")
     assert result.candidate_ids == ("1",)
     assert len(result.prepared_files) == 4
-    target = project / "data" / "downloads" / source.name
+    target = project / "data" / source.name
     assert (target / "demo.gff3.gz").is_file()
     assert result.manifest_path and result.manifest_path.is_file()
     assert result.suffix_summary_path and result.suffix_summary_path.is_file()
@@ -132,7 +132,7 @@ def test_prepare_batch_mirrors_and_updates_inventory(tmp_path: Path) -> None:
 
 def test_prepare_batch_rejects_count_mismatch(tmp_path: Path) -> None:
     project = tmp_path / "project"
-    (project / "data" / "downloads").mkdir(parents=True)
+    (project / "data").mkdir(parents=True)
     (project / "resources").mkdir(parents=True)
     status = tmp_path / "empty.tsv"
     _write_tsv(
@@ -161,7 +161,7 @@ def test_prepare_routes_gtf_converts_registers_and_extracts_missing_fastas(
     project = tmp_path / "project"
     source = tmp_path / "source" / "2_Testales_Testaceae(Testus secundus)"
     status = tmp_path / "status.tsv"
-    (project / "data" / "downloads").mkdir(parents=True)
+    (project / "data").mkdir(parents=True)
     (project / "resources").mkdir(parents=True)
     source.mkdir(parents=True)
 
@@ -235,7 +235,7 @@ def test_prepare_rejects_ambiguous_pipe_candidates(tmp_path: Path) -> None:
     project = tmp_path / "project"
     source = tmp_path / "source" / "3_Testales_Testaceae(Testus tertius)"
     source.mkdir(parents=True)
-    (project / "data" / "downloads").mkdir(parents=True)
+    (project / "data").mkdir(parents=True)
     (project / "resources").mkdir(parents=True)
     for name in ("one.genome.fa", "two.genome.fa"):
         _write(source / name, ">chr1\n" + "A" * 100 + "\n")

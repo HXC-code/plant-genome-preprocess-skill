@@ -21,6 +21,7 @@ from pgci_preprocess.input_router import (
     route_annotation,
     select_role_source,
 )
+from pgci_preprocess.project_paths import downloads_root
 from pgci_preprocess.sequence_extract import (
     SequenceExtractionError,
     extract_cds_pep_from_gff,
@@ -159,7 +160,7 @@ def _target_for(
     source_folder: Path,
 ) -> tuple[Path, str]:
     relative = source.relative_to(source_folder).as_posix()
-    downloads = (project_root / "data" / "downloads").resolve()
+    downloads = downloads_root(project_root).resolve()
     target = (downloads / species_directory / relative).resolve()
     try:
         target.relative_to(downloads)
@@ -515,8 +516,8 @@ def prepare_batch(
     routing_rows: list[dict[str, object]] = []
     converted_count = 0
     extracted_count = 0
-    downloads_root = (project_root / "data" / "downloads").resolve()
-    downloads_root.mkdir(parents=True, exist_ok=True)
+    downloads_root_path = downloads_root(project_root).resolve()
+    downloads_root_path.mkdir(parents=True, exist_ok=True)
     for row in candidates:
         show_id = str(row["show_id"]).strip()
         species = str(row["Species"]).strip()
@@ -620,7 +621,7 @@ def prepare_batch(
         except InputRoutingError as exc:
             raise BatchPreparationError(f"s{show_id}: {exc}") from exc
         runnable_gff_source = annotation_source
-        species_dir = downloads_root / source_folder.name
+        species_dir = downloads_root_path / source_folder.name
         derived_dir = species_dir / "derived"
 
         if annotation_route.route == "direct_gff":

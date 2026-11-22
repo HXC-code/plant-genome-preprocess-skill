@@ -92,7 +92,6 @@ def test_validate_gate_requires_adjudication(tmp_path: Path) -> None:
         ValidationOptions(
             project_root=project,
             require_compat_links=False,
-            verify_hashes=False,
             require_adjudication=True,
         )
     )
@@ -114,7 +113,6 @@ def test_validate_gate_requires_adjudication(tmp_path: Path) -> None:
         ValidationOptions(
             project_root=project,
             require_compat_links=False,
-            verify_hashes=False,
             require_adjudication=True,
         )
     )

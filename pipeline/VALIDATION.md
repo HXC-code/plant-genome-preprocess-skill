@@ -53,7 +53,7 @@ Build and inspect a source release:
 
 ```powershell
 python code/tools/build_release_package.py `
-  --output dist/plant-genome-preprocess-v3.7.0.zip
+  --output dist/plant-genome-preprocess-v3.8.0.zip
 ```
 
 The ZIP includes its own `PACKAGE_SHA256.tsv`; the build command prints the
@@ -78,6 +78,45 @@ derived real-data smoke can additionally be built with
 `build_wgdi_smoke_fixture.py`.
 
 ## Current status
+
+On 2026-11-22 version 3.8.0 passed:
+
+- Raw species folders live directly under `data/`; `data/downloads/` remains
+  readable for existing projects (`data/` wins when populated). Covered by
+  `tests/test_project_paths.py`, including an end-to-end run from a flattened
+  `data/` tree.
+- Project-level hash artifacts removed by explicit decision:
+  `wgdi_v2_manifest_sha256.tsv`, the `source-manifest` command, the
+  `verify_hashes`/`--skip-hashes` option, and `sha256` fields in
+  `project_init/<code>.json`. Compatibility links are verified with
+  `samefile` plus a direct byte comparison, so a mismatched file is still
+  caught. Input provenance stays in `*.qc.json`; adjudication remains bound to
+  the judged QC version + fingerprint, so stale sign-offs still invalidate.
+- Layout slimming measured on the 41-species pilot (`D:\wuchao_wgdi_pilot`,
+  13.6 GB logical): the pre-filtering `<Abbr>.all.*` snapshot is opt-in
+  (`run --keep-all`, 2.50 GB / 51% of `analysis_v2` when enabled). The
+  `clean_v2` evidence layer is gone: gene_map/chr_map/chromosome_map/
+  removed_list are written once, directly into `analysis_v2/<Abbr>/`
+  (205 MB previously duplicated across layers). Legacy `clean_v2` stays
+  readable; root `<Abbr>/` directories were confirmed to be hard links
+  already (0 extra bytes).
+- New `pgci_preprocess prune --all-snapshots|--compat-links|--dry-run|--json`
+  deletes optional artifacts and blanks stale index cells; a test asserts the
+  pruned project still validates PASS. Pilot dry run: 164 files / 2.50 GB
+  reclaimable.
+- Windows synthetic full-chain smoke in both modes: four comparisons each,
+  8 products in Ks mode (`validation/smoke-report-3.8.0.json`) and 2 products
+  in core mode (`validation/smoke-report-3.8.0-core.json`).
+- The local Python suite passed `213` tests; Ruff and Mypy passed; strict WSL
+  `bash -n` passed for every workflow shell entry.
+
+Known flakiness (recorded, not a code defect): one 3.8.0 Ks-mode attempt
+failed one of four comparisons at the WGDI `-icl` (collinearity) stage with no
+error text in `run.log` and no leftover intermediate files. Re-running the same
+comparison manually produced a well-formed `.icl`, and a clean rerun of the
+whole fixture passed 4/4. `WGDI 0.75` runs collinearity with multiprocessing
+(`process = 8`); treat a single `-icl` failure as retryable — `run.sh` is
+stage-idempotent, so re-running `6run_wgdi.sh` resumes at the failed stage.
 
 On 2026-11-22 version 3.7.0 passed:
 
@@ -198,6 +237,8 @@ inference. The real-species receipt is a preprocessing/data-integrity and
 real-subset execution acceptance. It is not a BUSCO lineage assessment or a
 full-proteome biological WGD conclusion. See:
 
+- `validation/smoke-report-3.8.0.json`
+- `validation/smoke-report-3.8.0-core.json`
 - `validation/smoke-report-3.7.0.json`
 - `validation/smoke-report-3.7.0-core.json`
 - `validation/smoke-report-3.5.4.json`

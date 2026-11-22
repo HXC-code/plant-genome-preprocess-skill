@@ -52,7 +52,8 @@ def _register(tmp_path: Path):
 def test_init_empty_scaffold_and_doctor(tmp_path: Path) -> None:
     root = tmp_path / "new" / "nested" / "project"
     result = init_project(root)
-    assert (root / "data" / "downloads").is_dir()
+    assert (root / "data").is_dir()
+    assert not (root / "data" / "downloads").exists()
     assert result.inventory_path.is_file()
     assert result.assembly_map_path.is_file()
     report = run_doctor(root, allow_empty=True)

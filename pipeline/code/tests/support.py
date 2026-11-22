@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import csv
-import hashlib
 import json
 import os
 from pathlib import Path
@@ -17,10 +16,8 @@ def build_validation_project(
     project = workspace / "plant-genome-resources"
     resources = project / "resources"
     analysis = project / "analysis_v2"
-    clean = project / "clean_v2"
     resources.mkdir(parents=True)
     analysis.mkdir(parents=True)
-    clean.mkdir(parents=True)
 
     index_path = resources / "wgdi_v2_index.tsv"
     fields = [
@@ -46,9 +43,7 @@ def build_validation_project(
         code = f"s{index}"
         accession = f"GCF_00000000{index}.1"
         species_dir = analysis / code
-        clean_dir = clean / code
         species_dir.mkdir()
-        clean_dir.mkdir()
 
         gff = f"1\t{code}1g0001\t10\t100\t+\t1\tG{index}\n"
         lens = "1\t1000\t1\n"
@@ -60,9 +55,9 @@ def build_validation_project(
             "cds": species_dir / f"{code}.cds",
             "gff": species_dir / f"{code}.new.gff",
             "lens": species_dir / f"{code}.lens",
-            "gene_map": clean_dir / f"{code}.gene_map.tsv",
-            "chr_map": clean_dir / f"{code}.chr_map.tsv",
-            "rejected": clean_dir / f"{code}.removed_list.tsv",
+            "gene_map": species_dir / f"{code}.gene_map.tsv",
+            "chr_map": species_dir / f"{code}.chr_map.tsv",
+            "rejected": species_dir / f"{code}.removed_list.tsv",
             "qc": species_dir / f"{code}.qc.json",
         }
         files["pep"].write_text(pep, encoding="utf-8")
@@ -114,35 +109,11 @@ def build_validation_project(
         writer.writeheader()
         writer.writerows(rows)
 
-    manifest_path = resources / "wgdi_v2_manifest_sha256.tsv"
-    manifest_rows: list[dict[str, object]] = []
-    for row in rows:
-        for kind in ("pep", "cds", "gff", "lens"):
-            path = project / row[kind]
-            manifest_rows.append(
-                {
-                    "code": row["code"],
-                    "layer": "analysis_v2",
-                    "relative_path": row[kind],
-                    "bytes": path.stat().st_size,
-                    "sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
-                }
-            )
-    with manifest_path.open("w", encoding="utf-8", newline="") as handle:
-        writer = csv.DictWriter(
-            handle,
-            fieldnames=["code", "layer", "relative_path", "bytes", "sha256"],
-            delimiter="\t",
-        )
-        writer.writeheader()
-        writer.writerows(manifest_rows)
     return {
         "workspace": workspace,
         "project": project,
         "analysis": analysis,
-        "clean": clean,
         "index": index_path,
-        "manifest": manifest_path,
     }
 
 

@@ -1,5 +1,71 @@
 # Changelog
 
+## 3.8.0 — 2026-11-22
+
+Layout and weight: fewer directories, fewer generated files, same guarantees
+where they matter.
+
+### Raw data layout
+
+- Species folders now live **directly under `data/`**:
+  `data/{show_id}_{Order}_{Family}({Species})/`. The `data/downloads/` level is
+  gone from the scaffold (`init-project` creates `data/`).
+- Legacy projects keep working: `data/` wins when it contains species folders,
+  otherwise `data/downloads/` is used. Moving folders up one level is the whole
+  migration — no file contents change. Covered by `tests/test_project_paths.py`,
+  including an end-to-end run from a flattened `data/`.
+- `doctor` reports the check as `raw_data_directory` instead of
+  `downloads_directory`.
+
+### Single output layer
+
+- `clean_v2` is no longer created. `gene_map`, `chr_map`, `chromosome_map`,
+  `removed_list`, `qc.json` and `qc_record.md` are written once, next to the
+  four-piece set in `analysis_v2/<Abbr>/`. The index points there.
+- `PipelineOptions.clean_dirname` / `reports` defaults are `analysis_v2`; the
+  parameter remains so an explicit legacy dual-layer run still works (maps are
+  hard-linked across layers in that mode only).
+- `naming_audit` accepts the single layer (checks the traceability suffixes
+  inside `analysis_v2` when no `clean_v2/<code>` exists); legacy projects with
+  `clean_v2` keep passing. Migration, audit and prune still read legacy
+  `clean_v2` trees.
+
+### Project-level hash artifacts removed (explicit decision)
+
+- `resources/wgdi_v2_manifest_sha256.tsv` is no longer written; `rebuild_manifest`
+  and `manifest_sha256` are deleted from `reports`.
+- The `source-manifest` command and `pgci_preprocess.source_manifest` are removed.
+- `validate` no longer verifies content hashes: the `verify_hashes` option and
+  `--skip-hashes` flag (CLI and `0check_data.sh`) are gone. Compatibility-link
+  checking now uses `os.path.samefile` with a direct byte comparison as the
+  cross-volume fallback, so it still catches a genuinely different file.
+- `project_init/<code>.json` no longer records per-source `sha256`.
+- Kept deliberately: input paths/sizes and per-file provenance inside each
+  species' `*.qc.json`, the assembly table's `evidence_sha256` column, and
+  adjudication records bound to the judged QC version + fingerprint — so a
+  re-run still invalidates stale sign-offs. Release archives keep
+  `PACKAGE_SHA256.tsv` (ZIP integrity, not project data).
+
+### Output weight (measured on the 41-species pilot, 13.6 GB logical)
+
+| Item | Before | After |
+| --- | --- | --- |
+| `<Abbr>.all.*` pre-filtering snapshot | written for every species — 2.50 GB (51% of `analysis_v2`) | opt-in with `run --keep-all`; skipped by default |
+| `clean_v2` evidence layer | second directory tree duplicating gene_map/chr_map — 205 MB | **removed**: all traceability files written once into `analysis_v2/<Abbr>/`; legacy `clean_v2` stays readable and can be deleted after a re-run |
+| root `<Abbr>/` compat dirs | 41 directories | unchanged on disk (already hard links, 0 bytes); removable with `prune --compat-links` |
+
+- New `pgci_preprocess prune --all-snapshots|--compat-links|--dry-run|--json`
+  deletes optional artifacts and blanks the stale index cells in one step; a
+  test asserts the pruned project still validates PASS. Pilot dry run:
+  164 files / 2.50 GB reclaimable.
+- `n_all_genes` is still reported without writing the snapshot (computed from
+  parsed candidates). The index only records `.all.*` paths that exist.
+
+### Engineering
+
+- 213 tests; Ruff and Mypy pass; strict WSL `bash -n` passes for every workflow
+  shell entry.
+
 ## 3.7.0 — 2026-11-22
 
 Aligns the workflow with the lab's authoritative `整体流程.md` (now bundled as

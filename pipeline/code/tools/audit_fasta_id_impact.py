@@ -103,7 +103,10 @@ def inventory_cds_files(project_root: Path) -> list[Path]:
     inventory = project_root / "resources" / "download_inventory.tsv"
     if not inventory.is_file():
         raise FileNotFoundError(inventory)
-    downloads = project_root / "data" / "downloads"
+    downloads = project_root / "data"
+    legacy = downloads / "downloads"
+    if legacy.is_dir() and any(p.is_dir() and "_" in p.name for p in legacy.iterdir()):
+        downloads = legacy
     folders = {
         path.name.split("_", 1)[0]: path
         for path in downloads.iterdir()

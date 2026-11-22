@@ -93,7 +93,6 @@ def _migrate_qc_metadata(
     _fields, rows = read_tsv_with_fields(index_path)
     changed = 0
     unresolved: list[str] = []
-    manifest_updates: dict[str, tuple[int, str]] = {}
     for row in rows:
         code = str(row.get("code", "")).strip()
         show_id = str(row.get("show_id", "")).strip()
@@ -142,20 +141,8 @@ def _migrate_qc_metadata(
             except Exception:
                 Path(temporary_name).unlink(missing_ok=True)
                 raise
-            manifest_updates[qc_relative] = (qc_path.stat().st_size, _sha256(qc_path))
-        if qc != before:
-            changed += 1
-
-    manifest_path = canonical_root / "resources" / "wgdi_v2_manifest_sha256.tsv"
-    if manifest_updates and manifest_path.is_file():
-        fields, manifest_rows = read_tsv_with_fields(manifest_path)
-        for manifest_row in manifest_rows:
-            relative = str(manifest_row.get("relative_path", "")).strip()
-            if relative in manifest_updates:
-                size, digest = manifest_updates[relative]
-                manifest_row["bytes"] = str(size)
-                manifest_row["sha256"] = digest
-        _atomic_write_rows(manifest_path, fields, manifest_rows)
+            if qc != before:
+                changed += 1
     return changed, unresolved
 
 
@@ -259,12 +246,6 @@ def migrate_species_names(
             ],
             True,
         ),
-        (
-            "wgdi_v2_manifest_sha256.tsv",
-            "",
-            [],
-            False,
-        ),
     ]
     changed_files: dict[str, int] = {}
     unresolved: list[str] = []
@@ -281,23 +262,6 @@ def migrate_species_names(
     for table_name, id_field, insert_columns, update_show_id in tables:
         path = resources / table_name
         if not path.is_file():
-            continue
-        if path.name == "wgdi_v2_manifest_sha256.tsv":
-            fields, rows = read_tsv_with_fields(path)
-            changed = 0
-            for row in rows:
-                raw_code = str(row.get("code", "")).strip()
-                try:
-                    code = names.resolve_show_id(raw_code)
-                    new_code = names.code_for(code)
-                    if row["code"] != new_code:
-                        row["code"] = new_code
-                        changed += 1
-                except SpeciesNamingError as exc:
-                    unresolved.append(str(exc))
-            if changed and not dry_run:
-                _atomic_write_rows(path, fields, rows)
-            changed_files[path.name] = changed
             continue
         if dry_run:
             # Compute the same changes in memory without replacing files.

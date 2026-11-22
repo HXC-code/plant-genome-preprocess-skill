@@ -25,17 +25,20 @@ python -m pgci_preprocess migrate-species-names --project-root .
 原始下载目录不会被修改：
 
 ```text
-data/downloads/
+data/{show_id}_{Order}_{Family}({Species})/   # 原始下载，只读
 resources/download_inventory.tsv
 ```
 
+旧布局 `data/downloads/<物种目录>` 仍可读：`data/` 下有物种目录时以 `data/` 为准，
+否则回退 `data/downloads`；把物种目录上提一层即完成迁移，文件内容不需任何改动。
+
 ## 新项目初始化与依赖预检
 
-预处理项目根保存 `data/downloads` 和 `resources`，分析执行根保存
+预处理项目根保存 `data`（物种目录直接放这一层）和 `resources`，分析执行根保存
 `0check_data.sh` 至 `6run_wgdi.sh` 以及 `<Abbr>/` 四件套兼容目录。两个目录分别管理数据与执行参数，便于长期归档和复现。
 
 ```powershell
-# 自动创建嵌套项目根、data/downloads、resources 和两张标准 TSV 表头
+# 自动创建嵌套项目根、data、resources 和两张标准 TSV 表头
 python -m pgci_preprocess init-project --project-root <new-project>
 
 # 空项目结构预检；正式预处理预检不加 --allow-empty
@@ -151,7 +154,7 @@ python scripts/validate_wgdi_dataset.py --expected-count 109 --no-compat-links
 
 ### 染色体清单与人工裁决（3.6.0）
 
-`run` 生成 `<code>.chromosome_map.tsv`（analysis_v2 与 clean_v2），列出保留染色体数、
+`run` 生成 `<code>.chromosome_map.tsv`（analysis_v2），列出保留染色体数、
 每条基因数/长度/来源/是否 primary；QC 增 `chromosome_summary` 与顶层
 `n_wgdi_sequences`。`--min-genes-per-chromosome`（CLI 默认 100）在选择后丢弃
 基因数不足的染色体，排除原因 `below_min_genes_per_chromosome` 记入 chr_map。
@@ -353,24 +356,24 @@ CSV/TSV/JSONL 转换依据明确 schema 执行。
 ## 输出
 
 ```text
-clean_v2/{code}/
-├── {code}.gene_map.tsv
-├── {code}.chr_map.tsv
-└── {code}.removed_list.tsv
-
 analysis_v2/{code}/
 ├── {code}.cds                 # WGDI 筛选集 CDS
 ├── {code}.pep                 # WGDI 筛选集蛋白
 ├── {code}.new.gff             # WGDI 七列位置文件
 ├── {code}.lens                # WGDI 染色体长度/基因数
-├── {code}.all.cds.fa          # 全部合格代表基因
-├── {code}.all.pep.fa
-├── {code}.all.gff
-├── {code}.all.lens
+├── {code}.all.cds.fa          # 全部合格代表基因（仅 run --keep-all 时生成）
+├── {code}.all.pep.fa          # 同上
+├── {code}.all.gff             # 同上
+├── {code}.all.lens            # 同上
+├── {code}.gene_map.tsv        # 新旧 ID 对照
+├── {code}.chr_map.tsv         # 逐序列取舍判决
+├── {code}.chromosome_map.tsv  # 保留染色体清单
+├── {code}.removed_list.tsv    # 剔除序列与原因
 ├── {code}.qc.json
-├── {code}.gene_map.tsv
-└── {code}.chr_map.tsv
+└── {code}.qc_record.md
 ```
+
+单层布局：不再写 `clean_v2`；旧项目的 `clean_v2` 仍可读，重跑后可整目录删除。
 
 `{code}.new.gff` 为七列：
 
@@ -386,17 +389,18 @@ WGDI 使用前六列，第七列用于回溯 NCBI 原始基因名。
 resources/stage_preprocess_v2_summary.tsv
 resources/wgdi_v2_index.tsv
 resources/species_registry_v2.tsv
-resources/wgdi_v2_manifest_sha256.tsv
 ```
+
+不再写 `wgdi_v2_manifest_sha256.tsv`：项目级逐文件哈希清单已取消，输入溯源仍保留在
+每物种 `*.qc.json` 的 `inputs` 字段里。
 
 ## 项目目录
 
 ```text
 plant-genome-resources/
-├── data/downloads/      # 原始下载，只读
-├── resources/           # manifest、QC、哈希
-├── clean_v2/            # 映射和拒绝原因
-├── analysis_v2/         # WGDI 四件套
+├── data/                # 物种目录直接放这一层，只读
+├── resources/           # 索引、清单、QC、裁决
+├── analysis_v2/         # WGDI 四件套 + 全部追溯文件（单层）
 ├── results/
 │   ├── blast/
 │   ├── wgdi/

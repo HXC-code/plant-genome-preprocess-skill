@@ -2,13 +2,13 @@
 
 把本地植物基因组注释与序列整理成 WGDI 可用的四件套，并继续完成 **DIAMOND 同源比对、WGDI 点图与共线性块鉴定**。Ks 分析作为可选分支，由使用者明确开启。
 
-当前版本：**3.7.0**
+当前版本：**3.8.0**
 
 - [快速上手](QUICKSTART.md)
 - [实验室整体流程](code/docs/WORKFLOW.md)
 - [版本记录](CHANGELOG.md)
 - [验证与发布门禁](VALIDATION.md)
-- [v3.7.0 Release](https://github.com/HXC-code/plant-genome-preprocess/releases/tag/v3.7.0)
+- [v3.8.0 Release](https://github.com/HXC-code/plant-genome-preprocess/releases/tag/v3.8.0)
 - [Agent Skill](https://github.com/HXC-code/plant-genome-preprocess-skill)
 
 ## 流程范围
@@ -36,6 +36,22 @@
 | 4′ Ks 可选分支 | 明确开启后追加 `.ks`、blockinfo、correspondence、block-Ks 和 Ks 峰 |
 
 第 4 步的点图、共线性块和统计表可以直接交给后续系统发育、文献核对、多重共线性和圈图分析使用。后续步骤由对应分析流程或人工判断接管。
+
+## 3.8.0 重点变化
+
+目录瘦身，不削弱审计链（实测基于 41 物种试点项目，逻辑体积 13.6 GB）：
+
+| 项 | 变化 |
+| --- | --- |
+| `<Abbr>.all.*` 筛选前快照 | **默认不写**（曾占 `analysis_v2` 的 51%，2.50 GB）；需要时 `run --keep-all` |
+| `gene_map` / `chr_map` 双份 | **取消 `clean_v2` 证据层**：追溯文件直接写入 `analysis_v2`，每份只存一次（省 205 MB 重复） |
+| 根目录 `<Abbr>/` 兼容目录 | 硬链接，不占额外空间；仅服务 0–6 下游脚本 |
+| **原始数据布局** | 物种目录直接放 `data/` 下，不再套 `data/downloads/`；旧布局仍可读 |
+| **项目级哈希产物取消** | 不再生成 `wgdi_v2_manifest_sha256.tsv`，移除 `source-manifest` 命令与 `--skip-hashes`；`validate` 不再校内容哈希 |
+| 新增 `prune` 命令 | 已有项目可删可选产物并同步索引，**瘦身后 `validate` 仍 PASS** |
+
+取消的只是“逐文件哈希清单”这类项目内产物；输入溯源仍保留在每物种 `*.qc.json`
+的 `inputs` 字段，人工裁决仍绑定 QC 版本与指纹，因此重跑后旧签字依旧失效。
 
 ## 3.7.0 重点变化
 
@@ -316,24 +332,48 @@ CLI 默认 100；Python API 的 `PipelineOptions` 默认 0，需要显式传入 
 <Abbr>.cds
 <Abbr>.new.gff
 <Abbr>.lens
-<Abbr>.all.pep.fa
-<Abbr>.all.cds.fa
-<Abbr>.all.gff
-<Abbr>.all.lens
 <Abbr>.gene_map.tsv
 <Abbr>.chr_map.tsv
 <Abbr>.chromosome_map.tsv
+<Abbr>.removed_list.tsv   # 全部剔除序列与原因
 <Abbr>.qc.json
 <Abbr>.qc_record.md
 ```
 
-### `clean_v2/<Abbr>/`
+可选（`run --keep-all` 时生成，筛选前全量快照，下游不读）：
 
 ```text
-<Abbr>.gene_map.tsv
-<Abbr>.chr_map.tsv
-<Abbr>.chromosome_map.tsv
-<Abbr>.removed_list.tsv
+<Abbr>.all.pep.fa
+<Abbr>.all.cds.fa
+<Abbr>.all.gff
+<Abbr>.all.lens
+```
+
+不再单独设 `clean_v2` 证据层：映射、剔除记录与 QC 全部在 `analysis_v2/<Abbr>/`
+一个目录里。旧项目的 `clean_v2` 仍可读（迁移/审计兼容），重跑后新产物只写
+`analysis_v2`，旧层可整目录删除。
+
+### 目录瘦身
+
+不要手动删产物文件：手工删除不会同步索引，`validate` 会报缺失。用 `prune`，
+它会同时清空索引中失效的路径：
+
+```powershell
+# 先看能省多少（不删任何东西）
+python -m pgci_preprocess prune --project-root D:\plant_project --all-snapshots --dry-run
+
+# 确认后执行
+python -m pgci_preprocess prune --project-root D:\plant_project --all-snapshots
+
+# 只清理根目录兼容目录（硬链接，不省空间，只减目录数量）
+python -m pgci_preprocess prune --project-root D:\plant_project --compat-links
+```
+
+实测参考（`D:\wuchao_wgdi_pilot`，41 物种，13.6 GB 逻辑体积）：
+
+```text
+--all-snapshots  → 164 个文件 / 2.50 GB 可释放
+--compat-links   → 41 个目录 / 0 字节（硬链接）
 ```
 
 ### 文件格式
@@ -470,12 +510,12 @@ powershell -ExecutionPolicy Bypass -File .\run_all_pipeline.ps1 -WithKs
 - 基因、蛋白和 FASTA ID 重复或冲突；
 - 核基因组 taxon 污染；
 - 四件套的 ID 与序列集合闭合；
-- 输入 SHA-256、来源清单与转换链。
+- 输入来源路径、字节数与转换链（记录在 `*.qc.json`）。
 
 所有剔除记录保存在：
 
 ```text
-clean_v2/<Abbr>/<Abbr>.removed_list.tsv
+analysis_v2/<Abbr>/<Abbr>.removed_list.tsv
 ```
 
 `qc_record.md` 提供人类可读摘要；`qc.json` 保存完整机器可读结果。
@@ -517,13 +557,14 @@ python -m pgci_preprocess migrate-artifacts --project-root D:\plant_project
 
 | 版本 | 状态 | 说明 |
 | --- | --- | --- |
-| **v3.7.0** | 当前主页版本 | 对齐整体流程第 1–4 步；CDS 优先代表转录本；严格染色体模式；Ks 可选 |
+| **v3.8.0** | 当前主页版本 | 目录瘦身：`.all.*` 改为可选、跨层硬链接、新增 `prune` |
+| [v3.7.0](https://github.com/HXC-code/plant-genome-preprocess/releases/tag/v3.7.0) | 历史 Release | 对齐整体流程第 1–4 步；CDS 优先代表转录本；严格染色体模式；Ks 可选 |
 | [v3.6.2](https://github.com/HXC-code/plant-genome-preprocess/releases/tag/v3.6.2) | 历史 Release | 修复非 UTF-8 Windows 控制台打印染色体清单异常 |
 | [v3.6.1](https://github.com/HXC-code/plant-genome-preprocess/releases/tag/v3.6.1) | 历史 Release | `run` 调用时打印染色体清单 |
 | [v3.6.0](https://github.com/HXC-code/plant-genome-preprocess/releases/tag/v3.6.0) | 历史 Release | 引入染色体清单、100 基因下限和人工裁决门禁 |
 | [v3.5.5](https://github.com/HXC-code/plant-genome-preprocess/releases/tag/v3.5.5) | 历史 Release | 线粒体推断、readiness 和产物完整性检查 |
 
-历史 Release 保持原有 tag 与内容，不改写、不移动。当前首页、开发和后续修正以 `main` 分支的 v3.7.0 系列为主。
+历史 Release 保持原有 tag 与内容，不改写、不移动。当前首页、开发和后续修正以 `main` 分支的 v3.8.0 系列为主。
 
 ## 测试与验证
 
@@ -537,7 +578,7 @@ python -m mypy src --ignore-missing-imports
 当前验证：
 
 ```text
-212 项 Python 测试
+213 项 Python 测试
 Ruff / Mypy 通过
 Skill pipeline 镜像一致性检查通过
 ```

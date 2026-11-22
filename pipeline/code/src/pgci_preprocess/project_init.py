@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, Iterable, Mapping
 
 from pgci_preprocess.batch_prepare import ASSEMBLY_MAP_FIELDS, INVENTORY_FIELDS
+from pgci_preprocess.project_paths import downloads_root
 from pgci_preprocess.species_names import (
     load_species_names,
     resolve_species_code,
@@ -203,7 +204,7 @@ def init_project(
     if root.exists() and not root.is_dir():
         raise ProjectInitError(f"project root is a file: {root}")
 
-    downloads = root / "data" / "downloads"
+    downloads = downloads_root(root)
     resources = root / "resources"
     created: list[str] = []
     for directory in (root, downloads, resources):
@@ -383,7 +384,6 @@ def init_project(
                 role: {
                     "source": str(source_paths[role]),
                     "filename": source_paths[role].name,
-                    "sha256": _sha256(source_paths[role]),
                     "transfer": transfers[role],
                 }
                 for role in ("genome", "gff", "cds", "pep")

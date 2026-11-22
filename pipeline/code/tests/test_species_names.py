@@ -53,7 +53,8 @@ def test_discovery_outputs_and_index_use_abbreviations(tmp_path: Path) -> None:
     )
     assert {str(item["code"]) for item in results} == {"Adi", "Aes", "Alb", "Act"}
     assert (project / "analysis_v2" / "Adi" / "Adi.qc.json").is_file()
-    assert (project / "clean_v2" / "Adi" / "Adi.gene_map.tsv").is_file()
+    assert (project / "analysis_v2" / "Adi" / "Adi.gene_map.tsv").is_file()
+    assert not (project / "clean_v2").exists()
     assert not (project / "analysis_v2" / "s1").exists()
 
     index = read_tsv(project / "resources" / "wgdi_v2_index.tsv")

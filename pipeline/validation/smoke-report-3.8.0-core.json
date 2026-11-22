@@ -1,0 +1,147 @@
+{
+  "schema_version": "wgdi-smoke-v3",
+  "status": "PASS",
+  "created_at": "2026-11-22T18:24:52.127836+08:00",
+  "workflow_version": "3.8.0",
+  "scope": "Isolated synthetic fixture; DIAMOND and scripts 2-6 actually executed. Step 0 is covered separately by preprocessing tests/validation.",
+  "not_claimed": "This is not a full WGDI rerun of the 109-species dataset or a new biological WGD inference.",
+  "smoke_root": "<isolated-workspace>",
+  "ks_enabled": false,
+  "fixture": {
+    "method": "deterministic synthetic orthologues",
+    "genes_per_species": 120,
+    "chromosomes": 8,
+    "protein_length": 80
+  },
+  "diamond": {
+    "engine": "diamond",
+    "executable": "/d/ProgramFiles/bioinfo/bin/diamond",
+    "version": "diamond version 2.2.8",
+    "evalue": "1e-5",
+    "sensitivity": "very-sensitive",
+    "max_target_seqs": "20",
+    "threads": "4",
+    "block_size": "4",
+    "comp_based_stats": "0"
+  },
+  "environment": {
+    "os": "Windows-11-10.0.26200-SP0",
+    "machine": "AMD64",
+    "python": "3.13.9",
+    "wgdi_python": "python.exe",
+    "wgdi_python_version": "3.13.9",
+    "wgdi": "0.75",
+    "tools": {
+      "diamond": {
+        "path": "diamond",
+        "version": "diamond version 2.2.8"
+      },
+      "blastp": {
+        "path": "blastp.EXE",
+        "version": "blastp: 2.17.0+"
+      },
+      "makeblastdb": {
+        "path": "makeblastdb.EXE",
+        "version": "makeblastdb: 2.17.0+"
+      },
+      "muscle": {
+        "path": "muscle.EXE",
+        "version": "muscle 5.3.win64 [d9725ac]"
+      },
+      "yn00": {
+        "path": "yn00.EXE",
+        "version": "YN00 in paml version 4.10.10, 27 Jan 2026"
+      },
+      "perl": {
+        "path": "perl.EXE",
+        "version": "This is perl 5, version 42, subversion 3 (v5.42.3) built for x86_64-cygwin-thread-multi"
+      },
+      "pal2nal": {
+        "path": "pal2nal.pl",
+        "version": "v14 (downloaded from upstream)"
+      }
+    }
+  },
+  "comparisons": [
+    {
+      "left": "SynA",
+      "right": "SynA",
+      "status": "PASS",
+      "auto_pep_blast_preserved_and_identical": true,
+      "outputs": {
+        "dotplot": {
+          "path": "Auto_wgdi\\SynA_base\\SynA_SynA\\SynA.png",
+          "exists_nonempty": true,
+          "bytes": 77202,
+          "sha256": "f3ba8a47d9d44d3c10422342b4d32600da788f0e5c93e01735d8d91ecd5b66fc"
+        },
+        "collinearity": {
+          "path": "Auto_wgdi\\SynA_base\\SynA_SynA\\SynA.icl",
+          "exists_nonempty": true,
+          "bytes": 3984,
+          "sha256": "07731478d576ee647e5c9d46f190e5cdd9ad5897b52603065de9e32df71bae27"
+        }
+      }
+    },
+    {
+      "left": "SynA",
+      "right": "SynB",
+      "status": "PASS",
+      "auto_pep_blast_preserved_and_identical": true,
+      "outputs": {
+        "dotplot": {
+          "path": "Auto_wgdi\\SynA_base\\SynA_SynB\\SynA_SynB.png",
+          "exists_nonempty": true,
+          "bytes": 79214,
+          "sha256": "82885d7d98be16c1b738de089e274448c4b356293c0d8a2f34953fc062e1bc71"
+        },
+        "collinearity": {
+          "path": "Auto_wgdi\\SynA_base\\SynA_SynB\\SynA_SynB.icl",
+          "exists_nonempty": true,
+          "bytes": 8002,
+          "sha256": "66456422ec8c94531f00ac558f334442d938615f5bf1112ab53c9de57002d7c6"
+        }
+      }
+    },
+    {
+      "left": "SynB",
+      "right": "SynA",
+      "status": "PASS",
+      "auto_pep_blast_preserved_and_identical": true,
+      "outputs": {
+        "dotplot": {
+          "path": "Auto_wgdi\\SynB_base\\SynB_SynA\\SynB_SynA.png",
+          "exists_nonempty": true,
+          "bytes": 79446,
+          "sha256": "7dfc4b6e438a5ceaed2898789c3e9676c859efd7db9bb607095c1f548104e688"
+        },
+        "collinearity": {
+          "path": "Auto_wgdi\\SynB_base\\SynB_SynA\\SynB_SynA.icl",
+          "exists_nonempty": true,
+          "bytes": 7999,
+          "sha256": "1005b325a81752e35cef6e761553d5118f1a1cde97d411018295231830fa2bc4"
+        }
+      }
+    },
+    {
+      "left": "SynB",
+      "right": "SynB",
+      "status": "PASS",
+      "auto_pep_blast_preserved_and_identical": true,
+      "outputs": {
+        "dotplot": {
+          "path": "Auto_wgdi\\SynB_base\\SynB_SynB\\SynB.png",
+          "exists_nonempty": true,
+          "bytes": 77900,
+          "sha256": "13dd8b351cc7dc32445a1f9740ef78eb3fe7788e563d4f2b1b24369fe9ccfb12"
+        },
+        "collinearity": {
+          "path": "Auto_wgdi\\SynB_base\\SynB_SynB\\SynB.icl",
+          "exists_nonempty": true,
+          "bytes": 3984,
+          "sha256": "250cf21ba073f727b03d184f73949a054df45397709ca31187469cd19dcf371e"
+        }
+      }
+    }
+  ]
+}

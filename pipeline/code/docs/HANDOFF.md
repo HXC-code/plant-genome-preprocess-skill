@@ -17,8 +17,12 @@ ties by stable transcript ID (never protein length or file order); CLI sequence
 selection defaults to `chromosomes` (fail-closed `no_chromosome_sequences`
 without chromosome evidence; `--sequence-mode adaptive` is the escape hatch);
 Ks stages are opt-in because upstream blockinfo/correspondence consume Ks
-values. The audit chain (input SHA-256, source manifests, version-bound
-adjudication) is retained by explicit decision.
+values. Raw species folders sit directly under ``data/`` (legacy
+``data/downloads`` is still read). Per-file SHA-256 manifests and the
+``source-manifest`` command were removed by explicit decision; input
+provenance stays in each species' ``*.qc.json`` and adjudication records
+remain bound to the judged QC version and fingerprint, so a re-run still
+invalidates stale sign-offs.
 
 ## Supported entry points
 

@@ -8,7 +8,8 @@ non-zero when any rule is violated.  Rules:
 * every download directory ``<show_id>_<Order>_<Family>(<Species>)`` has a
   table row (and its Latin name agrees with the table);
 * every index row uses the table abbreviation as ``code`` and its artifact
-  paths point at ``analysis_v2/<code>/<code>.*`` / ``clean_v2/<code>/<code>.*``;
+  paths point at ``analysis_v2/<code>/<code>.*`` (single-layer layout; legacy
+  projects may still carry ``clean_v2/<code>/<code>.*``);
 * the first gene ID of ``<code>.new.gff/.cds/.pep`` is ``<code><seq>g<order>``;
 * no legacy ``s<show_id>`` artifact directory remains under either layer.
 """
@@ -20,10 +21,12 @@ from pathlib import Path
 
 from pgci_preprocess.artifact_naming import (
     ANALYSIS_REQUIRED_SUFFIXES,
+    CLEAN_REQUIRED_SUFFIXES,
     bundle_name_problems,
     first_gene_id,
     is_canonical_gene_id,
 )
+from pgci_preprocess.project_paths import downloads_root, is_species_directory
 from pgci_preprocess.reports import read_tsv, write_tsv
 from pgci_preprocess.species_names import (
     SpeciesNamingError,
@@ -62,12 +65,12 @@ class NamingAuditReport:
 
 
 def _download_index(project_root: Path) -> dict[str, str]:
-    downloads = project_root / "data" / "downloads"
+    downloads = downloads_root(project_root)
     mapping: dict[str, str] = {}
     if not downloads.is_dir():
         return mapping
     for path in downloads.iterdir():
-        if path.is_dir() and "_" in path.name:
+        if is_species_directory(path):
             mapping.setdefault(path.name.split("_", 1)[0], path.name)
     return mapping
 
@@ -201,7 +204,21 @@ def audit_naming(project_root: Path | str, *, table_path: Path | str | None = No
                                 )
                 else:
                     problems.append("analysis_bundle_missing")
-                if not clean_dir.is_dir():
+                if clean_dir.is_dir():
+                    # Legacy dual-layer project: the evidence layer exists.
+                    pass
+                elif analysis_dir.is_dir():
+                    # Single-layer layout: traceability files must sit next to
+                    # the four-piece set inside analysis_v2.
+                    problems.extend(
+                        bundle_name_problems(
+                            analysis_dir,
+                            code,
+                            required_suffixes=CLEAN_REQUIRED_SUFFIXES,
+                            check_dir_name=False,
+                        )
+                    )
+                else:
                     problems.append("clean_bundle_missing")
         report.rows.append(
             {

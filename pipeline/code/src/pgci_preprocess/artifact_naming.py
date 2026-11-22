@@ -24,12 +24,17 @@ ANALYSIS_REQUIRED_SUFFIXES = (
     ".new.gff",
     ".lens",
     ".qc.json",
+    ".gene_map.tsv",
+    ".chr_map.tsv",
+)
+# Written only on request (``run --keep-all``). They are the pre-filtering
+# snapshot of every candidate gene; nothing downstream reads them, and on the
+# 41-species pilot they were 51% of analysis_v2 (2.4 GB).
+OPTIONAL_ANALYSIS_SUFFIXES = (
     ".all.pep.fa",
     ".all.cds.fa",
     ".all.gff",
     ".all.lens",
-    ".gene_map.tsv",
-    ".chr_map.tsv",
 )
 CLEAN_REQUIRED_SUFFIXES = (".gene_map.tsv", ".chr_map.tsv", ".removed_list.tsv")
 

@@ -4,7 +4,8 @@
 
 - Git Bash at `D:\Git\bin\bash.exe`
 - Python available as `python`, or set `PYTHON`
-- Canonical data root containing `data/downloads` and
+- Canonical data root containing species folders directly under `data/`
+  (legacy `data/downloads/` is still read) and
   `resources/download_inventory.tsv`
 
 Do not run the `.sh` file directly from Windows PowerShell. Invoke Git Bash.
@@ -61,12 +62,18 @@ Incremental runs preserve manifest and summary rows for unselected species.
 ## Output layers
 
 ```text
-data/downloads/    immutable raw input
-resources/         inventory, manifests, QC, hashes
-clean_v2/          representative-transcript mappings and rejection reasons
-analysis_v2/       canonical CDS/PEP/GFF/lens files
+data/              immutable raw input; one folder per species
+resources/         inventory, index, registry, QC, adjudications
+analysis_v2/       canonical CDS/PEP/GFF/lens plus all traceability files
+                   (gene_map, chr_map, chromosome_map, removed_list, qc)
 results/           future BLAST/WGDI analysis output
 ```
+
+Single-layer layout: no `clean_v2` is written; legacy projects' `clean_v2`
+remains readable and can be deleted after a re-run.
+
+No per-file SHA-256 manifest is written any more; input provenance stays in
+each species' `*.qc.json` (`inputs` section).
 
 Standardized data shares the project root with raw data but is not written
 inside individual raw species directories.

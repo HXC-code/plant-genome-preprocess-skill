@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 
 from pgci_preprocess.pipeline import PipelineOptions, discover_species, process_species, run_project
+from pgci_preprocess.reports import read_tsv
 from pgci_preprocess.validate import ValidationOptions, validate_project
 
 
@@ -168,7 +169,6 @@ def test_validate_rejects_not_ready_bundle_unless_explicitly_allowed(
         ValidationOptions(
             project_root=project,
             require_compat_links=False,
-            verify_hashes=False,
         )
     )
     assert not strict.ok
@@ -178,11 +178,67 @@ def test_validate_rejects_not_ready_bundle_unless_explicitly_allowed(
         ValidationOptions(
             project_root=project,
             require_compat_links=False,
-            verify_hashes=False,
             allow_not_ready=True,
         )
     )
     assert archival.ok
+
+
+def test_all_snapshot_is_opt_in_and_dedupes_gene_map(tmp_path: Path) -> None:
+    """The pre-filtering .all.* snapshot is opt-in; one output layer only."""
+
+    project, _ = _make_project(tmp_path)
+    results = run_project(
+        project,
+        options=PipelineOptions(project_root=project, min_genes_per_sequence=0),
+    )
+    code = str(results[0]["code"])
+    analysis = project / "analysis_v2" / code
+
+    # four-piece set is present, the pre-filtering snapshot is not written
+    for suffix in (".pep", ".cds", ".new.gff", ".lens"):
+        assert (analysis / f"{code}{suffix}").is_file(), suffix
+    for suffix in (".all.pep.fa", ".all.cds.fa", ".all.gff", ".all.lens"):
+        assert not (analysis / f"{code}{suffix}").exists(), suffix
+
+    # single-layer layout: traceability files sit next to the four-piece set,
+    # each exactly once; no clean_v2 evidence layer is created
+    for suffix in (".gene_map.tsv", ".chr_map.tsv", ".removed_list.tsv", ".chromosome_map.tsv"):
+        assert (analysis / f"{code}{suffix}").is_file(), suffix
+    assert not (project / "clean_v2").exists()
+
+    # the index must not point at files that were deliberately not written
+    row = next(
+        item
+        for item in read_tsv(project / "resources" / "wgdi_v2_index.tsv")
+        if item["code"] == code
+    )
+    assert row["all_pep"] == "" and row["all_lens"] == ""
+    assert row["pep"].endswith(f"{code}.pep")
+
+    assert results[0]["n_all_genes"] >= results[0]["n_wgdi_genes"]
+
+
+def test_keep_all_writes_the_snapshot_and_indexes_it(tmp_path: Path) -> None:
+    project, _ = _make_project(tmp_path)
+    results = run_project(
+        project,
+        options=PipelineOptions(
+            project_root=project,
+            min_genes_per_sequence=0,
+            write_all_sequences=True,
+        ),
+    )
+    code = str(results[0]["code"])
+    analysis = project / "analysis_v2" / code
+    for suffix in (".all.pep.fa", ".all.cds.fa", ".all.gff", ".all.lens"):
+        assert (analysis / f"{code}{suffix}").is_file(), suffix
+    row = next(
+        item
+        for item in read_tsv(project / "resources" / "wgdi_v2_index.tsv")
+        if item["code"] == code
+    )
+    assert row["all_pep"].endswith(f"{code}.all.pep.fa")
 
 
 def test_run_shows_chromosome_inventory_to_the_caller(
@@ -265,9 +321,8 @@ def test_run_project_writes_summary_index_and_checksums(tmp_path: Path) -> None:
     assert results[0]["status"] == "OK"
     assert (project / "resources" / "stage_preprocess_v2_summary.tsv").is_file()
     assert (project / "resources" / "wgdi_v2_index.tsv").is_file()
-    manifest = project / "resources" / "wgdi_v2_manifest_sha256.tsv"
-    assert manifest.is_file()
-    assert len(manifest.read_text(encoding="utf-8").splitlines()) > 1
+    # no SHA-256 manifest is written any more
+    assert not (project / "resources" / "wgdi_v2_manifest_sha256.tsv").exists()
 
 
 def test_partial_run_preserves_unselected_manifest_and_summary_rows(tmp_path: Path) -> None:

@@ -41,8 +41,9 @@ description: 植物比较基因组 WGDI、DIAMOND 与共线性分析工作流（
 4. 序列筛选 CLI 默认严格染色体模式：无染色体挂载证据的物种报
    `no_chromosome_sequences` 并记录原因，不用 scaffold 充数；碎片化组装经用户
    确认后才用 `--sequence-mode adaptive`。
-5. 审计链保留（用户明确决策）：输入 SHA-256、source manifest、绑定 QC 版本+哈希
-   的人工裁决记录照常生成，不属于"冗余产物"。
+5. 审计链按用户决策保留关键环：输入指纹（路径+字节+SHA-256）记录在每物种
+   `qc.json`，人工裁决绑定 QC 版本+指纹（重跑作废旧签字）；项目级哈希清单与
+   `source-manifest` 命令已按用户决策移除，不属于必保范围。
 6. 分析开始前明确告知用户上述能力边界（第 5–8 步不支持）。
 
 ## 核心工作流
@@ -60,7 +61,8 @@ python -m pgci_preprocess init-project --project-root D:\my_project `
 python -m pgci_preprocess doctor --project-root D:\my_project
 ```
 
-批量：物种目录放入 `data/downloads/`，编辑 `resources/download_inventory.tsv`
+批量：物种目录直接放入 `data/<show_id>_<Order>_<Family>(<Species>)/`（旧布局
+`data/downloads/` 仍可读），编辑 `resources/download_inventory.tsv`
 （gff/genome/cds/pep 四列，多候选写 `A|B`），然后 `prepare`/`batch`。
 完整性校验（序列 ID 一致性、GFF 匹配、压缩完整性）由 `doctor`/`prepare`/`validate`
 完成；不可用数据源标注原因，不强制补全。
@@ -110,7 +112,7 @@ Windows 总控：`run_all_pipeline.ps1`（1–6 步），加 `-WithKs` 启用 Ks
 原因：上游 blockinfo/correspondence 依赖 Ks 值，缺 Ks 时 correspondence 会
 过滤掉全部区块，故六个 Ks 阶段只在启用时运行。
 
-### 追溯报告（步骤 5 输出，无冗余）
+### 追溯报告输出（无冗余）
 
 每物种四类核心追溯文件 + 审计附件：
 
@@ -119,8 +121,18 @@ Windows 总控：`run_all_pipeline.ps1`（1–6 步），加 `-WithKs` 启用 Ks
 3. `removed_list.tsv`：全部剔除序列与原因
 4. `qc_record.md`：人类可读全流程 QC 记录（由 `qc.json` 确定性生成）
 
-审计附件（保留）：`qc.json`（含输入 SHA-256）、`chr_map.tsv`（逐序列取舍）、
-裁决记录、`resources/` 索引与 manifest。
+审计附件（保留）：`qc.json`（含输入指纹）、`chr_map.tsv`（逐序列取舍）、
+裁决记录、`resources/` 索引与台账（不再写项目级哈希清单）。
+
+### 输出体积控制（v3.8.0）
+
+筛选前的 `.all.*` 快照**默认不写**（实测占 `analysis_v2` 的 51%）：
+
+- 需要回溯全量候选时：`run --keep-all`；
+- 已有项目瘦身：`prune --all-snapshots`（先加 `--dry-run` 看能省多少）。
+  `prune` 会同时清空索引中失效路径，**瘦身后 `validate` 仍 PASS**；
+- 根目录 `<Abbr>/` 兼容目录是硬链接，不占额外空间，`prune --compat-links` 只减目录数量；
+- **不要手动删产物文件**：手工删除不会同步索引，`validate` 会报缺失。
 
 ## 支持哪些后缀
 
@@ -148,7 +160,7 @@ Windows 总控：`run_all_pipeline.ps1`（1–6 步），加 `-WithKs` 启用 Ks
 
 ## 校验与命名
 
-- `validate`：四件套齐全、基因数一致、坐标/链/长度合法、哈希、兼容链接；
+- `validate`：四件套齐全、基因数一致、坐标/链/长度合法、兼容链接内容一致；
   `--require-adjudication` 拦截缺失/过期/拒绝/数量不符的裁决。
 - `check-names`：缩写表 ↔ 清单 ↔ 索引 ↔ 产物一致性（`naming_audit.tsv`）。
 - 物种缩写：属名首字母 + 种加词字母，3 位起、冲突换组合/扩位；表内 show_id 沿用。
@@ -157,16 +169,18 @@ Windows 总控：`run_all_pipeline.ps1`（1–6 步），加 `-WithKs` 启用 Ks
 
 ```powershell
 cd pipeline\code
-python -m pytest -q        # 212 个用例；临时目录受限时加 --basetemp=<short-path>
+python -m pytest -q        # 213 个用例；临时目录受限时加 --basetemp=<short-path>
 ```
 
 ## 交接与复现
 
 - 权威范围与步骤映射：`pipeline/code/docs/WORKFLOW.md`；发布门禁：`pipeline/VALIDATION.md`。
-- 验证回执：`validation/smoke-report-3.7.0.json`（Ks 模式 4×8）与
-  `validation/smoke-report-3.7.0-core.json`（核心模式 4×2），均由真实运行环境生成。
+- 验证回执：`validation/smoke-report-3.8.0.json`（Ks 模式 4×8）与
+  `validation/smoke-report-3.8.0-core.json`（核心模式 4×2），均由真实运行环境生成。
 - WGDI 用钉版 `wgdi==0.75` 上游包；`bin/wgdi_entry.py` 只维护必要兼容补丁；
   PAL2NAL 由 `install_pal2nal.py` 从官方源安装，不随包分发。
 - CI 跑 pytest/ruff/mypy + 镜像漂移检查；代码变更先在 canonical 仓库落地再同步。
 - 预处理与下游比较是两个明确模式；"四件套就绪"不等于 WGDI 已完成。
-- `analysis_v2/<Abbr>/` 是唯一权威输出，`clean_v2` 是清洗记录，根下 `<Abbr>/` 只是兼容链接。
+- `analysis_v2/<Abbr>/` 是唯一输出目录：四件套与全部追溯文件（gene_map、chr_map、
+  chromosome_map、removed_list、qc）都在这一层；不再写 `clean_v2`（旧项目的仍可读），
+  根下 `<Abbr>/` 只是兼容链接。

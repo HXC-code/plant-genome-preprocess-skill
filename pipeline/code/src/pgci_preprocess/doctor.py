@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from pgci_preprocess.pipeline import discover_species
+from pgci_preprocess.project_paths import downloads_root
 from pgci_preprocess.species_names import SpeciesNamingError, load_species_names
 
 
@@ -176,14 +177,14 @@ def run_doctor(
 
     species_count = 0
     inventory_path = root / "resources" / "download_inventory.tsv"
-    downloads = root / "data" / "downloads"
+    downloads = downloads_root(root)
     if not root.is_dir():
         checks.append(DoctorCheck("project_root", "FAIL", str(root)))
     else:
         checks.append(DoctorCheck("project_root", "PASS", str(root)))
         checks.append(
             DoctorCheck(
-                "downloads_directory",
+                "raw_data_directory",
                 "PASS" if downloads.is_dir() else "FAIL",
                 str(downloads),
             )

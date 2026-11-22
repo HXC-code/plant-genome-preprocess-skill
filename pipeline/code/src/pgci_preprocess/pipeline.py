@@ -36,6 +36,7 @@ from pgci_preprocess.gff_formats import (
 from pgci_preprocess.input_router import InputRoutingError, select_role_source
 from pgci_preprocess.models import Anomaly, Candidate, Region
 from pgci_preprocess.organelle import MT_MIN_CORE_GENES, infer_synthetic_organelles
+from pgci_preprocess.project_paths import downloads_root, is_species_directory
 from pgci_preprocess.reports import (
     finalize_project,
     read_tsv as read_report_tsv,
@@ -86,7 +87,11 @@ class SpeciesInput:
 @dataclass(slots=True)
 class PipelineOptions:
     project_root: Path
-    clean_dirname: str = "clean_v2"
+    # Single-layer SOP layout: traceability files (gene_map/chr_map/
+    # removed_list/chromosome_map) live in analysis_v2 next to the four-piece
+    # set. The parameter is kept so legacy dual-layer projects can still be
+    # addressed explicitly; the default no longer creates clean_v2.
+    clean_dirname: str = "analysis_v2"
     analysis_dirname: str = "analysis_v2"
     min_genes_per_sequence: int = 50
     target_gene_coverage: float = 0.90
@@ -95,6 +100,9 @@ class PipelineOptions:
     # Core API default stays neutral (adaptive); the CLI/SOP default is
     # "chromosomes" (strict chromosome-mounted selection, fail-closed).
     sequence_mode: str = "adaptive"
+    # The pre-filtering ``.all.*`` snapshot is not read downstream and doubled
+    # the pilot's analysis_v2. Opt in per run with ``--keep-all``.
+    write_all_sequences: bool = False
     # Default must match the CLI: never replace an existing validated bundle
     # unless the caller opts in explicitly with overwrite=True.
     overwrite: bool = False
@@ -202,11 +210,11 @@ def discover_species(
     if not inventory.is_file():
         raise FileNotFoundError(f"download inventory not found: {inventory}")
 
-    downloads = project_root / "data" / "downloads"
+    downloads = downloads_root(project_root)
     directories = {
         path.name.split("_", 1)[0]: path
         for path in downloads.iterdir()
-        if path.is_dir() and "_" in path.name
+        if is_species_directory(path)
     }
     species: list[SpeciesInput] = []
     taken_codes = set(names.by_code) if names is not None else set()
@@ -562,10 +570,14 @@ def _prepare_staging(
     clean_root.mkdir(parents=True, exist_ok=True)
     analysis_root.mkdir(parents=True, exist_ok=True)
     suffix = uuid.uuid4().hex
-    clean_staging = clean_root / f".{code}.tmp-{suffix}"
     analysis_staging = analysis_root / f".{code}.tmp-{suffix}"
-    clean_staging.mkdir()
     analysis_staging.mkdir()
+    if clean_root == analysis_root:
+        # Single-layer layout: one staging directory holds every artifact.
+        clean_staging = analysis_staging
+    else:
+        clean_staging = clean_root / f".{code}.tmp-{suffix}"
+        clean_staging.mkdir()
     return clean_root, analysis_root, clean_staging, analysis_staging
 
 
@@ -746,8 +758,9 @@ def process_species(species: SpeciesInput, options: PipelineOptions) -> dict[str
             clean_staging,
             analysis_staging,
         )
-        _replace_directory(clean_staging, clean_final, options.overwrite)
         _replace_directory(analysis_staging, analysis_final, options.overwrite)
+        if clean_staging != analysis_staging:
+            _replace_directory(clean_staging, clean_final, options.overwrite)
         return result
     except PipelineFailure as exc:
         _remove_staging(clean_staging, clean_root)
@@ -1263,10 +1276,11 @@ def _process_species_into(
     pep_out = analysis_dir / f"{code}.pep"
     gff_out = analysis_dir / f"{code}.new.gff"
     lens_out = analysis_dir / f"{code}.lens"
-    _write_fasta(all_cds_path, all_cds_records)
-    _write_fasta(all_pep_path, all_pep_records)
-    _write_gff(all_gff_path, entries)
-    _write_lens(all_lens_path, all_region_rows)
+    if options.write_all_sequences:
+        _write_fasta(all_cds_path, all_cds_records)
+        _write_fasta(all_pep_path, all_pep_records)
+        _write_gff(all_gff_path, entries)
+        _write_lens(all_lens_path, all_region_rows)
     _write_fasta(cds_out, selected_cds_records)
     _write_fasta(pep_out, selected_pep_records)
     _write_gff(gff_out, selected_entries)
@@ -1284,7 +1298,7 @@ def _process_species_into(
         "gene_count",
         "is_primary",
     ]
-    for chromosomes_dir in (analysis_dir, clean_dir):
+    for chromosomes_dir in dict.fromkeys((analysis_dir, clean_dir)):
         chromosomes_path = chromosomes_dir / f"{code}.chromosome_map.tsv"
         with chromosomes_path.open("w", encoding="utf-8", newline="") as handle:
             writer = csv.DictWriter(
@@ -1303,9 +1317,21 @@ def _process_species_into(
                     }
                 )
 
-    all_validation = _validate_bundle(
-        all_gff_path, all_lens_path, all_cds_path, all_pep_path
-    )
+    if options.write_all_sequences:
+        all_validation = _validate_bundle(
+            all_gff_path, all_lens_path, all_cds_path, all_pep_path
+        )
+    else:
+        # Same counters the bundle validator would report, without writing the
+        # snapshot files: every representative gene and every sequence carrying
+        # one, before chromosome filtering.
+        all_validation = {
+            "n_genes": len(entries),
+            "n_sequences": len(
+                {str(entry["clean_sequence_id"]) for entry in entries}
+            ),
+            "written": False,
+        }
     selected_validation = _validate_bundle(gff_out, lens_out, cds_out, pep_out)
 
     gene_map_path = clean_dir / f"{code}.gene_map.tsv"
@@ -1536,8 +1562,11 @@ def _process_species_into(
     with (analysis_dir / f"{code}.qc.json").open("w", encoding="utf-8") as handle:
         json.dump(qc, handle, ensure_ascii=False, indent=2)
     _write_qc_record(analysis_dir / f"{code}.qc_record.md", qc)
-    shutil.copy2(gene_map_path, analysis_dir / f"{code}.gene_map.tsv")
-    shutil.copy2(chr_map_path, analysis_dir / f"{code}.chr_map.tsv")
+    for map_name in ("gene_map.tsv", "chr_map.tsv"):
+        source = clean_dir / f"{code}.{map_name}"
+        destination = analysis_dir / f"{code}.{map_name}"
+        if source != destination:
+            _link_or_copy(source, destination)
 
     naming_problems = [
         f"analysis:{problem}"
@@ -1579,6 +1608,20 @@ def _process_species_into(
         "nuclear_taxa": ",".join(sorted(nuclear_taxa)),
         "n_anomalies": len(parsed.anomalies) + len(cds.anomalies) + len(pep.anomalies),
     }
+
+
+def _link_or_copy(source: Path, destination: Path) -> None:
+    """Mirror a map file between layers without duplicating its bytes.
+
+    Only used for legacy dual-layer projects (``clean_dirname`` explicitly set
+    to ``clean_v2``); the default single-layer layout writes each map once.
+    Falls back to a copy across volumes or filesystems without hard links.
+    """
+    destination.unlink(missing_ok=True)
+    try:
+        os.link(source, destination)
+    except (OSError, NotImplementedError):
+        shutil.copy2(source, destination)
 
 
 def _write_qc_record(path: Path, qc: dict[str, object]) -> None:

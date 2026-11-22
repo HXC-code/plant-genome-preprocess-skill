@@ -4,10 +4,10 @@
 
 `plant-wgdi-preprocess` 是植物比较基因组工作流的 Agent Skill。它按实验室《整体流程》覆盖数据整理、WGDI 四件套预处理、DIAMOND 同源比对和 WGDI 点图/共线性块，Ks 分析作为可选分支。
 
-当前版本：**3.7.0**
+当前版本：**3.8.0**
 
 - [程序仓](https://github.com/HXC-code/plant-genome-preprocess)
-- [v3.7.0 Release](https://github.com/HXC-code/plant-genome-preprocess/releases/tag/v3.7.0)
+- [v3.8.0 Release](https://github.com/HXC-code/plant-genome-preprocess/releases/tag/v3.8.0)
 - [完整使用说明](pipeline/QUICKSTART.md)
 - [实验室整体流程](pipeline/code/docs/WORKFLOW.md)
 - [验证门禁](pipeline/VALIDATION.md)
@@ -103,7 +103,7 @@ xcopy /E /I . "$env:USERPROFILE\.workbuddy\skills\plant-wgdi-preprocess"
 
 ```text
 使用 plant-wgdi-preprocess 检查现有项目的四件套、染色体清单、
-人工裁决、命名、QC、哈希和剔除记录。
+人工裁决、命名、QC 和剔除记录。
 ```
 
 ## 手动运行
@@ -166,29 +166,26 @@ powershell -ExecutionPolicy Bypass -File .\pipeline\run_all_pipeline.ps1 -WithKs
 ## 关键输出
 
 ```text
-analysis_v2/<Abbr>/
+analysis_v2/<Abbr>/          # 唯一输出层（不再写 clean_v2）
 ├── <Abbr>.pep
 ├── <Abbr>.cds
 ├── <Abbr>.new.gff
 ├── <Abbr>.lens
-├── <Abbr>.all.pep.fa
-├── <Abbr>.all.cds.fa
-├── <Abbr>.all.gff
-├── <Abbr>.all.lens
 ├── <Abbr>.gene_map.tsv
 ├── <Abbr>.chr_map.tsv
 ├── <Abbr>.chromosome_map.tsv
+├── <Abbr>.removed_list.tsv
 ├── <Abbr>.qc.json
 └── <Abbr>.qc_record.md
 ```
 
+可选（`run --keep-all` 时才写，筛选前全量快照）：
+
 ```text
-clean_v2/<Abbr>/
-├── <Abbr>.gene_map.tsv
-├── <Abbr>.chr_map.tsv
-├── <Abbr>.chromosome_map.tsv
-└── <Abbr>.removed_list.tsv
+<Abbr>.all.pep.fa  <Abbr>.all.cds.fa  <Abbr>.all.gff  <Abbr>.all.lens
 ```
+
+旧项目的 `clean_v2/` 仍可读；重跑后新产物只写 `analysis_v2`，旧层可整目录删除。
 
 `new.gff` 使用七列：
 
@@ -222,11 +219,11 @@ python -m ruff check src tests scripts tools
 python -m mypy src --ignore-missing-imports
 ```
 
-当前版本包含 212 项 Python 测试。验证回执：
+当前版本包含 213 项 Python 测试。验证回执：
 
 ```text
-pipeline/validation/smoke-report-3.7.0.json        Ks 模式：4×8
-pipeline/validation/smoke-report-3.7.0-core.json   核心模式：4×2
+pipeline/validation/smoke-report-3.8.0.json        Ks 模式：4×8
+pipeline/validation/smoke-report-3.8.0-core.json   核心模式：4×2
 ```
 
 ## 同步与版本
@@ -238,7 +235,7 @@ python code\tools\sync_skill_package.py `
   --pipeline-target D:\path\to\plant-genome-preprocess-skill\pipeline
 ```
 
-当前版：v3.7.0。v3.6.2 及更早版本保留为历史 Release，不改写原 tag。
+当前版：v3.8.0。v3.7.0 及更早版本保留为历史 Release，不改写原 tag。
 
 ## 许可
 

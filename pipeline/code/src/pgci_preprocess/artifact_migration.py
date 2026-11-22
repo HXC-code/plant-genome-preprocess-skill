@@ -11,7 +11,7 @@ This module performs the complete migration:
    (byte-level streaming rewrite; the numeric suffix is preserved);
 4. verify file names and that no legacy token survives;
 5. publish the staging directory under ``<layer>/<code>``;
-6. refresh the index, SHA-256 manifest and compatibility links;
+6. refresh the index and compatibility links;
 7. optionally move the stale ``<workspace>/s<show_id>`` copies to quarantine.
 """
 
@@ -39,7 +39,6 @@ from pgci_preprocess.artifact_naming import (
 from pgci_preprocess.reports import (
     read_tsv,
     read_tsv_with_fields,
-    rebuild_manifest,
     write_tsv,
 )
 from pgci_preprocess.species_names import (
@@ -611,11 +610,6 @@ def migrate_artifacts(
     pruned = 0
     if not dry_run:
         index_changed = _migrate_index(canonical_root, migrated, legacy_codes)
-        if migrated:
-            rebuild_manifest(
-                canonical_root,
-                codes=sorted({code for code in migrated.values()}),
-            )
         if refresh_links:
             links = sync_compat_links(canonical_root, workspace)
     if prune_legacy_dirs and migrated and not dry_run:

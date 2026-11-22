@@ -38,7 +38,7 @@ def _run(args: list[str]) -> subprocess.CompletedProcess[str]:
 
 @pytest.mark.parametrize(
     "command",
-    ["prepare", "init-project", "doctor", "normalize-gff", "convert-annotation", "run", "validate", "batch", "audit", "convert", "source-manifest", "migrate-species-names"],
+    ["prepare", "init-project", "doctor", "normalize-gff", "convert-annotation", "run", "validate", "batch", "audit", "convert", "migrate-species-names", "prune"],
 )
 def test_subcommand_help(command: str) -> None:
     result = _run([command, "--help"])

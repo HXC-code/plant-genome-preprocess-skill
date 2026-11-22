@@ -54,7 +54,7 @@ def species_folder_name(source_path: str) -> str:
     """The ``<showid>_<Order>_<Family>(<Species>)`` ancestor of a source file."""
     path = Path(source_path)
     for ancestor in path.parents:
-        if SPECIES_FOLDER_RE.match(ancestor.name) and ancestor.parent.name == "downloads":
+        if SPECIES_FOLDER_RE.match(ancestor.name) and ancestor.parent.name in {"downloads", "data"}:
             return ancestor.name
     raise ValueError(f"no species folder ancestor for {source_path}")
 

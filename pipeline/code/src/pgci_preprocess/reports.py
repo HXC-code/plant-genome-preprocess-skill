@@ -70,7 +70,6 @@ INDEX_FIELDS = [
     "rejected",
     "qc",
 ]
-MANIFEST_FIELDS = ["code", "layer", "relative_path", "bytes", "sha256"]
 
 
 def read_tsv(path: Path | str) -> list[dict[str, str]]:
@@ -166,15 +165,29 @@ def build_index_rows(
     results: Sequence[Mapping[str, Any]],
     *,
     analysis_dirname: str = "analysis_v2",
-    clean_dirname: str = "clean_v2",
+    clean_dirname: str = "analysis_v2",
+    project_root: Path | str | None = None,
 ) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
+    root = Path(project_root) if project_root is not None else None
     for result in results:
         code = str(result.get("code", ""))
         artifact_code = str(result.get("artifact_code") or code)
         if result.get("status") not in {"OK", "SKIPPED"}:
             continue
         base = f"{analysis_dirname}/{artifact_code}"
+        all_paths = {
+            "all_pep": f"{base}/{artifact_code}.all.pep.fa",
+            "all_cds": f"{base}/{artifact_code}.all.cds.fa",
+            "all_gff": f"{base}/{artifact_code}.all.gff",
+            "all_lens": f"{base}/{artifact_code}.all.lens",
+        }
+        # ``.all.*`` is opt-in (run --keep-all). Index only files that exist so
+        # validation never chases paths that were deliberately not written.
+        if root is not None:
+            for key, relative in all_paths.items():
+                if not (root / relative).is_file():
+                    all_paths[key] = ""
         rows.append(
             {
                 **result,
@@ -183,10 +196,7 @@ def build_index_rows(
                 "cds": f"{base}/{artifact_code}.cds",
                 "gff": f"{base}/{artifact_code}.new.gff",
                 "lens": f"{base}/{artifact_code}.lens",
-                "all_pep": f"{base}/{artifact_code}.all.pep.fa",
-                "all_cds": f"{base}/{artifact_code}.all.cds.fa",
-                "all_gff": f"{base}/{artifact_code}.all.gff",
-                "all_lens": f"{base}/{artifact_code}.all.lens",
+                **all_paths,
                 "gene_map": f"{clean_dirname}/{artifact_code}/{artifact_code}.gene_map.tsv",
                 "chr_map": f"{clean_dirname}/{artifact_code}/{artifact_code}.chr_map.tsv",
                 "rejected": f"{clean_dirname}/{artifact_code}/{artifact_code}.removed_list.tsv",
@@ -206,54 +216,6 @@ def merge_index(
     return _merge_rows(path, INDEX_FIELDS, index_rows, replace_codes)
 
 
-def manifest_sha256(path: Path) -> str:
-    import hashlib
-
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1 << 20), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
-def rebuild_manifest(
-    project_root: Path | str,
-    *,
-    analysis_dirname: str = "analysis_v2",
-    clean_dirname: str = "clean_v2",
-    codes: Sequence[str] | None = None,
-) -> Path:
-    """Rebuild the SHA-256 manifest for every indexed species directory."""
-
-    project_root = Path(project_root)
-    index_path = project_root / "resources" / "wgdi_v2_index.tsv"
-    if codes is None:
-        codes = [_code(row) for row in read_tsv(index_path) if _code(row)]
-    wanted = set(codes)
-    rows: list[dict[str, object]] = []
-    for layer in (clean_dirname, analysis_dirname):
-        layer_root = project_root / layer
-        for code in sorted(wanted, key=natural_key):
-            code_dir = layer_root / code
-            if not code_dir.is_dir():
-                continue
-            for path in sorted(code_dir.rglob("*")):
-                if not path.is_file():
-                    continue
-                rows.append(
-                    {
-                        "code": code,
-                        "layer": layer,
-                        "relative_path": path.relative_to(project_root).as_posix(),
-                        "bytes": path.stat().st_size,
-                        "sha256": manifest_sha256(path),
-                    }
-                )
-    manifest_path = project_root / "resources" / "wgdi_v2_manifest_sha256.tsv"
-    write_tsv(manifest_path, MANIFEST_FIELDS, rows)
-    return manifest_path
-
-
 def finalize_project(
     project_root: Path | str,
     *,
@@ -261,9 +223,13 @@ def finalize_project(
     results: Sequence[Mapping[str, Any]],
     processed_codes: set[str],
     analysis_dirname: str = "analysis_v2",
-    clean_dirname: str = "clean_v2",
+    clean_dirname: str = "analysis_v2",
 ) -> dict[str, Path]:
-    """Consolidate registry, summary, index and manifest after a run."""
+    """Consolidate registry, summary and index after a run.
+
+    No SHA-256 manifest is written: the project keeps one index and one QC
+    record per species, and per-file provenance lives inside ``*.qc.json``.
+    """
 
     project_root = Path(project_root)
     merge_registry(project_root, species_rows, replace_codes=processed_codes)
@@ -272,16 +238,11 @@ def finalize_project(
         results,
         analysis_dirname=analysis_dirname,
         clean_dirname=clean_dirname,
+        project_root=project_root,
     )
     merge_index(project_root, index_rows, replace_codes=processed_codes)
-    manifest = rebuild_manifest(
-        project_root,
-        analysis_dirname=analysis_dirname,
-        clean_dirname=clean_dirname,
-    )
     return {
         "registry": project_root / "resources" / "species_registry_v2.tsv",
         "summary": project_root / "resources" / "stage_preprocess_v2_summary.tsv",
         "index": project_root / "resources" / "wgdi_v2_index.tsv",
-        "manifest": manifest,
     }
