@@ -339,7 +339,7 @@ python -m pgci_preprocess chromosomes --project-root D:\plant_project --species 
 
 ```powershell
 python -m pgci_preprocess adjudicate --project-root D:\plant_project --species Hbr `
-  --confirmed-n 21 --decision accept --reviewer "刘涛" --rationale "与核型一致"
+  --confirmed-n 21 --decision accept --reviewer "<复核人姓名>" --rationale "与核型一致"
 python -m pgci_preprocess adjudication-status --project-root D:\plant_project --species Hbr
 ```
 

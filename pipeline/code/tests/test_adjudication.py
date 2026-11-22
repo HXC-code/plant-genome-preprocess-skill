@@ -41,11 +41,11 @@ def _qc_project(tmp_path: Path, n: int = 7) -> Path:
 def test_missing_then_ok(tmp_path: Path) -> None:
     project = _qc_project(tmp_path)
     assert gate_status(project, "X") == "missing"
-    write_adjudication(project, "X", confirmed_n=7, decision="accept", reviewer="刘涛")
+    write_adjudication(project, "X", confirmed_n=7, decision="accept", reviewer="reviewer-A")
     assert gate_status(project, "X") == "ok"
     record = read_adjudication(project, "X")
     assert record["confirmed_n"] == 7
-    assert record["reviewer"] == "刘涛"
+    assert record["reviewer"] == "reviewer-A"
     assert record["qc_sha256"]
 
 
@@ -108,7 +108,7 @@ def test_validate_gate_requires_adjudication(tmp_path: Path) -> None:
         code,
         confirmed_n=qc["n_wgdi_sequences"],
         decision="accept",
-        reviewer="刘涛",
+        reviewer="reviewer-A",
     )
     accepted = validate_project(
         ValidationOptions(
@@ -163,7 +163,7 @@ def test_cli_chromosomes_adjudicate_status(tmp_path: Path) -> None:
         "--decision",
         "accept",
         "--reviewer",
-        "刘涛",
+        "reviewer-A",
     )
     assert sign.returncode == 0, sign.stderr
 

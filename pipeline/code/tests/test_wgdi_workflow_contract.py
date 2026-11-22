@@ -220,7 +220,7 @@ def test_homology_adjudication_gate_executes(tmp_path: Path) -> None:
     project, fake_diamond = _homology_workspace(tmp_path)
     for code in ("Rdy", "Mar"):
         write_adjudication(
-            project, code, confirmed_n=1, decision="accept", reviewer="刘涛"
+            project, code, confirmed_n=1, decision="accept", reviewer="reviewer-A"
         )
     env = {
         **os.environ,

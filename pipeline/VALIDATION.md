@@ -86,7 +86,9 @@ On 2026-11-21 version 3.6.0 passed:
   skip via `HOMOLOGY_REQUIRE_ADJUDICATION=true`. Re-runs invalidate stale
   sign-offs; reject/adjust/count-mismatch block the gate.
 - Real-data acceptance: Hevea Hbr inventory (21 chromosomes / 48,109 genes,
-  0 dropped below floor); adjudication gate verified FAIL → sign-off → PASS.
+  0 dropped below floor). The adjudication gate was exercised end to end
+  (FAIL -> placeholder sign-off -> PASS) to verify the mechanism only; it
+  records no real human adjudication and is not an expert sign-off.
 - Windows synthetic full-chain smoke: four comparisons, eight products each
   (`validation/smoke-report-3.6.0.json`), readiness gate via the canonical
   reader.

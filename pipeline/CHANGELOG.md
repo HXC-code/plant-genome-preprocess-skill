@@ -32,7 +32,9 @@ plus a per-chromosome gene-count floor.
 - Engineering: 200 tests, Ruff and Mypy pass; Windows synthetic full-chain smoke
   receipt `validation/smoke-report-3.6.0.json` (4 comparisons × 8 products).
   Real-data acceptance: Hevea Hbr chromosome inventory (21 chromosomes / 48,109
-  genes), adjudication gate FAIL→sign-off→PASS verified end to end.
+  genes). The adjudication gate was exercised end to end (FAIL -> placeholder
+  sign-off -> PASS) to verify the mechanism only; it records no real human
+  adjudication and is not an expert sign-off.
 
 ## 3.5.5 — 2026-11-21
 
