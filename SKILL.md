@@ -120,7 +120,7 @@ python -m pgci_preprocess audit --project-root D:\my_project
 
 验收通过后，`analysis_v2/<Abbr>/` 下的四件套作为 WGDI 输入。
 
-### 6. 染色体清单与人工裁决（3.6.0，必做）
+### 6. 染色体清单与人工裁决（3.6.x，必做）
 
 最终染色体数由人工判断，这是硬门禁，不是可选步骤：
 
@@ -189,6 +189,7 @@ analysis_v2/<Abbr>/
 ├── <Abbr>.all.lens
 ├── <Abbr>.gene_map.tsv
 ├── <Abbr>.chr_map.tsv
+├── <Abbr>.chromosomes.tsv
 └── <Abbr>.qc.json
 ```
 
@@ -196,6 +197,7 @@ analysis_v2/<Abbr>/
 clean_v2/<Abbr>/
 ├── <Abbr>.gene_map.tsv
 ├── <Abbr>.chr_map.tsv
+├── <Abbr>.chromosomes.tsv
 └── <Abbr>.rejected.tsv
 ```
 

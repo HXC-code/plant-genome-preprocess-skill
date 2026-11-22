@@ -41,6 +41,8 @@ plant-genome-preprocess-skill/
 | 注释修复 | 补充 region、mRNA 和 gene/CDS 层级，记录异常 |
 | 代表转录本选择 | 每个基因选择一个最长蛋白候选，并按 CDS 长度和稳定 ID 消歧 |
 | 主序列选择 | 根据主染色体、基因数、覆盖率和序列上限生成 WGDI 序列集 |
+| 染色体清单 | 输出最终序列数、每条序列代表基因数、长度和原始序列 |
+| 人工裁决 | 记录复核人确认的染色体数，并绑定 QC 版本与 SHA-256 |
 | 数据验收 | 检查 ID、坐标、链、长度、翻译、哈希、链接和命名一致性 |
 | 追溯报告 | 生成 gene map、chromosome map、rejected、QC、index 和 manifest |
 | 旧项目迁移 | 将 `s<show_id>` 命名迁移为物种缩写 |
@@ -55,7 +57,10 @@ plant-genome-preprocess-skill/
 init-project / prepare
         │
         ▼
-run → validate → check-names → audit
+run → 染色体清单 → 人工裁决 → 严格 validate
+        │
+        ▼
+check-names → audit
 ```
 
 主要结果：
@@ -144,10 +149,16 @@ cd pipeline\code
 
 python -m pgci_preprocess init-project --project-root D:\plant_project
 python -m pgci_preprocess run      --project-root D:\plant_project
-python -m pgci_preprocess validate --project-root D:\plant_project --refresh-links
+python -m pgci_preprocess chromosomes --project-root D:\plant_project --species <code>
+python -m pgci_preprocess adjudicate --project-root D:\plant_project --species <code> `
+  --confirmed-n <N> --decision accept --reviewer "<复核人>" --rationale "<依据>"
+python -m pgci_preprocess validate --project-root D:\plant_project `
+  --refresh-links --require-adjudication
 python -m pgci_preprocess check-names --project-root D:\plant_project
 python -m pgci_preprocess audit    --project-root D:\plant_project
 ```
+
+`run` 默认会丢弃代表基因数少于 100 的 WGDI 序列。最终序列数由人工结合 `chromosomes.tsv`、`chr_map.tsv` 和物种核型确认。直接 CLI 的门禁开关默认关闭，Skill 执行时必须显式使用 `--require-adjudication`，下游必须设置 `HOMOLOGY_REQUIRE_ADJUDICATION=true`。
 
 详细输入格式、批量状态表、QC 检查和下游命令见 [pipeline/QUICKSTART.md](pipeline/QUICKSTART.md)。
 

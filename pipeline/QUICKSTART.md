@@ -11,7 +11,7 @@ cd code
 python -m pgci_preprocess --version
 ```
 
-输出 `pgci_preprocess 3.6.0` 表示本地环境已就绪。
+输出 `pgci_preprocess 3.6.2` 表示本地环境已就绪。
 
 创建项目后，可检查 Python、外部程序和输入文件：
 
@@ -327,7 +327,7 @@ python -m pgci_preprocess validate `
   --allow-not-ready
 ```
 
-### 5.5 染色体清单与人工裁决（3.6.0）
+### 5.5 染色体清单与人工裁决（3.6.0 起）
 
 `run` 后每个物种生成 `<Abbr>.chromosomes.tsv`，列出保留了几条染色体、每条基因数/长度/来源，并在 run 输出里直接打印 `chromosomes N (id:genes) ...` 给调用方（ASCII 标签，避免非 UTF-8 控制台编码失败）。`--min-genes-per-chromosome`（CLI 默认 100）会丢弃基因数不足 100 的染色体（记入 chr_map 与 QC）。查看清单：
 
