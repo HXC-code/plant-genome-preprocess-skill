@@ -1617,6 +1617,28 @@ def _promote_legacy_bundles(
         )
 
 
+def _print_chromosome_inventory(analysis_root: Path, code: str) -> None:
+    """Show the kept chromosomes and their gene counts to whoever invoked run.
+
+    The reviewer needs the count and the per-chromosome gene counts at call
+    time, not only in a file they would have to open separately.
+    """
+
+    path = analysis_root / code / f"{code}.chromosomes.tsv"
+    if not path.is_file():
+        return
+    try:
+        with path.open(encoding="utf-8", newline="") as handle:
+            rows = list(csv.DictReader(handle, delimiter="\t"))
+    except OSError:
+        return
+    if not rows:
+        return
+    pairs = "  ".join(f"{row['chromosome']}:{row['gene_count']}" for row in rows)
+    print(f"    染色体 {len(rows)} 条（编号:基因数） {pairs}", flush=True)
+    print(f"    清单: {path}", flush=True)
+
+
 def run_project(
     project_root: Path | str,
     *,
@@ -1668,6 +1690,10 @@ def run_project(
             f"reason={result.get('reason', '')}",
             flush=True,
         )
+        if result.get("status") in {"OK", "SKIPPED"}:
+            _print_chromosome_inventory(
+                project_root / options.analysis_dirname, item.code
+            )
 
     species_rows = [
         {

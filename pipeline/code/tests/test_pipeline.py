@@ -5,6 +5,8 @@ import gzip
 import json
 from pathlib import Path
 
+import pytest
+
 from pgci_preprocess.pipeline import PipelineOptions, discover_species, process_species, run_project
 from pgci_preprocess.validate import ValidationOptions, validate_project
 
@@ -178,6 +180,21 @@ def test_validate_rejects_not_ready_bundle_unless_explicitly_allowed(
         )
     )
     assert archival.ok
+
+
+def test_run_shows_chromosome_inventory_to_the_caller(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    project, _ = _make_project(tmp_path)
+    run_project(
+        project,
+        options=PipelineOptions(project_root=project, min_genes_per_sequence=0),
+    )
+    out = capsys.readouterr().out
+    assert "染色体" in out
+    assert ".chromosomes.tsv" in out
+    # per-chromosome gene counts must be visible, not only the sequence count
+    assert "1:" in out
 
 
 def test_pipeline_quarantines_multiple_nuclear_taxa(tmp_path: Path) -> None:

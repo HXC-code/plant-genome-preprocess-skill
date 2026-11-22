@@ -1,5 +1,16 @@
 # Changelog
 
+## 3.6.1 — 2026-11-22
+
+- `run` now prints the chromosome inventory to the caller for each processed
+  species: the kept chromosome count and every chromosome's gene count
+  (`编号:基因数`), plus the path to `<Abbr>.chromosomes.tsv`. Previously the
+  per-chromosome counts were only in the file and required a separate
+  `chromosomes` call. The displayed numbers are internal sequence ids and may
+  be non-contiguous.
+- Engineering: 201 tests, Ruff and Mypy pass; Windows synthetic full-chain
+  smoke receipt `validation/smoke-report-3.6.1.json`.
+
 ## 3.6.0 — 2026-11-21
 
 Formalizes the lab SOP "the final chromosome count is a human judgement" into

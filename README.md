@@ -2,10 +2,10 @@
 
 `plant-genome-preprocess` 是 HXC 植物基因组规范化与质控工具的 Agent Skill。它把数据识别、预处理命令、质量检查、结果复核和可选下游分析组织成一套可执行工作流，适合在 Codex、WorkBuddy 等支持 Agent Skill 的环境中直接调用。
 
-当前版本：**3.6.0**
+当前版本：**3.6.1**
 
 - [程序仓](https://github.com/HXC-code/plant-genome-preprocess)
-- [发布包](https://github.com/HXC-code/plant-genome-preprocess/releases/tag/v3.6.0)
+- [发布包](https://github.com/HXC-code/plant-genome-preprocess/releases/tag/v3.6.1)
 - [完整使用说明](pipeline/QUICKSTART.md)
 - [验证说明](pipeline/VALIDATION.md)
 
@@ -172,9 +172,9 @@ python -m pgci_preprocess doctor `
 
 ## 质量与验证
 
-当前 3.6.0 版本包含：
+当前 3.6.1 版本包含：
 
-- 200 项 Python 自动化测试；
+- 201 项 Python 自动化测试；
 - Ruff、Mypy 和镜像漂移检查；
 - Windows 与 Linux/WSL Shell 语法检查；
 - Windows 完整合成 WGDI 流程，四组比较每组检查 8 个关键产物；
@@ -190,7 +190,7 @@ python -m pgci_preprocess doctor `
 验证材料：
 
 ```text
-pipeline/validation/smoke-report-3.6.0.json
+pipeline/validation/smoke-report-3.6.1.json
 pipeline/validation/smoke-report-3.5.5.json
 pipeline/validation/smoke-report-3.5.4.json
 pipeline/validation/smoke-report-3.5.3.json
