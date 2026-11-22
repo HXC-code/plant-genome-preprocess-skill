@@ -23,6 +23,15 @@ case "${allow_not_ready,,}" in
         exit 2
         ;;
 esac
+require_adjudication="${HOMOLOGY_REQUIRE_ADJUDICATION:-false}"
+case "${require_adjudication,,}" in
+    true|1|yes) require_adjudication=true ;;
+    false|0|no|"") require_adjudication=false ;;
+    *)
+        echo "错误：HOMOLOGY_REQUIRE_ADJUDICATION 必须是 true 或 false，实际为：$require_adjudication"
+        exit 2
+        ;;
+esac
 
 if [[ -n "${HOMOLOGY_EVALUE:-}" ]]; then
     homology_evalue="$HOMOLOGY_EVALUE"
@@ -84,13 +93,30 @@ resolve_python() {
     command -v python 2>/dev/null || command -v python3 2>/dev/null || true
 }
 
+# Git Bash pwd -P yields POSIX paths (/d/...) that a Windows Python cannot
+# resolve; convert to native form before handing paths to the interpreter.
+to_python_path() {
+    if command -v cygpath >/dev/null 2>&1; then
+        cygpath -w "$1"
+    else
+        printf '%s\n' "$1"
+    fi
+}
+
+python_path_sep() {
+    if command -v cygpath >/dev/null 2>&1; then printf ';'; else printf ':'; fi
+}
+
 species_readiness_via_python() {
-    local species_id="$1" py out
+    local species_id="$1" py out proot psrc sep
     py="$(resolve_python)"
     [[ -n "$py" ]] || return 1
-    out="$(PYTHONPATH="$project_root/code/src${PYTHONPATH:+:$PYTHONPATH}" \
+    proot="$(to_python_path "$project_root")"
+    psrc="$(to_python_path "$project_root/code/src")"
+    sep="$(python_path_sep)"
+    out="$(PYTHONPATH="$psrc${PYTHONPATH:+$sep$PYTHONPATH}" \
         "$py" -m pgci_preprocess readiness \
-        --project-root "$project_root" --species "$species_id" 2>/dev/null)" || return 1
+        --project-root "$proot" --species "$species_id" 2>/dev/null)" || return 1
     printf '%s\n' "${out#*$'\t'}"
 }
 
@@ -146,6 +172,20 @@ species_readiness() {
         return 0
     fi
     species_readiness_grep "$species_id"
+}
+
+species_adjudication_status() {
+    local species_id="$1" py out proot psrc sep
+    py="$(resolve_python)"
+    [[ -n "$py" ]] || { printf 'unknown\n'; return 0; }
+    proot="$(to_python_path "$project_root")"
+    psrc="$(to_python_path "$project_root/code/src")"
+    sep="$(python_path_sep)"
+    out="$(PYTHONPATH="$psrc${PYTHONPATH:+$sep$PYTHONPATH}" \
+        "$py" -m pgci_preprocess adjudication-status \
+        --project-root "$proot" --species "$species_id" 2>/dev/null)" \
+        || { printf 'unknown\n'; return 0; }
+    printf '%s\n' "${out#*$'\t'}"
 }
 
 if [[ "$engine" == "diamond" ]]; then
@@ -226,6 +266,13 @@ for species_dir in */; do
     if [[ -z "$readiness" && "$allow_not_ready" != true ]]; then
         echo "$species_dir：缺少可读取的 wgdi_ready 记录，已跳过；如需显式复核可设 HOMOLOGY_ALLOW_NOT_READY=true" >> "$skipped_file"
         continue
+    fi
+    if [[ "$require_adjudication" == true ]]; then
+        adj_status="$(species_adjudication_status "$species_id")"
+        if [[ "$adj_status" != "ok" ]]; then
+            echo "$species_dir：染色体数人工裁决未通过（$adj_status），已跳过；先用 pgci-preprocess adjudicate 签字" >> "$skipped_file"
+            continue
+        fi
     fi
 
     used_ids[$species_id]="$species_dir"

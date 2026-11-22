@@ -1,5 +1,39 @@
 # Changelog
 
+## 3.6.0 — 2026-11-21
+
+Formalizes the lab SOP "the final chromosome count is a human judgement" into
+an auditable, version-bound adjudication step, and adds a chromosome inventory
+plus a per-chromosome gene-count floor.
+
+- Chromosome inventory: `run` writes `<Abbr>.chromosomes.tsv` (in analysis_v2
+  and clean_v2) listing each kept WGDI chromosome with its gene count, length,
+  source seqid and primary flag; QC gains `chromosome_summary`. New
+  `chromosomes` CLI prints the per-species inventory for human review.
+- Per-chromosome gene floor: `run --min-genes-per-chromosome` (CLI default 100,
+  0 disables) drops kept chromosomes carrying fewer than the threshold
+  representative genes after sequence selection, across all modes. Exclusions
+  are recorded in chr_map (`below_min_genes_per_chromosome`) and QC
+  (`n_dropped_below_floor`); the ratio and readiness are recomputed. The core
+  API default is 0 (neutral); the CLI/SOP default is 100.
+- Human adjudication hard gate: new `pgci_preprocess.adjudication` module and
+  `adjudicate` / `adjudication-status` CLI. A sign-off records confirmed_n,
+  decision (accept/accept_with_note/adjust/reject), reviewer and rationale, and
+  is bound to the judged QC's pipeline version + SHA-256, so a re-run
+  invalidates stale sign-offs. `validate --require-adjudication` FAILs species
+  with missing/stale/mismatched/rejected adjudication; `run_homology.sh` and
+  `run_all_pipeline.ps1` skip them when `HOMOLOGY_REQUIRE_ADJUDICATION=true`.
+  The gate is opt-in at the bare CLI (archival-friendly) and enabled by default
+  in the skill invocation rules, so the SOP enforces sign-off for every species.
+- QC now records top-level `n_wgdi_sequences` (the adjudication count source).
+- Shell runners convert Git Bash POSIX paths to native form before invoking the
+  Windows Python interpreter (`cygpath`), fixing readiness/adjudication CLI
+  calls under Git Bash; the package is expected to be installed (`pip install -e`).
+- Engineering: 200 tests, Ruff and Mypy pass; Windows synthetic full-chain smoke
+  receipt `validation/smoke-report-3.6.0.json` (4 comparisons × 8 products).
+  Real-data acceptance: Hevea Hbr chromosome inventory (21 chromosomes / 48,109
+  genes), adjudication gate FAIL→sign-off→PASS verified end to end.
+
 ## 3.5.5 — 2026-11-21
 
 - Added plant mitochondrial detection for synthetic regions using distinct

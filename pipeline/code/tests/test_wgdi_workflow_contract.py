@@ -10,6 +10,8 @@ from pathlib import Path
 
 import pytest
 
+from pgci_preprocess.adjudication import write_adjudication
+
 
 WORKFLOW_ROOT = Path(__file__).resolve().parents[2]
 GENERATOR = WORKFLOW_ROOT / "code" / "tools" / "generate_wgdi_configs.py"
@@ -122,7 +124,7 @@ def _homology_bash() -> Path | None:
 def _homology_workspace(tmp_path: Path) -> tuple[Path, Path]:
     project = tmp_path / "homology"
     project.mkdir()
-    for code, ready in (("Rdy", "yes"), ("Not", "no"), ("Mar", "marginal")):
+    for code, ready in (("Rdy", "yes"), ("Not", "no"), ("Mar", "marginal"), ("Unsig", "yes")):
         species = project / code
         species.mkdir()
         for suffix in (".pep", ".cds", ".new.gff", ".lens"):
@@ -130,7 +132,13 @@ def _homology_workspace(tmp_path: Path) -> tuple[Path, Path]:
         qc_dir = project / "analysis_v2" / code
         qc_dir.mkdir(parents=True)
         (qc_dir / f"{code}.qc.json").write_text(
-            json.dumps({"sequence_selection": {"wgdi_ready": ready}}),
+            json.dumps(
+                {
+                    "sequence_selection": {"wgdi_ready": ready},
+                    "pipeline_version": "3.6.0",
+                    "n_wgdi_sequences": 1,
+                }
+            ),
             encoding="utf-8",
         )
     # A species with the four-piece set but no readiness record at all.
@@ -203,6 +211,42 @@ def test_homology_readiness_gate_executes(tmp_path: Path) -> None:
     mapped = (project / "species_map.tsv").read_text(encoding="utf-8")
     for code in ("Rdy", "Not", "Mar", "Unk"):
         assert f"{code}\t" in mapped
+
+
+def test_homology_adjudication_gate_executes(tmp_path: Path) -> None:
+    bash = _homology_bash()
+    if bash is None:
+        pytest.skip("Git Bash or Linux bash is required to execute run_homology.sh")
+    project, fake_diamond = _homology_workspace(tmp_path)
+    for code in ("Rdy", "Mar"):
+        write_adjudication(
+            project, code, confirmed_n=1, decision="accept", reviewer="刘涛"
+        )
+    env = {
+        **os.environ,
+        "DIAMOND": str(fake_diamond),
+        "HOMOLOGY_ENGINE": "diamond",
+        "HOMOLOGY_REQUIRE_ADJUDICATION": "true",
+        "PYTHON": sys.executable,
+        "PYTHONIOENCODING": "utf-8",
+    }
+    result = subprocess.run(
+        [str(bash), str(project / "run_homology.sh")],
+        cwd=project,
+        text=True,
+        encoding="utf-8",
+        capture_output=True,
+        check=False,
+        env=env,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    mapped = (project / "species_map.tsv").read_text(encoding="utf-8")
+    assert "Rdy\t" in mapped and "Mar\t" in mapped
+    # ready but un-adjudicated must be blocked by the hard gate
+    assert "Unsig\t" not in mapped
+    assert "Not\t" not in mapped and "Unk\t" not in mapped
+    skipped = (project / "skipped_species.txt").read_text(encoding="utf-8")
+    assert "Unsig" in skipped and "裁决" in skipped
 
 
 def test_different_config_is_generated_once_and_removes_tandem(

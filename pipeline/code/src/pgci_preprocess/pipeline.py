@@ -90,6 +90,7 @@ class PipelineOptions:
     min_genes_per_sequence: int = 50
     target_gene_coverage: float = 0.90
     max_sequences: int = 200
+    min_genes_per_chromosome: int = 0
     # Default must match the CLI: never replace an existing validated bundle
     # unless the caller opts in explicitly with overwrite=True.
     overwrite: bool = False
@@ -1149,6 +1150,7 @@ def _process_species_into(
         options.min_genes_per_sequence,
         options.target_gene_coverage,
         options.max_sequences,
+        options.min_genes_per_chromosome,
     )
     if not sequence_selection.keep:
         raise PipelineFailure("empty_wgdi_sequence_set")
@@ -1261,6 +1263,37 @@ def _process_species_into(
     _write_gff(gff_out, selected_entries)
     _write_lens(lens_out, selected_region_rows)
 
+    # Per-species chromosome inventory for human adjudication: how many WGDI
+    # chromosomes were kept and roughly how many genes each carries.
+    chromosome_rows = sorted(
+        selected_region_rows, key=lambda row: int(str(row["clean_sequence_id"]))
+    )
+    chromosomes_fields = [
+        "chromosome",
+        "source_seqid",
+        "length",
+        "gene_count",
+        "is_primary",
+    ]
+    for chromosomes_dir in (analysis_dir, clean_dir):
+        chromosomes_path = chromosomes_dir / f"{code}.chromosomes.tsv"
+        with chromosomes_path.open("w", encoding="utf-8", newline="") as handle:
+            writer = csv.DictWriter(
+                handle, fieldnames=chromosomes_fields, delimiter="\t"
+            )
+            writer.writeheader()
+            for row in chromosome_rows:
+                region = parsed.regions[str(row["source_seqid"])]
+                writer.writerow(
+                    {
+                        "chromosome": row["clean_sequence_id"],
+                        "source_seqid": row["source_seqid"],
+                        "length": row["length"],
+                        "gene_count": row["gene_count"],
+                        "is_primary": "Y" if region.is_primary else "N",
+                    }
+                )
+
     all_validation = _validate_bundle(
         all_gff_path, all_lens_path, all_cds_path, all_pep_path
     )
@@ -1346,6 +1379,8 @@ def _process_species_into(
                 reason = "organelle_sequence"
             elif count == 0:
                 reason = "no_valid_protein_gene"
+            elif region.seqid in sequence_selection.below_floor:
+                reason = "below_min_genes_per_chromosome"
             elif region.seqid not in sequence_selection.keep:
                 reason = "outside_wgdi_sequence_set"
             writer.writerow(
@@ -1459,9 +1494,25 @@ def _process_species_into(
             "min_genes_per_sequence": options.min_genes_per_sequence,
             "target_gene_coverage": options.target_gene_coverage,
             "max_sequences": options.max_sequences,
+            "min_genes_per_chromosome": options.min_genes_per_chromosome,
+        },
+        "chromosome_summary": {
+            "n_chromosomes": len(chromosome_rows),
+            "total_genes": sum(int(str(row["gene_count"])) for row in chromosome_rows),
+            "n_dropped_below_floor": len(sequence_selection.below_floor),
+            "chromosomes": [
+                {
+                    "chromosome": row["clean_sequence_id"],
+                    "source_seqid": row["source_seqid"],
+                    "gene_count": row["gene_count"],
+                    "length": row["length"],
+                }
+                for row in chromosome_rows
+            ],
         },
         "all_bundle": all_validation,
         "wgdi_bundle": selected_validation,
+        "n_wgdi_sequences": selected_validation["n_sequences"],
         "gff_feature_counts": dict(sorted(parsed.feature_counts.items())),
         "anomalies": [asdict(item) for item in [*parsed.anomalies, *cds.anomalies, *pep.anomalies]],
         "artifact_naming": {

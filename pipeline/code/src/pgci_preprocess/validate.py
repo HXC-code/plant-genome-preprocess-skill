@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from pgci_preprocess.artifact_naming import is_canonical_gene_id
+from pgci_preprocess.adjudication import gate_status_from_qc
 from pgci_preprocess.readiness import extract_qc_readiness
 from pgci_preprocess.species_names import load_species_names
 
@@ -37,6 +38,7 @@ class ValidationOptions:
     require_compat_links: bool = True
     verify_hashes: bool = True
     allow_not_ready: bool = False
+    require_adjudication: bool = False
     report_path: Path | None = None
 
 
@@ -138,6 +140,8 @@ def _check_species(
     *,
     expected_code: str = "",
     allow_not_ready: bool = False,
+    project_root: Path | None = None,
+    require_adjudication: bool = False,
 ) -> tuple[dict[str, object], set[str]]:
     code = row.get("code", "").strip()
     canonical_code = expected_code.strip() or code
@@ -305,6 +309,12 @@ def _check_species(
                 selection = qc.get("sequence_selection")
                 ratio = selection.get("ratio", "") if isinstance(selection, dict) else ""
                 problems.append(f"wgdi_not_ready_low_coverage:ratio={ratio}")
+            if require_adjudication and project_root is not None:
+                status = gate_status_from_qc(
+                    project_root, canonical_code, qc_path, qc
+                )
+                if status != "ok":
+                    problems.append(f"adjudication_{status}")
         except (OSError, ValueError, json.JSONDecodeError):
             problems.append("qc_unreadable")
     else:
@@ -477,6 +487,8 @@ def validate_project(options: ValidationOptions) -> ValidationReport:
             canonical_root,
             expected_code=display_code(row),
             allow_not_ready=options.allow_not_ready,
+            project_root=options.project_root,
+            require_adjudication=options.require_adjudication,
         )
         code = display_code(row)
         result["code"] = code

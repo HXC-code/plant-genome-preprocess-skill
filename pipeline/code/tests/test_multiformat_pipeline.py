@@ -144,9 +144,9 @@ def test_cli_and_legacy_wrapper_are_equivalent(tmp_path: Path) -> None:
     )
     assert all(result["status"] == "OK" for result in direct_results)
 
-    cli_result = _run_cli(cli, "--min-genes-per-sequence", "1")
+    cli_result = _run_cli(cli, "--min-genes-per-sequence", "1", "--min-genes-per-chromosome", "0")
     assert cli_result.returncode == 0, cli_result.stderr
-    wrapper_result = _run_cli(wrapper, "--min-genes-per-sequence", "1", module=False)
+    wrapper_result = _run_cli(wrapper, "--min-genes-per-sequence", "1", "--min-genes-per-chromosome", "0", module=False)
     assert wrapper_result.returncode == 0, wrapper_result.stderr
 
     for code in ("s1", "s2", "s3", "s4"):

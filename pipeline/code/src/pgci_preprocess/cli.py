@@ -26,6 +26,11 @@ from pgci_preprocess.project_init import ProjectInitError, init_project
 from pgci_preprocess.pipeline import PipelineOptions, run_project
 from pgci_preprocess.organelle import MT_MIN_CORE_GENES
 from pgci_preprocess.readiness import read_readiness_map
+from pgci_preprocess.adjudication import (
+    DECISIONS,
+    gate_status,
+    write_adjudication,
+)
 from pgci_preprocess.wgdi_integrity import check_comparison_outputs
 from pgci_preprocess.source_manifest import (
     SourceManifestError,
@@ -51,6 +56,9 @@ COMMANDS = {
     "validate",
     "readiness",
     "check-wgdi-outputs",
+    "adjudicate",
+    "adjudication-status",
+    "chromosomes",
     "batch",
     "audit",
     "convert",
@@ -215,6 +223,16 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--coverage", type=float, default=0.90)
     run.add_argument("--max-sequences", type=int, default=200)
     run.add_argument(
+        "--min-genes-per-chromosome",
+        type=int,
+        default=100,
+        help=(
+            "Drop any WGDI chromosome with fewer than this many representative "
+            "genes (default: %(default)s; 0 disables). Applied after sequence "
+            "selection; exclusions are recorded in chr_map."
+        ),
+    )
+    run.add_argument(
         "--overwrite",
         action="store_true",
         help="Replace existing valid output directories (default: preserve them).",
@@ -281,6 +299,15 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Accept wgdi_ready=no bundles for archival/data-integrity validation.",
     )
+    validate.add_argument(
+        "--require-adjudication",
+        action="store_true",
+        help=(
+            "Hard gate: every species needs a current, accepting human "
+            "adjudication of its chromosome count (the lab SOP). Missing/stale/"
+            "mismatched sign-offs FAIL. The skill enables this by default."
+        ),
+    )
     validate.add_argument("--report", type=Path)
     validate.set_defaults(func=_cmd_validate)
 
@@ -307,6 +334,41 @@ def build_parser() -> argparse.ArgumentParser:
     integrity.add_argument("--folder", type=Path, required=True)
     integrity.add_argument("--prefix", required=True)
     integrity.set_defaults(func=_cmd_check_wgdi_outputs)
+
+    adjudicate = sub.add_parser(
+        "adjudicate",
+        help="Record a human sign-off on the final WGDI chromosome count.",
+    )
+    _add_project_root(adjudicate)
+    adjudicate.add_argument("--species", required=True, help="Species code.")
+    adjudicate.add_argument("--confirmed-n", type=int, required=True)
+    adjudicate.add_argument(
+        "--decision", required=True, choices=sorted(DECISIONS)
+    )
+    adjudicate.add_argument("--reviewer", required=True)
+    adjudicate.add_argument("--rationale", default="")
+    adjudicate.set_defaults(func=_cmd_adjudicate)
+
+    adj_status = sub.add_parser(
+        "adjudication-status",
+        help="Report the adjudication gate status per species (authoritative).",
+    )
+    _add_project_root(adj_status)
+    adj_status.add_argument(
+        "--species", help="Comma-separated codes; default: read folder_list.txt."
+    )
+    adj_status.add_argument("--output", type=Path)
+    adj_status.set_defaults(func=_cmd_adjudication_status)
+
+    chromosomes = sub.add_parser(
+        "chromosomes",
+        help="Print the per-species chromosome inventory (count + genes each).",
+    )
+    _add_project_root(chromosomes)
+    chromosomes.add_argument(
+        "--species", help="Comma-separated codes; default: read folder_list.txt."
+    )
+    chromosomes.set_defaults(func=_cmd_chromosomes)
 
     batch = sub.add_parser(
         "batch",
@@ -601,6 +663,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
         min_genes_per_sequence=args.min_genes_per_sequence,
         target_gene_coverage=args.coverage,
         max_sequences=args.max_sequences,
+        min_genes_per_chromosome=args.min_genes_per_chromosome,
         overwrite=args.overwrite,
         gff_format=args.gff_format,
         protein_normalization=args.protein_normalization,
@@ -644,6 +707,7 @@ def _cmd_validate(args: argparse.Namespace) -> int:
                 require_compat_links=not args.no_compat_links,
                 verify_hashes=not args.skip_hashes,
                 allow_not_ready=args.allow_not_ready,
+                require_adjudication=args.require_adjudication,
                 report_path=args.report,
             )
         )
@@ -687,6 +751,80 @@ def _cmd_check_wgdi_outputs(args: argparse.Namespace) -> int:
     for problem in problems:
         print(problem)
     return 1 if problems else 0
+
+
+def _species_ids(args: argparse.Namespace) -> list[str]:
+    if args.species:
+        return [item.strip() for item in args.species.split(",") if item.strip()]
+    folder_list = args.project_root / "folder_list.txt"
+    if folder_list.is_file():
+        return [
+            line.strip()
+            for line in folder_list.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+    return []
+
+
+def _cmd_adjudicate(args: argparse.Namespace) -> int:
+    try:
+        path = write_adjudication(
+            args.project_root,
+            args.species,
+            confirmed_n=args.confirmed_n,
+            decision=args.decision,
+            reviewer=args.reviewer,
+            rationale=args.rationale,
+        )
+    except ValueError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 2
+    status = gate_status(args.project_root, args.species)
+    print(
+        f"[{status}] {args.species} confirmed_n={args.confirmed_n} "
+        f"decision={args.decision} reviewer={args.reviewer}"
+    )
+    print(f"记录: {path}")
+    return 0
+
+
+def _cmd_adjudication_status(args: argparse.Namespace) -> int:
+    ids = _species_ids(args)
+    text = "".join(
+        f"{species_id}\t{gate_status(args.project_root, species_id)}\n"
+        for species_id in ids
+    )
+    if args.output:
+        args.output.write_text(text, encoding="utf-8")
+    else:
+        sys.stdout.write(text)
+    return 0
+
+
+def _cmd_chromosomes(args: argparse.Namespace) -> int:
+    import csv
+
+    ids = _species_ids(args)
+    missing = 0
+    for code in ids:
+        path = args.project_root / "analysis_v2" / code / f"{code}.chromosomes.tsv"
+        if not path.is_file():
+            path = args.project_root / "clean_v2" / code / f"{code}.chromosomes.tsv"
+        if not path.is_file():
+            print(f"{code}: 缺少染色体清单（先 run）")
+            missing += 1
+            continue
+        with path.open(encoding="utf-8", newline="") as handle:
+            rows = list(csv.DictReader(handle, delimiter="\t"))
+        total = sum(int(row["gene_count"]) for row in rows)
+        print(f"{code}: {len(rows)} 条染色体，共 {total} 个基因")
+        print("chromosome\tgene_count\tlength\tsource_seqid\tis_primary")
+        for row in rows:
+            print(
+                f"{row['chromosome']}\t{row['gene_count']}\t{row['length']}"
+                f"\t{row['source_seqid']}\t{row['is_primary']}"
+            )
+    return 1 if missing else 0
 
 
 def _cmd_batch(args: argparse.Namespace) -> int:

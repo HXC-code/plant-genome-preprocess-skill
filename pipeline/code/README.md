@@ -1,8 +1,8 @@
-# NCBI 注释标准化与 WGDI 预处理
+# HXC 植物基因组预处理核心
 
-本目录使用统一入口 `python -m pgci_preprocess`，把 GFF3/GTF/GBFF 注释与
-CDS/蛋白 FASTA 转换为带全局唯一 ID、可直接进入 BLAST/WGDI 的一基因一代表转录本数据；
-缺少 CDS/蛋白但没有缺少 genome 与 GFF 时，可从 CDS 坐标自动提取。
+本目录使用统一入口 `python -m pgci_preprocess`，将 GFF3/GTF/GBFF 注释与
+CDS/蛋白 FASTA 整理为带全局唯一 ID、可直接进入 BLAST/WGDI 的一基因一代表转录本数据；
+在 genome 和带 CDS 的 GFF 可用时，程序可从坐标自动提取缺失的 CDS 和蛋白序列。
 `scripts/` 下的四个旧入口保留为薄兼容包装器。
 
 ## 物种代号
@@ -29,10 +29,10 @@ data/downloads/
 resources/download_inventory.tsv
 ```
 
-## 新项目初始化与依赖预检（v3.2.0）
+## 新项目初始化与依赖预检
 
-预处理项目根与分析执行根是两个不同目录：前者含 `data/downloads` 和 `resources`，后者含
-`0check_data.sh` 至 `6run_wgdi.sh` 以及 `<Abbr>/` 四件套兼容目录，不要混用。
+预处理项目根保存 `data/downloads` 和 `resources`，分析执行根保存
+`0check_data.sh` 至 `6run_wgdi.sh` 以及 `<Abbr>/` 四件套兼容目录。两个目录分别管理数据与执行参数，便于长期归档和复现。
 
 ```powershell
 # 自动创建嵌套项目根、data/downloads、resources 和两张标准 TSV 表头
@@ -58,7 +58,7 @@ python -m pgci_preprocess doctor --project-root <project> --workflow full `
 python -m venv .venv
 # 激活新环境后：预处理 + GBFF 支持
 python -m pip install -e ".[gbff]"
-# 完整 WGDI：父目录附有本次真实 smoke 的精确版本，不是通用最低版本声明
+# 完整 WGDI：使用父目录中本次真实 smoke 验证过的精确版本
 python -m pip install -r ..\requirements-wgdi-validated.txt
 ```
 
@@ -134,6 +134,8 @@ python scripts/validate_wgdi_dataset.py --expected-count 109 --no-compat-links
 --accession-policy strict     # strict/legacy
 --organelle-pattern <regex>   # 强制排除匹配的合成序列 ID（细胞器）
 --no-organelle-inference      # 关闭合成 region 的细胞器推断
+--organelle-mt-min-genes 3    # 线粒体核心基因家族自动排除阈值
+--min-genes-per-chromosome 100 # 丢弃基因数不足 N 的染色体（CLI 默认 100，0 关）
 ```
 
 无 genome、无显式 region 的简化注释，`run` 会对合成 region 做细胞器推断：
@@ -147,11 +149,31 @@ python scripts/validate_wgdi_dataset.py --expected-count 109 --no-compat-links
 （`wgdi_not_ready_low_coverage`）；仅做数据完整性归档时显式加
 `--allow-not-ready`（`0check_data.sh` 同名参数透传）。
 
-## 同源搜索与 WGDI 执行（可选下游层）
+### 染色体清单与人工裁决（3.6.0）
 
-本章脚本不属于预处理核心，`pgci_preprocess run` 不会调用它们。只想把原始数据
-标准化为 WGDI 输入时，到上一章的 `run` / `validate` / `check-names` 即可结束。
-只有需要一并执行同源比对和 WGDI 分析时，才继续下面的步骤。
+`run` 生成 `<code>.chromosomes.tsv`（analysis_v2 与 clean_v2），列出保留染色体数、
+每条基因数/长度/来源/是否 primary；QC 增 `chromosome_summary` 与顶层
+`n_wgdi_sequences`。`--min-genes-per-chromosome`（CLI 默认 100）在选择后丢弃
+基因数不足的染色体，排除原因 `below_min_genes_per_chromosome` 记入 chr_map。
+
+```powershell
+python -m pgci_preprocess chromosomes --project-root <root> --species <code>
+python -m pgci_preprocess adjudicate --project-root <root> --species <code> `
+  --confirmed-n <N> --decision accept --reviewer <name> --rationale <text>
+python -m pgci_preprocess adjudication-status --project-root <root> --species <code>
+python -m pgci_preprocess validate --project-root <root> --require-adjudication
+```
+
+裁决记录绑定 QC 版本 + SHA-256，重跑后旧签字失效（stale）。decision：
+accept / accept_with_note（confirmed_n 须等于程序染色体数）、adjust / reject（门禁拦截）。
+`validate --require-adjudication` 与下游 `HOMOLOGY_REQUIRE_ADJUDICATION=true`
+构成硬门禁；裸 CLI 默认关闭以便归档，Skill 调用默认开启。
+
+## 同源搜索与 WGDI 执行
+
+本章脚本构成可选下游层，用于在预处理完成后执行同源比对和 WGDI 分析。
+只进行数据标准化时，上一章的 `run` / `validate` / `check-names` 完成后即可交付四件套。
+需要继续执行同源比对和 WGDI 分析时，按下面的步骤运行。
 
 预处理通过只代表“输入就绪”。实际执行在 `wgdi_pipeline` 根目录进行，四件套必须先放在
 `s<code>/` 中并成套使用：
@@ -176,15 +198,13 @@ bash 6run_wgdi.sh               # 检查每个比较的 8 个关键结果
 `1run_diamond.sh`、`1run_blast.sh`、`4run_wgdi_different.sh` 和
 `5run_wgdi_same.sh` 是兼容入口；新脚本只需要维护共享实现。
 
-WGDI 的串联重复过滤由 `tandem=false` 控制，本项目默认开启。上游 `-r <config>` 原语义是
-保留率分析，不能改作串联重复开关；项目 wrapper 因此扩展了末尾单独 `-r` 或
-`--remove-tandem` 的运行标志。手工恢复串联重复时设置 `WGDI_TANDEM=true`
-重新生成配置。
+WGDI 的串联重复过滤由 `tandem=false` 控制，本项目默认开启。上游 `-r <config>` 用于
+保留率分析；项目 wrapper 使用末尾单独 `-r` 或 `--remove-tandem` 控制串联重复过滤。
+恢复串联重复时设置 `WGDI_TANDEM=true` 重新生成配置。
 
 DIAMOND 可用 `DIAMOND_EVALUE`、`DIAMOND_SENSITIVITY`、`DIAMOND_THREADS`、
 `DIAMOND_MAX_TARGETS` 配置；本次参数写入 `Auto_pep/diamond_run_settings.tsv`。`1e-5` 是同源
-搜索阈值，不属于 GFF/FASTA 格式转换，也不会硬编码进预处理。`very-sensitive` 是速度—灵敏度
-折中；`ultra-sensitive` 更慢，是否使用应按数据集和验证结果决定。
+搜索阈值，由下游脚本配置。`very-sensitive` 是速度—灵敏度折中；`ultra-sensitive` 提供更高灵敏度并增加运行时间，可按数据集和验证结果选用。
 
 Windows 总控默认选择 DIAMOND，不需要指定历史 `bioinfo_win` 环境：
 
@@ -283,8 +303,8 @@ python -m pgci_preprocess convert-annotation `
 | 输入内容 | 输出 | 进入 BLAST/WGDI 的方式 |
 | --- | --- | --- |
 | GTF | `<prefix>.gff3.gz` | `prepare/batch` 自动转换并注册；若 CDS/PEP 缺失且 genome 可用，会继续自动提取 |
-| GenBank/GBFF | `<prefix>.gff3.gz`、`.cds.fa.gz`、`.pep.fa.gz`，默认另有 `.genome.fa.gz` | 四者作为同一派生 bundle 交给 `run`；只导出编码相关结构，不是无损 GenBank 全特征导出 |
-| 功能注释表 | `<prefix>.functional.tsv.gz` | 仅作功能元数据，不能替代 GFF/CDS/PEP，也不能当作 WGDI 坐标文件 |
+| GenBank/GBFF | `<prefix>.gff3.gz`、`.cds.fa.gz`、`.pep.fa.gz`，默认另有 `.genome.fa.gz` | 四者作为同一派生 bundle 交给 `run`；导出内容覆盖编码分析所需结构 |
+| 功能注释表 | `<prefix>.functional.tsv.gz` | 规范化功能元数据；WGDI 坐标分析使用 GFF/CDS/PEP |
 
 GBFF 解析使用惰性加载的 Biopython（>=1.83），只在使用 GBFF 转换时需要：
 
@@ -294,15 +314,14 @@ python -m pip install "biopython>=1.83"
 
 GBFF 的 CDS/PEP 以 `protein_id` 为键，并在写出后强制回读检查 GFF/CDS/PEP 的 ID 集合一致。
 NCBI Gnomon 多 isoform 会先按显式 transcript、坐标结构和 `isoform Xn`/`transcript variant Xn`
-消歧；仍不能唯一对应时从 CDS 合成 transcript 并写入警告，不伪造 protein–transcript 关系。
+消歧；需要时从 CDS 合成 transcript，并在报告中写入警告和对应关系。
 重复 protein_id 或显式 transcript 对应多个 protein 会失败关闭。`--max-records N` 仅用于
-GBFF 冒烟测试，manifest 会写成 `complete=false`，不能作为完整发布数据。
+GBFF 冒烟测试，manifest 会写成 `complete=false`，便于区分测试子集和完整数据。
 转换时会用 `transl_table` 重新翻译提取的 CDS，并与 `translation` qualifier 强制比对；
 不一致直接拒绝。GFF 中的 `transl_table` 也会进入 run 的翻译 QC 和 `gene_map.tsv`。
 
-功能表实际是无表头、tab 分隔的七列混合功能注释（本项目实测含 GO、NR、SP、TR），不是
-普通逗号 CSV。输出保留所有来源并分别计数；描述中的换行会转为可读的 `\\n` 转义文本。
-其他没有明确 schema 的 CSV/TSV/JSONL 不会被猜测性转换。
+功能表的实测格式为无表头、tab 分隔的七列混合功能注释（GO、NR、SP、TR）。输出保留所有来源并分别计数；描述中的换行会转为可读的 `\\n` 转义文本。
+CSV/TSV/JSONL 转换依据明确 schema 执行。
 
 ## 核心规则
 

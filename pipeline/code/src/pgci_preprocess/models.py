@@ -105,4 +105,5 @@ class SequenceSelection:
     total_genes: int
     ratio: float
     ready: str
+    below_floor: set[str] = field(default_factory=set)
 

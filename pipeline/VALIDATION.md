@@ -50,7 +50,7 @@ Build and inspect a source release:
 
 ```powershell
 python code/tools/build_release_package.py `
-  --output dist/plant-genome-preprocess-v3.5.5.zip
+  --output dist/plant-genome-preprocess-v3.6.0.zip
 ```
 
 The ZIP includes its own `PACKAGE_SHA256.tsv`; the build command prints the
@@ -75,6 +75,22 @@ derived real-data smoke can additionally be built with
 `build_wgdi_smoke_fixture.py`.
 
 ## Current status
+
+On 2026-11-21 version 3.6.0 passed:
+
+- Per-species chromosome inventory (`<Abbr>.chromosomes.tsv` + QC
+  `chromosome_summary`) and a configurable per-chromosome gene floor
+  (`--min-genes-per-chromosome`, CLI default 100) with auditable exclusions.
+- Human adjudication hard gate bound to QC version + SHA-256: `adjudicate` /
+  `adjudication-status` CLI, `validate --require-adjudication`, and downstream
+  skip via `HOMOLOGY_REQUIRE_ADJUDICATION=true`. Re-runs invalidate stale
+  sign-offs; reject/adjust/count-mismatch block the gate.
+- Real-data acceptance: Hevea Hbr inventory (21 chromosomes / 48,109 genes,
+  0 dropped below floor); adjudication gate verified FAIL → sign-off → PASS.
+- Windows synthetic full-chain smoke: four comparisons, eight products each
+  (`validation/smoke-report-3.6.0.json`), readiness gate via the canonical
+  reader.
+- The local Python suite passed `200` tests; Ruff and Mypy passed.
 
 On 2026-11-21 version 3.5.5 passed:
 
@@ -143,6 +159,7 @@ real-subset execution acceptance. It is not a BUSCO lineage assessment or a
 full-proteome biological WGD conclusion. See:
 
 - `validation/smoke-report-3.5.4.json`
+- `validation/smoke-report-3.6.0.json`
 - `validation/smoke-report-3.5.5.json`
 - `validation/smoke-report-3.5.3.json`
 - `validation/smoke-report-3.5.2-linux.json`

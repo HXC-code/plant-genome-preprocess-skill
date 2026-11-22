@@ -161,6 +161,34 @@ function Test-WgdiReadinessAllowsRun {
     return $Readiness -in @("yes", "marginal")
 }
 
+function Get-WgdiAdjudicationStatus {
+    param([string]$SpeciesId)
+
+    $pythonExe = if ($env:PYTHON) { $env:PYTHON } else { "python" }
+    $srcDir = Join-Path $script:ProjectRoot "code\src"
+    $savedPythonPath = $env:PYTHONPATH
+    try {
+        $env:PYTHONPATH = if ($savedPythonPath) { "$srcDir;$savedPythonPath" } else { $srcDir }
+        $out = & $pythonExe -m pgci_preprocess adjudication-status --project-root $script:ProjectRoot --species $SpeciesId 2>$null
+        if ($LASTEXITCODE -eq 0 -and $out) {
+            $fields = ([string]$out).Split("`t")
+            if ($fields.Count -ge 2) { return $fields[1].Trim() }
+        }
+    }
+    catch { }
+    finally { $env:PYTHONPATH = $savedPythonPath }
+    return "unknown"
+}
+
+function Test-WgdiAdjudicationAllowsRun {
+    param([string]$SpeciesId)
+
+    if ($env:HOMOLOGY_REQUIRE_ADJUDICATION -notmatch '^(?i:true|1|yes)$') {
+        return $true
+    }
+    return (Get-WgdiAdjudicationStatus $SpeciesId) -eq "ok"
+}
+
 function Get-PipelineSpecies {
     $listPath = Join-Path $script:ProjectRoot "folder_list.txt"
     if (Test-Path -LiteralPath $listPath -PathType Leaf) {
@@ -181,7 +209,7 @@ function Get-PipelineSpecies {
                 $_.Name -notlike ".*"
             } |
             ForEach-Object { $_.Name } |
-            Where-Object { Test-WgdiReadinessAllowsRun (Get-WgdiSpeciesReadiness $_) } |
+            Where-Object { (Test-WgdiReadinessAllowsRun (Get-WgdiSpeciesReadiness $_)) -and (Test-WgdiAdjudicationAllowsRun $_) } |
             Sort-Object
     )
 }
@@ -245,6 +273,9 @@ function Get-DiscoveredSpeciesInputs {
             continue
         }
         if (-not (Test-WgdiReadinessAllowsRun (Get-WgdiSpeciesReadiness $speciesId))) {
+            continue
+        }
+        if (-not (Test-WgdiAdjudicationAllowsRun $speciesId)) {
             continue
         }
         $entry = [pscustomobject]@{
@@ -921,7 +952,7 @@ function Test-PipelinePrerequisites {
             }
             if ($allPresent) {
                 $readiness = Get-WgdiSpeciesReadiness $speciesId
-                if (Test-WgdiReadinessAllowsRun $readiness) {
+                if ((Test-WgdiReadinessAllowsRun $readiness) -and (Test-WgdiAdjudicationAllowsRun $speciesId)) {
                     $completeSpecies++
                 }
                 else {
