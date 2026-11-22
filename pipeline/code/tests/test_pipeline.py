@@ -195,7 +195,7 @@ def test_run_shows_chromosome_inventory_to_the_caller(
     )
     out = capsys.readouterr().out
     assert "chromosomes " in out
-    assert ".chromosomes.tsv" in out
+    assert ".chromosome_map.tsv" in out
     # per-chromosome gene counts must be visible, not only the sequence count
     assert "1:" in out
     # the inventory line must stay ASCII so a cp1252 console cannot crash run

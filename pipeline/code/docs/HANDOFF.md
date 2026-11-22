@@ -2,15 +2,23 @@
 
 ## Product boundary
 
-The project contains two explicitly separated modes:
+Scope follows the lab's authoritative workflow (`code/docs/WORKFLOW.md`,
+整体流程): steps 1–4 are implemented; steps 5–8 (phylogeny, literature
+cross-check, multiple collinearity, circos) are out of scope and must be
+disclosed before analysis.
 
 | Mode | Entry | Output |
 | --- | --- | --- |
-| Preprocess only | `python -m pgci_preprocess run` then `validate` | WGDI-ready pep/CDS/GFF/lens plus QC |
-| Full comparison | `run_homology.sh`, scripts 2-3, config wrappers 4-5, `6run_wgdi.sh` | Pairwise homology, collinearity blocks and Ks evidence |
+| Preprocess only | `python -m pgci_preprocess run` then `validate` | WGDI-ready pep/CDS/GFF/lens plus QC, chromosome_map/removed_list/qc_record |
+| Full comparison | `run_homology.sh`, scripts 2-3, config wrappers 4-5, `6run_wgdi.sh` | Pairwise homology, dotplots and collinearity blocks; Ks evidence only with `WGDI_KS=true` |
 
-The name `plant-genome-preprocess` describes the authoring package. The
-workflow root additionally provides an optional WGDI execution layer.
+SOP rules enforced by the engine: representative transcript = longest CDS,
+ties by stable transcript ID (never protein length or file order); CLI sequence
+selection defaults to `chromosomes` (fail-closed `no_chromosome_sequences`
+without chromosome evidence; `--sequence-mode adaptive` is the escape hatch);
+Ks stages are opt-in because upstream blockinfo/correspondence consume Ks
+values. The audit chain (input SHA-256, source manifests, version-bound
+adjudication) is retained by explicit decision.
 
 ## Supported entry points
 
@@ -34,7 +42,10 @@ bash run_homology.sh                 # HOMOLOGY_ENGINE=diamond by default
 bash 2run_pre_wgdi.sh
 bash 3blast_to_wgdi.sh
 python code/tools/generate_wgdi_configs.py --mode all
-bash 6run_wgdi.sh
+bash 6run_wgdi.sh                    # core: .png + .icl
+# Optional Ks branch (all three steps read the same switch):
+WGDI_KS=true python code/tools/generate_wgdi_configs.py --mode all
+WGDI_KS=true bash 6run_wgdi.sh       # adds .ks/.bi.csv/.bi.c.csv/.bk/.kp/.pf
 ```
 
 The homology runner gates on the preprocessing QC: species with

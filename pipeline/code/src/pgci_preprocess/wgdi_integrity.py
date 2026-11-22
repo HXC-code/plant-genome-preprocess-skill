@@ -69,20 +69,29 @@ def _check_bi_csv(path: Path) -> str:
     return ""
 
 
-def check_comparison_outputs(folder: Path, prefix: str) -> list[str]:
-    """Return a list of integrity problems for one comparison's 8 products."""
+def check_comparison_outputs(
+    folder: Path, prefix: str, ks_enabled: bool = False
+) -> list[str]:
+    """Return integrity problems for one comparison's products.
+
+    Default (SOP step 4 core): dotplot + collinearity. With ``ks_enabled``
+    the six Ks-stage products are required as well.
+    """
 
     folder = Path(folder)
     specs: list[tuple[str, Callable[[Path], str]]] = [
         (f"{prefix}.png", _check_png),
-        (f"{prefix}.bk.png", _check_png),
-        (f"{prefix}.kp.png", _check_png),
-        (f"{prefix}.pf.png", _check_png),
-        (f"{prefix}.ks", _check_ks),
         (f"{prefix}.icl", _check_icl),
-        (f"{prefix}.bi.csv", _check_bi_csv),
-        (f"{prefix}.bi.c.csv", _check_bi_csv),
     ]
+    if ks_enabled:
+        specs += [
+            (f"{prefix}.bk.png", _check_png),
+            (f"{prefix}.kp.png", _check_png),
+            (f"{prefix}.pf.png", _check_png),
+            (f"{prefix}.ks", _check_ks),
+            (f"{prefix}.bi.csv", _check_bi_csv),
+            (f"{prefix}.bi.c.csv", _check_bi_csv),
+        ]
     problems: list[str] = []
     for name, checker in specs:
         path = folder / name

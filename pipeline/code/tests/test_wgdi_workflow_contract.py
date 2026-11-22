@@ -35,13 +35,14 @@ def _workspace(tmp_path: Path) -> tuple[Path, Path]:
 
 
 def _generate(
-    project: Path, fake_wgdi: Path, mode: str
+    project: Path, fake_wgdi: Path, mode: str, ks: str = "false"
 ) -> subprocess.CompletedProcess[str]:
     env = {
         **os.environ,
         "WGDI": str(fake_wgdi),
         "WGDI_TANDEM": "false",
         "WGDI_EVALUE": "1e-5",
+        "WGDI_KS": ks,
         "PYTHONIOENCODING": "utf-8",
     }
     return subprocess.run(
@@ -258,16 +259,50 @@ def test_different_config_is_generated_once_and_removes_tandem(
     config = (
         project / "Auto_wgdi" / "A_base" / "A_B" / "total.conf"
     ).read_text(encoding="utf-8")
-    assert config.count("tandem = false") == 3
-    assert "ks_col = ks_NG86" in config
-    assert "cds_file = all.cds" in config
+    # SOP default: core collinearity only; the Ks branch is opt-in.
+    assert "[dotplot]" in config
+    assert "[collinearity]" in config
+    assert "[ks]" not in config
+    assert "[correspondence]" not in config
+    assert "ks_col" not in config
     assert "gff1 = A.new.gff" in config
+    assert "savefile = A_B.icl" in config
     run = (project / "Auto_wgdi" / "A_base" / "A_B" / "run.sh").read_text(
         encoding="utf-8"
     )
     assert "WGDI_TANDEM_ARGS=(--remove-tandem)" in run
     assert "run_stage dotplot" in run
+    assert "run_stage collinearity" in run
+    assert "run_stage ks " not in run
+    assert "run_stage blockks" not in run
+    assert "run_stage peaksfit" not in run
     assert not (project / "Auto_wgdi" / "A_base" / "A_A" / "total.conf").exists()
+
+
+def test_ks_branch_is_opt_in_and_adds_all_six_stages(tmp_path: Path) -> None:
+    project, fake_wgdi = _workspace(tmp_path)
+    result = _generate(project, fake_wgdi, "different", ks="true")
+    assert result.returncode == 0, result.stdout + result.stderr
+    config = (
+        project / "Auto_wgdi" / "A_base" / "A_B" / "total.conf"
+    ).read_text(encoding="utf-8")
+    assert config.count("tandem = false") == 3
+    assert "ks_col = ks_NG86" in config
+    assert "cds_file = all.cds" in config
+    for section in ("[ks]", "[blockinfo]", "[correspondence]", "[blockks]", "[kspeaks]", "[peaksfit]"):
+        assert section in config
+    run = (project / "Auto_wgdi" / "A_base" / "A_B" / "run.sh").read_text(
+        encoding="utf-8"
+    )
+    for stage in ("dotplot", "collinearity", "ks", "blockinfo", "correspondence", "blockks", "kspeaks", "peaksfit"):
+        assert f"run_stage {stage} " in run
+
+
+def test_invalid_ks_flag_is_rejected(tmp_path: Path) -> None:
+    project, fake_wgdi = _workspace(tmp_path)
+    result = _generate(project, fake_wgdi, "same", ks="maybe")
+    assert result.returncode == 1
+    assert "WGDI_KS" in result.stderr
 
 
 def test_same_config_uses_single_species_and_is_generated_once(tmp_path: Path) -> None:
@@ -277,11 +312,11 @@ def test_same_config_uses_single_species_and_is_generated_once(tmp_path: Path) -
     config = (
         project / "Auto_wgdi" / "B_base" / "B_B" / "total.conf"
     ).read_text(encoding="utf-8")
-    assert config.count("tandem = false") == 3
-    assert "cds_file = B.cds" in config
+    assert "[ks]" not in config
     assert "gff1 = B.new.gff" in config
     assert "gff2 = B.new.gff" in config
     assert "blast = B_B.blast" in config
+    assert "savefile = B.icl" in config
     assert not (project / "Auto_wgdi" / "A_base" / "A_B" / "total.conf").exists()
 
 

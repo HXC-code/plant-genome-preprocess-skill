@@ -2,17 +2,29 @@
 
 HXC 植物基因组规范化与质控工具把植物注释、genome、CDS 和蛋白序列整理为命名统一、结构一致、来源可追溯的 WGDI 输入，并提供染色体清单、QC、人工裁决和可选的下游比较分析。
 
-当前版本：**3.6.2**
+当前版本：**3.7.0**
 
 - [快速上手](QUICKSTART.md)
 - [版本记录](CHANGELOG.md)
 - [验证说明](VALIDATION.md)
-- [3.6.2 发布页](https://github.com/HXC-code/plant-genome-preprocess/releases/tag/v3.6.2)
+- [整体流程（权威范围文档）](code/docs/WORKFLOW.md)
+- [3.7.0 发布页](https://github.com/HXC-code/plant-genome-preprocess/releases/tag/v3.7.0)
 - [Agent Skill 仓库](https://github.com/HXC-code/plant-genome-preprocess-skill)
+
+**范围**：按实验室《整体流程》实现第 1–4 步（数据收集整理 → 预处理四件套 →
+DIAMOND 同源比对 → WGDI 共线性）；Ks 为第 4 步内可选分支（`WGDI_KS=true`）。
+第 5–8 步（系统发育树、文献核对、多重共线性、圈图）不在范围内，分析前必须声明。
+
+## 3.7.0 重点
+
+- **代表转录本 SOP 规则**：CDS 最长优先，等长按稳定转录本 ID 字典序；不用蛋白长度或出现顺序。
+- **严格染色体筛选**：CLI 默认 `--sequence-mode chromosomes`，无染色体证据的物种 fail-closed（`no_chromosome_sequences`）；碎片化组装可用 `adaptive` 逃生门。
+- **Ks 可选**：默认只跑 dotplot + collinearity（`.png`/`.icl`）；`WGDI_KS=true`（Windows 总控 `-WithKs`）追加六个 Ks 阶段。
+- **SOP 追溯文件名**：`chromosome_map.tsv`、`removed_list.tsv`、新增人类可读 `qc_record.md`；审计链（哈希/manifest/裁决绑定）保留。
 
 ## 3.6.x 重点
 
-- **染色体清单**：`run` 输出每个物种保留了多条序列、序号和每条序列的代表基因数，并生成 `<Abbr>.chromosomes.tsv`。
+- **染色体清单**：`run` 输出每个物种保留了多条序列、序号和每条序列的代表基因数，并生成 `<Abbr>.chromosome_map.tsv`。
 - **染色体基因数下限**：CLI 默认丢弃代表基因数少于 100 的 WGDI 序列，排除记录写入 `chr_map` 和 QC。
 - **最终数量人工裁决**：复核人确认染色体数并签字；记录绑定 QC 版本和 SHA-256，重跑后旧签字自动失效。
 - **严格验收门禁**：`validate --require-adjudication` 拦截缺失、过期、拒绝或数量不符的裁决记录。
@@ -42,13 +54,13 @@ wgdi_ready=yes 或经复核的 marginal
 | 输入识别 | 识别 GFF/GFF3、GTF、GBFF、genome、CDS、蛋白和压缩格式 |
 | 格式转换 | GTF/GBFF 转为标准 GFF3，并可提取 CDS、蛋白和 genome |
 | 基因模型整理 | 补充 region、mRNA，处理 gene/mRNA/CDS 层级和拆分基因 |
-| 代表转录本 | 每个基因保留一个代表转录本 |
-| 序列筛选 | 按主染色体、基因数、覆盖率和序列上限生成 WGDI 序列集 |
+| 代表转录本 | 每个基因保留一个代表转录本（CDS 最长优先 + 稳定 ID 字典序） |
+| 序列筛选 | CLI 默认严格染色体模式；adaptive 模式按基因数/覆盖率/序列上限回退 |
 | 染色体清单 | 统计最终保留数、每条序列长度、代表基因数和来源 |
 | 数据 QC | 检查坐标、链、长度、CDS 翻译、ID 重复、taxon 和哈希 |
 | 来源追踪 | 生成 gene map、chromosome map、剔除记录和输入哈希 |
 | 人工裁决 | 记录最终染色体数、复核人、依据和 QC 指纹 |
-| 可选下游 | 执行 DIAMOND/BLAST、WGDI 共线性、Ks、block-Ks 和 peaks |
+| 可选下游 | 执行 DIAMOND/BLAST、WGDI 共线性；Ks/block-Ks/peaks 需 `WGDI_KS=true` 显式启用 |
 
 ## 输入数据
 
@@ -92,8 +104,9 @@ genome FASTA 是常用输入。缺少 genome 时，程序可使用 CDS 和转录
 <Abbr>.all.lens
 <Abbr>.gene_map.tsv
 <Abbr>.chr_map.tsv
-<Abbr>.chromosomes.tsv
+<Abbr>.chromosome_map.tsv
 <Abbr>.qc.json
+<Abbr>.qc_record.md
 ```
 
 `clean_v2/<Abbr>/` 包含：
@@ -101,8 +114,8 @@ genome FASTA 是常用输入。缺少 genome 时，程序可使用 CDS 和转录
 ```text
 <Abbr>.gene_map.tsv
 <Abbr>.chr_map.tsv
-<Abbr>.rejected.tsv
-<Abbr>.chromosomes.tsv
+<Abbr>.removed_list.tsv
+<Abbr>.chromosome_map.tsv
 ```
 
 ### WGDI 四件套
@@ -128,7 +141,7 @@ genome FASTA 是常用输入。缺少 genome 时，程序可使用 CDS 和转录
 
 ### 染色体清单
 
-`<Abbr>.chromosomes.tsv` 记录最终保留的 WGDI 序列：
+`<Abbr>.chromosome_map.tsv` 记录最终保留的 WGDI 序列：
 
 | 字段 | 含义 |
 | --- | --- |
@@ -205,7 +218,7 @@ python -m pgci_preprocess run --project-root D:\plant_project
 ```text
 [OK] Mun show_id=2848 Morus notabilis genes=... seqs=... ready=yes reason=
     chromosomes 10 (id:genes) 1:4210  2:3980  3:4521 ...
-    inventory: D:\plant_project\analysis_v2\Mun\Mun.chromosomes.tsv
+    inventory: D:\plant_project\analysis_v2\Mun\Mun.chromosome_map.tsv
 ```
 
 其中 `chromosomes` 是最终 WGDI 序列数，括号中是对应序列的代表基因数。
@@ -230,7 +243,7 @@ python -m pgci_preprocess chromosomes `
 同时查看：
 
 ```text
-analysis_v2\Mun\Mun.chromosomes.tsv
+analysis_v2\Mun\Mun.chromosome_map.tsv
 analysis_v2\Mun\Mun.chr_map.tsv
 analysis_v2\Mun\Mun.qc.json
 ```
@@ -406,7 +419,7 @@ resources/preprocess_batches/<batch_tag>_routing.tsv
 被剔除的转录本记录在：
 
 ```text
-clean_v2/<Abbr>/<Abbr>.rejected.tsv
+clean_v2/<Abbr>/<Abbr>.removed_list.tsv
 ```
 
 `validate` 检查文件存在性、名称、七列 GFF、三列 lens、坐标、顺序、ID 集合、字符集、哈希、兼容链接、`wgdi_ready` 和可选裁决记录。
@@ -456,6 +469,20 @@ powershell -ExecutionPolicy Bypass -File .\run_all_pipeline.ps1
 
 下游根据 `wgdi_ready` 和人工裁决状态选择物种。跳过记录写入 `skipped_species.txt`，报告中应同时列出成功和跳过物种。
 
+**Ks 分支默认关闭**：上述命令只产出点图与共线性块（`.png`/`.icl`）。需要
+Ks 值表、block-Ks 与分布峰值图时，显式启用：
+
+```bash
+WGDI_KS=true bash 6run_wgdi.sh   # 配置生成与验收同样读取 WGDI_KS
+```
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\run_all_pipeline.ps1 -WithKs
+```
+
+原因：上游 WGDI 的 blockinfo/correspondence 依赖 Ks 值，缺 Ks 时
+correspondence 会过滤掉全部区块，因此这些阶段只在启用 Ks 时运行。
+
 ## 科研使用范围
 
 - 多倍体和高杂合数据应选择能够区分等位 contig、homeolog 和亚基因组的注释来源，并在代表转录本筛选后人工抽查。
@@ -474,14 +501,13 @@ python -m ruff check src tests scripts tools
 python -m mypy src --ignore-missing-imports
 ```
 
-3.6.2 版本包含 202 项 Python 自动化测试，覆盖多格式输入、转换、命名、QC、染色体清单、100 基因下限、人工裁决门禁、下游门禁和 Windows 控制台回归。
+3.7.0 版本包含 212 项 Python 自动化测试，覆盖多格式输入、转换、命名、QC、染色体清单、100 基因下限、人工裁决门禁、严格染色体模式、CDS 优先规则、Ks 可选分支、下游门禁和 Windows 控制台回归。
 
 验证回执：
 
 ```text
-validation/smoke-report-3.6.2.json
-validation/smoke-report-3.6.1.json
-validation/smoke-report-3.6.0.json
+validation/smoke-report-3.7.0.json        # 完整 Ks 模式（4 组比较 × 8 产物）
+validation/smoke-report-3.7.0-core.json   # 默认核心模式（4 组比较 × 2 产物）
 ```
 
 详细环境、回执和发布门禁见 [VALIDATION.md](VALIDATION.md)。

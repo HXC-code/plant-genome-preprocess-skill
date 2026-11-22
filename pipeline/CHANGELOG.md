@@ -1,5 +1,38 @@
 # Changelog
 
+## 3.7.0 — 2026-11-22
+
+Aligns the workflow with the lab's authoritative `整体流程.md` (now bundled as
+`code/docs/WORKFLOW.md`): scope is steps 1–4, Ks is an opt-in branch, steps 5–8
+(phylogeny, literature cross-check, multiple collinearity, circos) are explicitly
+out of scope and must be disclosed before analysis.
+
+- Representative transcript rule (SOP): longest CDS first, ties broken by stable
+  transcript ID ascending. Protein length and file order are never used.
+- Sequence selection: new `--sequence-mode chromosomes|adaptive`. CLI/SOP default
+  is `chromosomes` (only chromosome-mounted sequences; species without chromosome
+  evidence fail closed with `no_chromosome_sequences`, never silently substituted
+  by scaffolds). Core API default stays `adaptive`; `batch` accepts the same flag.
+- Ks analysis is opt-in: `WGDI_KS=true` (Windows controller: `-WithKs`). Default
+  mode runs dotplot + collinearity only (`.png`, `.icl`); the six Ks-dependent
+  stages (ks/blockinfo/correspondence/blockks/kspeaks/peaksfit) run only when
+  enabled, because upstream blockinfo/correspondence consume Ks values and
+  correspondence filters out every block when Ks is absent. `6run_wgdi.sh`,
+  `check-wgdi-outputs --ks`, the Windows controller validation and the smoke
+  receipt collector are all mode-aware.
+- Traceability files renamed to the SOP names: `<Abbr>.chromosomes.tsv` →
+  `<Abbr>.chromosome_map.tsv`, `<Abbr>.rejected.tsv` → `<Abbr>.removed_list.tsv`;
+  new human-readable `<Abbr>.qc_record.md` generated deterministically from QC.
+  Audit chain retained by explicit decision: input SHA-256, source manifests and
+  version-bound adjudication are unchanged.
+- Data collection stays local: users download from the provided sources
+  themselves (prefer most complete assembly / newest publication); the tool
+  registers, routes and validates local files and marks unusable species with
+  reasons. No downloader is added.
+- Skill renamed to `plant-wgdi-preprocess` and rewritten around 整体流程 steps 1–4.
+- Engineering: 212+ tests, Ruff and Mypy pass; smoke receipts for both the core
+  mode (2 products) and the full Ks mode (8 products).
+
 ## 3.6.2 — 2026-11-22
 
 - Fix a crash introduced in 3.6.1: the chromosome inventory line printed

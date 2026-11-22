@@ -46,6 +46,9 @@ export DIAMOND_EVALUE="${DIAMOND_EVALUE:-1e-5}"
 export DIAMOND_SENSITIVITY="${DIAMOND_SENSITIVITY:-very-sensitive}"
 export DIAMOND_THREADS="${DIAMOND_THREADS:-4}"
 export WGDI_EVALUE="${WGDI_EVALUE:-$DIAMOND_EVALUE}"
+# The release gate exercises the full chain including the optional Ks branch;
+# set WGDI_KS=false to smoke only the SOP core (dotplot + collinearity).
+export WGDI_KS="${WGDI_KS:-true}"
 
 run_stage() {
     local script="$1"
@@ -69,8 +72,8 @@ run_stage 4run_wgdi_different.sh 04_config_different
 run_stage 5run_wgdi_same.sh 05_config_same
 run_stage 6run_wgdi.sh 06_wgdi
 
-printf 'status\tPASS\ndiamond_evalue\t%s\ndiamond_sensitivity\t%s\nscope\tDIAMOND plus scripts 2-6; step 0 covered separately by preprocess validation\n' \
-    "$DIAMOND_EVALUE" "$DIAMOND_SENSITIVITY" > smoke_status.tsv
+printf 'status\tPASS\ndiamond_evalue\t%s\ndiamond_sensitivity\t%s\nks_enabled\t%s\nscope\tDIAMOND plus scripts 2-6; step 0 covered separately by preprocess validation\n' \
+    "$DIAMOND_EVALUE" "$DIAMOND_SENSITIVITY" "$WGDI_KS" > smoke_status.tsv
 "$python_bin" "$script_dir/collect_wgdi_smoke_report.py" "$root"
 # Capture the public receipt in the same environment as the run: the collector
 # probes PATH for tool versions, so collecting later from a different shell

@@ -159,6 +159,7 @@ def main() -> int:
 
     comparisons: list[dict[str, object]] = []
     all_ok = status.get("status") == "PASS"
+    ks_enabled = status.get("ks_enabled", "true") == "true"
     for base in sorted((root / "Auto_wgdi").glob("*_base")):
         left = base.name[:-5]
         for comparison in sorted(path for path in base.iterdir() if path.is_dir()):
@@ -167,13 +168,16 @@ def main() -> int:
             names = {
                 "dotplot": f"{stem}.png",
                 "collinearity": f"{stem}.icl",
-                "ks": f"{stem}.ks",
-                "blockinfo": f"{stem}.bi.csv",
-                "correspondence": f"{stem}.bi.c.csv",
-                "blockks": f"{stem}.bk.png",
-                "kspeaks": f"{stem}.kp.png",
-                "peaksfit": f"{stem}.pf.png",
             }
+            if ks_enabled:
+                names.update({
+                    "ks": f"{stem}.ks",
+                    "blockinfo": f"{stem}.bi.csv",
+                    "correspondence": f"{stem}.bi.c.csv",
+                    "blockks": f"{stem}.bk.png",
+                    "kspeaks": f"{stem}.kp.png",
+                    "peaksfit": f"{stem}.pf.png",
+                })
             outputs: dict[str, object] = {}
             comparison_ok = True
             for stage, name in names.items():
@@ -215,6 +219,7 @@ def main() -> int:
         + "; DIAMOND and scripts 2-6 actually executed. Step 0 is covered separately by preprocessing tests/validation.",
         "not_claimed": "This is not a full WGDI rerun of the 109-species dataset or a new biological WGD inference.",
         "smoke_root": "<isolated-workspace>" if args.public else str(root),
+        "ks_enabled": ks_enabled,
         "fixture": fixture["selection"],
         "diamond": settings,
         "environment": runtime_environment(settings, public=args.public),
@@ -225,7 +230,7 @@ def main() -> int:
     print(json.dumps({
         "status": report["status"],
         "comparisons": len(comparisons),
-        "key_outputs_per_comparison": 8,
+        "key_outputs_per_comparison": 8 if ks_enabled else 2,
         "report": str(output),
     }, ensure_ascii=False, indent=2))
     return 0 if all_ok else 1

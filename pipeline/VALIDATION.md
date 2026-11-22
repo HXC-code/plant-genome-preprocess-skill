@@ -23,6 +23,9 @@ A release must pass all of the following:
    versions from a different shell afterwards: the collector reads `PATH`, so a
    later collection can record a different environment than the one that ran.
 9. The receipt records OS, Python, WGDI and external-tool versions.
+10. Both downstream modes are exercised: the default core mode (dotplot +
+    collinearity, 2 products) and the opt-in Ks mode (`WGDI_KS=true`, 8
+    products), each with a PASS receipt.
 
 The synthetic preprocessing test is included in the Python test suite. A WGDI
 smoke receipt depends on DIAMOND, MUSCLE, yn00, Perl and WGDI being installed on
@@ -50,7 +53,7 @@ Build and inspect a source release:
 
 ```powershell
 python code/tools/build_release_package.py `
-  --output dist/plant-genome-preprocess-v3.6.2.zip
+  --output dist/plant-genome-preprocess-v3.7.0.zip
 ```
 
 The ZIP includes its own `PACKAGE_SHA256.tsv`; the build command prints the
@@ -76,6 +79,24 @@ derived real-data smoke can additionally be built with
 
 ## Current status
 
+On 2026-11-22 version 3.7.0 passed:
+
+- SOP alignment with 整体流程 (bundled as `code/docs/WORKFLOW.md`): scope is
+  steps 1–4; representative transcript rule is longest CDS + stable ID;
+  CLI sequence selection defaults to strict chromosomes mode with fail-closed
+  `no_chromosome_sequences`; traceability files renamed to
+  `chromosome_map.tsv` / `removed_list.tsv` plus the new deterministic
+  `qc_record.md`. Audit chain retained by explicit decision.
+- Ks is opt-in (`WGDI_KS=true`, Windows `-WithKs`): default mode runs dotplot +
+  collinearity only; the six Ks-dependent stages run only when enabled.
+  Generator, `6run_wgdi.sh`, `check-wgdi-outputs --ks`, the Windows controller
+  and the receipt collector are mode-aware.
+- Windows synthetic full-chain smoke in both modes: four comparisons each,
+  8 products in Ks mode (`validation/smoke-report-3.7.0.json`) and 2 products
+  in core mode (`validation/smoke-report-3.7.0-core.json`).
+- The local Python suite passed `212` tests; Ruff and Mypy passed; strict WSL
+  `bash -n` passed for every workflow shell entry.
+
 On 2026-11-22 version 3.6.2 passed:
 
 - Regression coverage for a non-UTF-8 Windows console: the CLI is executed
@@ -95,7 +116,7 @@ On 2026-11-22 version 3.6.1 passed:
 
 On 2026-11-21 version 3.6.0 passed:
 
-- Per-species chromosome inventory (`<Abbr>.chromosomes.tsv` + QC
+- Per-species chromosome inventory (`<Abbr>.chromosome_map.tsv` + QC
   `chromosome_summary`) and a configurable per-chromosome gene floor
   (`--min-genes-per-chromosome`, CLI default 100) with auditable exclusions.
 - Human adjudication hard gate bound to QC version + SHA-256: `adjudicate` /
@@ -177,6 +198,8 @@ inference. The real-species receipt is a preprocessing/data-integrity and
 real-subset execution acceptance. It is not a BUSCO lineage assessment or a
 full-proteome biological WGD conclusion. See:
 
+- `validation/smoke-report-3.7.0.json`
+- `validation/smoke-report-3.7.0-core.json`
 - `validation/smoke-report-3.5.4.json`
 - `validation/smoke-report-3.6.2.json`
 - `validation/smoke-report-3.6.1.json`

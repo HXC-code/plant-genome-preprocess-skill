@@ -24,15 +24,28 @@ def _candidate(transcript: str, protein_length: int, cds_length: int) -> Candida
     )
 
 
-def test_representative_is_deterministic_and_prefers_longest_protein() -> None:
+def test_representative_prefers_longest_cds_not_protein() -> None:
+    # T3 has the longest protein, T2 the longest CDS: the SOP rule must pick
+    # T2. Protein length is never a selection criterion.
     chosen = choose_representative(
         [
-            _candidate("T3", 10, 33),
+            _candidate("T3", 30, 33),
             _candidate("T1", 20, 60),
-            _candidate("T2", 20, 63),
+            _candidate("T2", 19, 63),
         ]
     )
     assert chosen.source_transcript_id == "T2"
+
+
+def test_representative_tie_breaks_by_stable_id_not_input_order() -> None:
+    forward = choose_representative(
+        [_candidate("T2", 20, 60), _candidate("T1", 20, 60)]
+    )
+    reverse = choose_representative(
+        [_candidate("T1", 20, 60), _candidate("T2", 20, 60)]
+    )
+    assert forward.source_transcript_id == "T1"
+    assert reverse.source_transcript_id == "T1"
 
 
 def _region(seqid: str, *, primary: bool, organelle: bool = False) -> Region:
@@ -64,6 +77,70 @@ def test_sequences_use_primary_chromosomes_and_ignore_scaffolds() -> None:
     assert selection.mode == "primary_chromosome"
     assert selection.ratio == 0.0909
     assert selection.ready == "no"
+
+
+def test_chromosomes_mode_never_substitutes_scaffolds() -> None:
+    regions = {
+        "chr1": _region("chr1", primary=True),
+        "scaffold": _region("scaffold", primary=False),
+        "mt": _region("mt", primary=False, organelle=True),
+    }
+    selection = select_analysis_sequences(
+        regions,
+        Counter({"chr1": 10, "scaffold": 1000, "mt": 20}),
+        min_genes=50,
+        target_coverage=0.9,
+        max_sequences=200,
+        sequence_mode="chromosomes",
+    )
+    assert selection.keep == {"chr1"}
+    assert selection.mode == "chromosomes_only"
+
+
+def test_chromosomes_mode_fails_closed_on_scaffold_only_assembly() -> None:
+    regions = {"scaffold": _region("scaffold", primary=False)}
+    selection = select_analysis_sequences(
+        regions,
+        Counter({"scaffold": 1000}),
+        min_genes=50,
+        target_coverage=0.9,
+        max_sequences=200,
+        sequence_mode="chromosomes",
+    )
+    assert selection.keep == set()
+    assert selection.ready == "no"
+
+
+def test_chromosomes_mode_applies_gene_floor() -> None:
+    regions = {
+        "chr1": _region("chr1", primary=True),
+        "chr2": _region("chr2", primary=True),
+    }
+    selection = select_analysis_sequences(
+        regions,
+        Counter({"chr1": 200, "chr2": 5}),
+        min_genes=50,
+        target_coverage=0.9,
+        max_sequences=200,
+        min_genes_per_chromosome=100,
+        sequence_mode="chromosomes",
+    )
+    assert selection.keep == {"chr1"}
+    assert selection.below_floor == {"chr2"}
+
+
+def test_unknown_sequence_mode_is_rejected() -> None:
+    import pytest
+
+    with pytest.raises(ValueError):
+        select_analysis_sequences(
+            {},
+            Counter(),
+            min_genes=50,
+            target_coverage=0.9,
+            max_sequences=200,
+            sequence_mode="bogus",
+        )
 
 
 def test_fragmented_assembly_falls_back_to_gene_coverage() -> None:

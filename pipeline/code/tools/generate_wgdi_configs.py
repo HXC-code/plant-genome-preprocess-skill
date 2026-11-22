@@ -58,6 +58,7 @@ def _run_script(
     right: str,
     wgdi_entry: Path | str,
     tandem: bool,
+    ks_enabled: bool,
 ) -> str:
     common_products = left != right
     prep = ""
@@ -79,6 +80,25 @@ cat "{left}.pep" "{right}.pep" > all.pep
     )
     entry = shlex.quote(_bash_path(wgdi_entry))
     prefix = left if left == right else f"{left}_{right}"
+    # SOP step 4 core: dotplot + collinearity blocks. The six Ks-dependent
+    # stages (ks/blockinfo/correspondence/blockks/kspeaks/peaksfit) run only
+    # when the caller opts in with WGDI_KS=true: upstream blockinfo and
+    # correspondence consume Ks values, and with ks=none correspondence
+    # filters out every block, so they must not run in the default mode.
+    stages = [
+        f'run_stage dotplot "{prefix}.png" "${{WGDI_CMD[@]}}" -d total.conf',
+        f'run_stage collinearity "{prefix}.icl" "${{WGDI_CMD[@]}}" -icl total.conf',
+    ]
+    if ks_enabled:
+        stages += [
+            f'run_stage ks "{prefix}.ks" "${{WGDI_CMD[@]}}" -ks total.conf',
+            f'run_stage blockinfo "{prefix}.bi.csv" "${{WGDI_CMD[@]}}" -bi total.conf',
+            f'run_stage correspondence "{prefix}.bi.c.csv" "${{WGDI_CMD[@]}}" "${{WGDI_TANDEM_ARGS[@]}}" -c total.conf',
+            f'run_stage blockks "{prefix}.bk.png" "${{WGDI_CMD[@]}}" "${{WGDI_TANDEM_ARGS[@]}}" -bk total.conf',
+            f'run_stage kspeaks "{prefix}.kp.png" "${{WGDI_CMD[@]}}" "${{WGDI_TANDEM_ARGS[@]}}" -kp total.conf',
+            f'run_stage peaksfit "{prefix}.pf.png" "${{WGDI_CMD[@]}}" -pf total.conf',
+        ]
+    stage_lines = "\n".join(stages)
     return f"""#!/usr/bin/env bash
 set -euo pipefail
 export MPLBACKEND=Agg
@@ -110,14 +130,7 @@ run_stage() {{
     touch "$marker"
 }}
 
-run_stage dotplot "{prefix}.png" "${{WGDI_CMD[@]}}" -d total.conf
-run_stage collinearity "{prefix}.icl" "${{WGDI_CMD[@]}}" -icl total.conf
-run_stage ks "{prefix}.ks" "${{WGDI_CMD[@]}}" -ks total.conf
-run_stage blockinfo "{prefix}.bi.csv" "${{WGDI_CMD[@]}}" -bi total.conf
-run_stage correspondence "{prefix}.bi.c.csv" "${{WGDI_CMD[@]}}" "${{WGDI_TANDEM_ARGS[@]}}" -c total.conf
-run_stage blockks "{prefix}.bk.png" "${{WGDI_CMD[@]}}" "${{WGDI_TANDEM_ARGS[@]}}" -bk total.conf
-run_stage kspeaks "{prefix}.kp.png" "${{WGDI_CMD[@]}}" "${{WGDI_TANDEM_ARGS[@]}}" -kp total.conf
-run_stage peaksfit "{prefix}.pf.png" "${{WGDI_CMD[@]}}" -pf total.conf
+{stage_lines}
 """
 
 
@@ -128,6 +141,7 @@ def _config_text(
     evalue: str,
     tandem: bool,
     ks_column: str,
+    ks_enabled: bool,
 ) -> str:
     same = left == right
     output_prefix = left if same else f"{left}_{right}"
@@ -135,7 +149,7 @@ def _config_text(
     cds_file = f"{left}.cds" if same else "all.cds"
     pep_file = f"{left}.pep" if same else "all.pep"
     tandem_value = "true" if tandem else "false"
-    return f"""[dotplot]
+    core = f"""[dotplot]
 blast = {blast_file}
 gff1 = {left}.new.gff
 gff2 = {right}.new.gff
@@ -172,7 +186,8 @@ pvalue = 1
 repeat_number = 10
 position = order
 savefile = {output_prefix}.icl
-
+"""
+    ks_part = f"""
 [ks]
 cds_file = {cds_file}
 pep_file = {pep_file}
@@ -260,6 +275,7 @@ figsize = 10,6.18
 shadow = false
 savefig = {output_prefix}.kf.png
 """
+    return core + ks_part if ks_enabled else core
 
 
 def generate(project_root: Path, mode: str) -> int:
@@ -274,6 +290,10 @@ def generate(project_root: Path, mode: str) -> int:
     ks_column = os.environ.get("WGDI_KS_COL", "ks_NG86")
     if ks_column not in {"ks_NG86", "ks_YN00"}:
         raise ValueError("WGDI_KS_COL 必须是 ks_NG86 或 ks_YN00")
+    ks_raw = os.environ.get("WGDI_KS", "false").strip().lower()
+    if ks_raw not in {"true", "false"}:
+        raise ValueError("WGDI_KS 必须是 true 或 false")
+    ks_enabled = ks_raw == "true"
 
     comparisons: list[tuple[str, str]] = []
     for left in species:
@@ -297,13 +317,14 @@ def generate(project_root: Path, mode: str) -> int:
                 evalue=evalue,
                 tandem=tandem,
                 ks_column=ks_column,
+                ks_enabled=ks_enabled,
             ),
             encoding="utf-8",
             newline="\n",
         )
         run_path = folder / "run.sh"
         run_path.write_text(
-            _run_script(left, right, wgdi_entry, tandem),
+            _run_script(left, right, wgdi_entry, tandem, ks_enabled),
             encoding="utf-8",
             newline="\n",
         )

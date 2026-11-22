@@ -20,12 +20,17 @@ def region_sort_key(region: Region) -> tuple[object, ...]:
 
 
 def choose_representative(candidates: list[Candidate]) -> Candidate:
+    """Pick one representative transcript per gene (lab SOP rule).
+
+    Priority 1: longest CDS.  Priority 2: stable transcript ID, ascending
+    lexicographic order.  Protein length and file/order of appearance are
+    never used, so the result is reproducible across runs and platforms.
+    """
     if not candidates:
         raise ValueError("candidates must not be empty")
     return min(
         candidates,
         key=lambda candidate: (
-            -candidate.protein_length,
             -candidate.cds_length,
             candidate.source_transcript_id,
             candidate.source_protein_id,
@@ -40,7 +45,10 @@ def select_analysis_sequences(
     target_coverage: float,
     max_sequences: int,
     min_genes_per_chromosome: int = 0,
+    sequence_mode: str = "adaptive",
 ) -> SequenceSelection:
+    if sequence_mode not in {"adaptive", "chromosomes"}:
+        raise ValueError(f"unknown sequence_mode: {sequence_mode}")
     total = sum(
         count
         for seqid, count in gene_counts.items()
@@ -54,7 +62,13 @@ def select_analysis_sequences(
         for seqid, count in gene_counts.items()
         if count > 0 and seqid in regions and regions[seqid].is_primary and not regions[seqid].is_organelle
     }
-    if primary:
+    if sequence_mode == "chromosomes":
+        # SOP strict mode: only chromosome-mounted sequences are eligible.
+        # Unmounted scaffolds/contigs are never substituted; a species without
+        # a primary chromosome yields an empty set and fails closed upstream.
+        keep = set(primary)
+        mode = "chromosomes_only"
+    elif primary:
         keep = set(primary)
         mode = "primary_chromosome"
     else:

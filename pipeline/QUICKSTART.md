@@ -11,7 +11,7 @@ cd code
 python -m pgci_preprocess --version
 ```
 
-输出 `pgci_preprocess 3.6.2` 表示本地环境已就绪。
+输出 `pgci_preprocess 3.7.0` 表示本地环境已就绪。
 
 创建项目后，可检查 Python、外部程序和输入文件：
 
@@ -151,6 +151,17 @@ GBFF 默认输出 GFF3、CDS、蛋白和 genome。转换完成后，将生成的
 python -m pgci_preprocess run --project-root D:\plant_project
 ```
 
+序列筛选默认 **严格染色体模式**（`--sequence-mode chromosomes`）：只保留有染色体
+挂载证据的序列；无染色体证据的物种报 `no_chromosome_sequences` 并记录原因，不会
+用 scaffold 充数。碎片化组装确需保留 scaffold 时显式使用逃生门：
+
+```powershell
+python -m pgci_preprocess run --project-root D:\plant_project --sequence-mode adaptive
+```
+
+代表转录本按 SOP 规则选择：**CDS 最长优先，等长按稳定转录本 ID 字典序**，
+不以蛋白长度或出现顺序为依据。
+
 处理单个物种：
 
 ```powershell
@@ -274,6 +285,7 @@ python -m pgci_preprocess readiness --project-root D:\plant_project --species Mu
 
 ```text
 analysis_v2\<Abbr>\<Abbr>.qc.json
+analysis_v2\<Abbr>\<Abbr>.qc_record.md   # 人类可读 QC 摘要（由 qc.json 确定性生成）
 ```
 
 关注：
@@ -311,7 +323,9 @@ python -m pgci_preprocess run `
 
 ### 5.4 处理 `wgdi_ready=no`
 
-`wgdi_ready=no` 表示当前筛选集保留率低于 50%。建议依次检查：
+`wgdi_ready=no` 表示当前筛选集保留率低于 50%。若报 `no_chromosome_sequences`，
+说明该物种没有染色体挂载证据（严格模式默认）：先确认组装是否染色体级别，
+再决定是否用 `--sequence-mode adaptive`。其余情况建议依次检查：
 
 1. 组装是否高度碎片化；
 2. GFF 与 genome 的序列名是否一致；
@@ -329,7 +343,7 @@ python -m pgci_preprocess validate `
 
 ### 5.5 染色体清单与人工裁决（3.6.0 起）
 
-`run` 后每个物种生成 `<Abbr>.chromosomes.tsv`，列出保留了几条染色体、每条基因数/长度/来源，并在 run 输出里直接打印 `chromosomes N (id:genes) ...` 给调用方（ASCII 标签，避免非 UTF-8 控制台编码失败）。`--min-genes-per-chromosome`（CLI 默认 100）会丢弃基因数不足 100 的染色体（记入 chr_map 与 QC）。查看清单：
+`run` 后每个物种生成 `<Abbr>.chromosome_map.tsv`，列出保留了几条染色体、每条基因数/长度/来源，并在 run 输出里直接打印 `chromosomes N (id:genes) ...` 给调用方（ASCII 标签，避免非 UTF-8 控制台编码失败）。`--min-genes-per-chromosome`（CLI 默认 100）会丢弃基因数不足 100 的染色体（记入 chr_map 与 QC）。查看清单：
 
 ```powershell
 python -m pgci_preprocess chromosomes --project-root D:\plant_project --species Hbr
@@ -389,6 +403,17 @@ skipped_species.txt
 
 结果汇报时同时列出成功物种、跳过物种和实施参数。
 
+**Ks 分支默认关闭**：默认只产出点图与共线性块（`.png`/`.icl`）。需要 Ks 值表、
+block-Ks 与分布峰值图时显式启用（配置生成、执行、验收三处都读同一开关）：
+
+```bash
+WGDI_KS=true python code/tools/generate_wgdi_configs.py --mode all
+WGDI_KS=true bash 6run_wgdi.sh
+```
+
+Windows 总控用 `-WithKs`。原因：上游 blockinfo/correspondence 依赖 Ks 值，
+缺 Ks 时 correspondence 会过滤掉全部区块，故这些阶段仅在启用时运行。
+
 ## 7. 常见问题
 
 | 现象 | 处理方式 |
@@ -397,6 +422,7 @@ skipped_species.txt
 | 产物名仍为 `s1234` | 提供 `--scientific-name`，或检查清单中的 `Species` 列 |
 | `validate` 报 `compat_missing_*` | 增加 `--refresh-links` |
 | `validate` 报 `wgdi_not_ready_low_coverage` | 查看 QC 保留率；按第 5.4 节复核组装和筛选参数 |
+| `run` 报 `no_chromosome_sequences` | 物种无染色体挂载证据；确认组装级别，或显式 `--sequence-mode adaptive` |
 | 旧版本 QC 更新后需要重算 | 备份结果，对指定物种使用 `run --overwrite` |
 | `compat_missing_*` 与文件名迁移同时出现 | 先运行 `migrate-artifacts`，再运行 `validate --refresh-links` |
 | 找不到 WGDI Python | 设置 `WGDI_PYTHON`，或使用本机已有的 `.wgdi-env` |
@@ -414,7 +440,9 @@ skipped_species.txt
 - [ ] `review_candidates` 已完成人工复核；
 - [ ] `analysis_v2/<Abbr>/` 四件套齐全；
 - [ ] `<Abbr>.gene_map.tsv` 和 `<Abbr>.chr_map.tsv` 已核对；
-- [ ] `<Abbr>.qc.json` 已归档；
+- [ ] `<Abbr>.chromosome_map.tsv` 染色体数已人工裁决（`adjudication-status` 为 ok）；
+- [ ] `<Abbr>.removed_list.tsv` 剔除原因已抽查；
+- [ ] `<Abbr>.qc.json` 与 `<Abbr>.qc_record.md` 已归档；
 - [ ] 使用的代表转录本、序列筛选参数和程序版本已记录；
 - [ ] 发布包、验证回执和第三方工具版本已记录。
 

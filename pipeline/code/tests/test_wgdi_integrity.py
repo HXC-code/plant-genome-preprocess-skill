@@ -42,7 +42,7 @@ def test_truncated_png_fails(tmp_path: Path) -> None:
 def test_garbage_ks_fails(tmp_path: Path) -> None:
     folder = _valid_folder(tmp_path)
     (folder / "A.ks").write_text("<html>error</html>\n", encoding="utf-8")
-    assert "bad_ks_header:A.ks" in check_comparison_outputs(folder, "A")
+    assert "bad_ks_header:A.ks" in check_comparison_outputs(folder, "A", ks_enabled=True)
 
 
 def test_comment_only_icl_passes(tmp_path: Path) -> None:
@@ -54,4 +54,14 @@ def test_comment_only_icl_passes(tmp_path: Path) -> None:
 def test_missing_file_reported(tmp_path: Path) -> None:
     folder = _valid_folder(tmp_path)
     (folder / "A.ks").unlink()
-    assert "missing_or_empty:A.ks" in check_comparison_outputs(folder, "A")
+    assert "missing_or_empty:A.ks" in check_comparison_outputs(folder, "A", ks_enabled=True)
+
+
+def test_core_mode_ignores_ks_products(tmp_path: Path) -> None:
+    folder = _valid_folder(tmp_path)
+    for name in ("A.ks", "A.bi.csv", "A.bi.c.csv", "A.bk.png", "A.kp.png", "A.pf.png"):
+        (folder / name).unlink()
+    assert check_comparison_outputs(folder, "A") == []
+    problems = check_comparison_outputs(folder, "A", ks_enabled=True)
+    assert "missing_or_empty:A.ks" in problems
+    assert "missing_or_empty:A.bk.png" in problems

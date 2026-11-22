@@ -10,6 +10,7 @@ import uuid
 from collections import Counter, defaultdict
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from typing import cast
 
 from pgci_preprocess.artifact_naming import (
     ANALYSIS_REQUIRED_SUFFIXES,
@@ -91,6 +92,9 @@ class PipelineOptions:
     target_gene_coverage: float = 0.90
     max_sequences: int = 200
     min_genes_per_chromosome: int = 0
+    # Core API default stays neutral (adaptive); the CLI/SOP default is
+    # "chromosomes" (strict chromosome-mounted selection, fail-closed).
+    sequence_mode: str = "adaptive"
     # Default must match the CLI: never replace an existing validated bundle
     # unless the caller opts in explicitly with overwrite=True.
     overwrite: bool = False
@@ -1151,9 +1155,14 @@ def _process_species_into(
         options.target_gene_coverage,
         options.max_sequences,
         options.min_genes_per_chromosome,
+        sequence_mode=options.sequence_mode,
     )
     if not sequence_selection.keep:
-        raise PipelineFailure("empty_wgdi_sequence_set")
+        raise PipelineFailure(
+            "no_chromosome_sequences"
+            if options.sequence_mode == "chromosomes"
+            else "empty_wgdi_sequence_set"
+        )
 
     nuclear_with_genes = [
         parsed.regions[seqid]
@@ -1276,7 +1285,7 @@ def _process_species_into(
         "is_primary",
     ]
     for chromosomes_dir in (analysis_dir, clean_dir):
-        chromosomes_path = chromosomes_dir / f"{code}.chromosomes.tsv"
+        chromosomes_path = chromosomes_dir / f"{code}.chromosome_map.tsv"
         with chromosomes_path.open("w", encoding="utf-8", newline="") as handle:
             writer = csv.DictWriter(
                 handle, fieldnames=chromosomes_fields, delimiter="\t"
@@ -1398,7 +1407,7 @@ def _process_species_into(
                 }
             )
 
-    rejected_path = clean_dir / f"{code}.rejected.tsv"
+    rejected_path = clean_dir / f"{code}.removed_list.tsv"
     with rejected_path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(
             handle, fieldnames=["scope", "id", "reason", "detail"], delimiter="\t"
@@ -1486,6 +1495,7 @@ def _process_species_into(
         "rejection_counts": dict(sorted(reason_counts.items())),
         "nuclear_taxa": sorted(nuclear_taxa),
         "sequence_selection": {
+            "policy": options.sequence_mode,
             "mode": sequence_selection.mode,
             "selected_genes": sequence_selection.selected_genes,
             "total_genes": sequence_selection.total_genes,
@@ -1525,6 +1535,7 @@ def _process_species_into(
     }
     with (analysis_dir / f"{code}.qc.json").open("w", encoding="utf-8") as handle:
         json.dump(qc, handle, ensure_ascii=False, indent=2)
+    _write_qc_record(analysis_dir / f"{code}.qc_record.md", qc)
     shutil.copy2(gene_map_path, analysis_dir / f"{code}.gene_map.tsv")
     shutil.copy2(chr_map_path, analysis_dir / f"{code}.chr_map.tsv")
 
@@ -1568,6 +1579,75 @@ def _process_species_into(
         "nuclear_taxa": ",".join(sorted(nuclear_taxa)),
         "n_anomalies": len(parsed.anomalies) + len(cds.anomalies) + len(pep.anomalies),
     }
+
+
+def _write_qc_record(path: Path, qc: dict[str, object]) -> None:
+    """Write the human-readable SOP traceability file ``qc_record.md``.
+
+    Derived entirely from the machine-readable QC dict; content is
+    deterministic (no timestamps) so repeated runs produce identical bytes.
+    """
+    selection = cast(dict[str, object], qc.get("sequence_selection", {}))
+    summary = cast(dict[str, object], qc.get("chromosome_summary", {}))
+    rejections = cast(dict[str, int], qc.get("rejection_counts", {}))
+    anomalies = cast(list[dict[str, str]], qc.get("anomalies", []))
+    detection = cast(dict[str, object], qc.get("format_detection", {}))
+    chromosomes = cast(list[dict[str, object]], summary.get("chromosomes", []))
+    lines = [
+        f"# QC record — {qc.get('code', '')} ({qc.get('species', '')})",
+        "",
+        f"- show_id: {qc.get('show_id', '')}",
+        f"- accession: {qc.get('accession', '')}",
+        f"- pipeline_version: {qc.get('pipeline_version', '')}",
+        f"- annotation: {qc.get('annotation_source', '')} / {qc.get('annotation_level', '')}",
+        f"- gff_format: {detection.get('format', '')}",
+        "",
+        "## Gene models",
+        "",
+        f"- genes: {qc.get('n_genes', 0)}; transcripts: {qc.get('n_transcripts', 0)}",
+        f"- candidates: {qc.get('n_candidates', 0)}; representative genes: {qc.get('n_representative_genes', 0)}",
+        f"- organelle genes excluded: {qc.get('n_organelle_genes', 0)}",
+        "",
+        "## Sequence selection",
+        "",
+        f"- mode: {selection.get('mode', '')}",
+        f"- retained genes: {selection.get('selected_genes', 0)} / {selection.get('total_genes', 0)} (ratio {selection.get('ratio', 0)})",
+        f"- wgdi_ready: {selection.get('wgdi_ready', '')}",
+        f"- chromosomes kept: {summary.get('n_chromosomes', 0)}; dropped below gene floor: {summary.get('n_dropped_below_floor', 0)}",
+        "",
+        "| chromosome | source_seqid | length | gene_count |",
+        "| --- | --- | --- | --- |",
+    ]
+    for row in chromosomes:
+        lines.append(
+            f"| {row.get('chromosome', '')} | {row.get('source_seqid', '')} "
+            f"| {row.get('length', '')} | {row.get('gene_count', '')} |"
+        )
+    lines += ["", "## Rejections (full detail: removed_list.tsv)", ""]
+    if rejections:
+        lines += ["| reason | count |", "| --- | --- |"]
+        for reason, count in rejections.items():
+            lines.append(f"| {reason} | {count} |")
+    else:
+        lines.append("No records rejected.")
+    lines += ["", "## Anomalies", ""]
+    if anomalies:
+        for item in anomalies:
+            lines.append(
+                f"- {item.get('level', '')}: {item.get('code', '')} {item.get('detail', '')}"
+            )
+    else:
+        lines.append("None.")
+    lines += [
+        "",
+        "## Audit",
+        "",
+        "- Input SHA-256 hashes and full counters: `<code>.qc.json`.",
+        "- Per-sequence keep/exclude decisions: `<code>.chr_map.tsv`.",
+        "- Chromosome count sign-off: `pgci_preprocess adjudicate` / `adjudication-status`.",
+        "",
+    ]
+    path.write_text("\n".join(lines), encoding="utf-8")
 
 
 def _promote_legacy_bundles(
@@ -1624,7 +1704,7 @@ def _print_chromosome_inventory(analysis_root: Path, code: str) -> None:
     time, not only in a file they would have to open separately.
     """
 
-    path = analysis_root / code / f"{code}.chromosomes.tsv"
+    path = analysis_root / code / f"{code}.chromosome_map.tsv"
     if not path.is_file():
         return
     try:

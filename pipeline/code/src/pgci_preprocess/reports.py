@@ -189,7 +189,7 @@ def build_index_rows(
                 "all_lens": f"{base}/{artifact_code}.all.lens",
                 "gene_map": f"{clean_dirname}/{artifact_code}/{artifact_code}.gene_map.tsv",
                 "chr_map": f"{clean_dirname}/{artifact_code}/{artifact_code}.chr_map.tsv",
-                "rejected": f"{clean_dirname}/{artifact_code}/{artifact_code}.rejected.tsv",
+                "rejected": f"{clean_dirname}/{artifact_code}/{artifact_code}.removed_list.tsv",
                 "qc": f"{base}/{artifact_code}.qc.json",
             }
         )

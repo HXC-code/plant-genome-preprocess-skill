@@ -62,7 +62,7 @@ def build_validation_project(
             "lens": species_dir / f"{code}.lens",
             "gene_map": clean_dir / f"{code}.gene_map.tsv",
             "chr_map": clean_dir / f"{code}.chr_map.tsv",
-            "rejected": clean_dir / f"{code}.rejected.tsv",
+            "rejected": clean_dir / f"{code}.removed_list.tsv",
             "qc": species_dir / f"{code}.qc.json",
         }
         files["pep"].write_text(pep, encoding="utf-8")

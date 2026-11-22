@@ -73,3 +73,29 @@ def test_smoke_receipt_requires_all_outputs_and_preserves_blast(tmp_path: Path) 
     )
     assert failed.returncode == 1
     assert json.loads((root / "smoke_report.json").read_text(encoding="utf-8"))["status"] == "FAIL"
+
+
+def test_smoke_receipt_core_mode_requires_only_dotplot_and_collinearity(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "smoke_core"
+    root.mkdir()
+    _build_receipt_fixture(root)
+    (root / "smoke_status.tsv").write_text(
+        "status\tPASS\ndiamond_evalue\t1e-5\ndiamond_sensitivity\tvery-sensitive\nks_enabled\tfalse\n",
+        encoding="utf-8",
+    )
+    comparison = root / "Auto_wgdi" / "s1_base" / "s1_s1"
+    for name in ("s1.ks", "s1.bi.csv", "s1.bi.c.csv", "s1.bk.png", "s1.kp.png", "s1.pf.png"):
+        (comparison / name).unlink()
+    result = subprocess.run(
+        [sys.executable, str(COLLECTOR), str(root)],
+        text=True,
+        capture_output=True,
+        timeout=120,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    report = json.loads((root / "smoke_report.json").read_text(encoding="utf-8"))
+    assert report["status"] == "PASS"
+    assert report["ks_enabled"] is False
+    assert len(report["comparisons"][0]["outputs"]) == 2

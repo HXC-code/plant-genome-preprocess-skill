@@ -31,7 +31,7 @@ ANALYSIS_REQUIRED_SUFFIXES = (
     ".gene_map.tsv",
     ".chr_map.tsv",
 )
-CLEAN_REQUIRED_SUFFIXES = (".gene_map.tsv", ".chr_map.tsv", ".rejected.tsv")
+CLEAN_REQUIRED_SUFFIXES = (".gene_map.tsv", ".chr_map.tsv", ".removed_list.tsv")
 
 # Gene IDs inside a FASTA header or a GFF column.
 _GENE_ID_IN_LINE = re.compile(r"^[^\s>]+")

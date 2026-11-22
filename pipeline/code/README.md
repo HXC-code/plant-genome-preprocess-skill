@@ -151,7 +151,7 @@ python scripts/validate_wgdi_dataset.py --expected-count 109 --no-compat-links
 
 ### 染色体清单与人工裁决（3.6.0）
 
-`run` 生成 `<code>.chromosomes.tsv`（analysis_v2 与 clean_v2），列出保留染色体数、
+`run` 生成 `<code>.chromosome_map.tsv`（analysis_v2 与 clean_v2），列出保留染色体数、
 每条基因数/长度/来源/是否 primary；QC 增 `chromosome_summary` 与顶层
 `n_wgdi_sequences`。`--min-genes-per-chromosome`（CLI 默认 100）在选择后丢弃
 基因数不足的染色体，排除原因 `below_min_genes_per_chromosome` 记入 chr_map。
@@ -186,7 +186,7 @@ bash run_homology.sh            # 默认 DIAMOND, very-sensitive + 1e-5
 bash 2run_pre_wgdi.sh
 bash 3blast_to_wgdi.sh          # 复制比对结果，保留 Auto_pep 原始文件
 python tools/generate_wgdi_configs.py --mode all
-bash 6run_wgdi.sh               # 检查每个比较的 8 个关键结果
+bash 6run_wgdi.sh               # 验收：默认 2 个核心结果（点图+共线性）；WGDI_KS=true 时 8 个
 ```
 
 `run_homology.sh` 按 QC/index 的 `wgdi_ready` 跳过 `ready=no` 和没有可读准备度
@@ -202,6 +202,12 @@ WGDI 的串联重复过滤由 `tandem=false` 控制，本项目默认开启。�
 保留率分析；项目 wrapper 使用末尾单独 `-r` 或 `--remove-tandem` 控制串联重复过滤。
 恢复串联重复时设置 `WGDI_TANDEM=true` 重新生成配置。
 
+**Ks 分支默认关闭**（SOP 第 4 步可选分支）：默认只运行 dotplot + collinearity，
+产出 `.png` 与 `.icl`。设置 `WGDI_KS=true` 后追加 ks/blockinfo/correspondence/
+blockks/kspeaks/peaksfit 六个阶段（配置生成、`6run_wgdi.sh` 验收、Windows 总控
+`-WithKs` 均读同一开关）。原因：上游 blockinfo/correspondence 依赖 Ks 值，
+缺 Ks 时 correspondence 会过滤掉全部区块。
+
 DIAMOND 可用 `DIAMOND_EVALUE`、`DIAMOND_SENSITIVITY`、`DIAMOND_THREADS`、
 `DIAMOND_MAX_TARGETS` 配置；本次参数写入 `Auto_pep/diamond_run_settings.tsv`。`1e-5` 是同源
 搜索阈值，由下游脚本配置。`very-sensitive` 是速度—灵敏度折中；`ultra-sensitive` 提供更高灵敏度并增加运行时间，可按数据集和验证结果选用。
@@ -212,6 +218,7 @@ Windows 总控默认选择 DIAMOND，不需要指定历史 `bioinfo_win` 环境�
 powershell -ExecutionPolicy Bypass -File .\run_all_pipeline.ps1 `
   -HomologyEngine diamond -DiamondSensitivity very-sensitive -HomologyEvalue 1e-5
 # 改用 BLAST：-HomologyEngine blast
+# 启用可选 Ks 分支：-WithKs
 # 非默认安装位置：-DiamondPath <path> 或 -BlastpPath <path> -MakeBlastDbPath <path>
 ```
 
@@ -326,10 +333,10 @@ CSV/TSV/JSONL 转换依据明确 schema 执行。
 ## 核心规则
 
 1. GFF3 中的 gene、mRNA、CDS 和 protein_id 建立映射。
-2. 一个基因只选一个代表转录本：
-   - 先选蛋白最长；
-   - 蛋白等长时选 CDS 最长；
-   - 仍相同时按转录本 ID 排序。
+2. 一个基因只选一个代表转录本（SOP 强制规则）：
+   - 第一优先级：CDS 序列最长；
+   - CDS 等长时按稳定转录本 ID 字典序升序取第一条；
+   - 不以蛋白长度或序列出现顺序作为依据，保证可复现。
 3. 只接受 CDS 与 PEP 能实际翻译对齐的候选。
 4. 拒绝以下数据：
    - CDS 长度不是 3 的倍数；
@@ -349,7 +356,7 @@ CSV/TSV/JSONL 转换依据明确 schema 执行。
 clean_v2/{code}/
 ├── {code}.gene_map.tsv
 ├── {code}.chr_map.tsv
-└── {code}.rejected.tsv
+└── {code}.removed_list.tsv
 
 analysis_v2/{code}/
 ├── {code}.cds                 # WGDI 筛选集 CDS

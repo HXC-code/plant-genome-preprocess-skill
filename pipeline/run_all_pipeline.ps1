@@ -36,7 +36,9 @@ param(
     [ValidateSet("sensitive", "more-sensitive", "very-sensitive", "ultra-sensitive")]
     [string]$DiamondSensitivity = "very-sensitive",
 
-    [string]$HomologyEvalue = "1e-5"
+    [string]$HomologyEvalue = "1e-5",
+
+    [switch]$WithKs
 )
 
 $ErrorActionPreference = "Stop"
@@ -44,6 +46,7 @@ $env:HOMOLOGY_EVALUE = $HomologyEvalue
 $env:DIAMOND_EVALUE = $HomologyEvalue
 $env:BLAST_EVALUE = $HomologyEvalue
 $env:DIAMOND_SENSITIVITY = $DiamondSensitivity
+$env:WGDI_KS = if ($WithKs) { "true" } else { "false" }
 if (-not [string]::IsNullOrWhiteSpace($DiamondPath)) { $env:DIAMOND = $DiamondPath }
 if (-not [string]::IsNullOrWhiteSpace($BlastpPath)) { $env:BLASTP = $BlastpPath }
 if (-not [string]::IsNullOrWhiteSpace($MakeBlastDbPath)) { $env:MAKEBLASTDB = $MakeBlastDbPath }
@@ -508,15 +511,19 @@ function Test-Step06 {
         $requiredNames = @(
             "$prefix.png",
             "$prefix.icl",
-            "$prefix.ks",
-            "$prefix.bi.csv",
-            "$prefix.bi.c.csv",
-            "$prefix.bk.png",
-            "$prefix.kp.png",
-            "$prefix.pf.png",
             "run.sh",
             "total.conf"
         )
+        if ($env:WGDI_KS -eq "true") {
+            $requiredNames += @(
+                "$prefix.ks",
+                "$prefix.bi.csv",
+                "$prefix.bi.c.csv",
+                "$prefix.bk.png",
+                "$prefix.kp.png",
+                "$prefix.pf.png"
+            )
+        }
 
         $missing = @(
             $requiredNames | Where-Object {

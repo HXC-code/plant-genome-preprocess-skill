@@ -61,6 +61,7 @@ def run_batch(
     do_run: bool = True,
     do_validate: bool = True,
     pipeline_options: PipelineOptions | None = None,
+    sequence_mode: str = "chromosomes",
     validate_expected_count: int | None = None,
     require_compat_links: bool = False,
     species_names_path: Path | str | None = None,
@@ -76,6 +77,7 @@ def run_batch(
     )
     if species_names_path:
         options.species_names_path = Path(species_names_path).expanduser().resolve()
+    options.sequence_mode = sequence_mode
     result = BatchResult()
 
     prepared: BatchPreparationResult | None = None

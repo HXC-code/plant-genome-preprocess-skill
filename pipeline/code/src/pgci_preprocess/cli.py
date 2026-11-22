@@ -223,6 +223,16 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--coverage", type=float, default=0.90)
     run.add_argument("--max-sequences", type=int, default=200)
     run.add_argument(
+        "--sequence-mode",
+        choices=("chromosomes", "adaptive"),
+        default="chromosomes",
+        help=(
+            "chromosomes (SOP default): keep only chromosome-mounted sequences, "
+            "fail closed when none exist; adaptive: fall back to gene-count/coverage "
+            "selection for fragmented assemblies."
+        ),
+    )
+    run.add_argument(
         "--min-genes-per-chromosome",
         type=int,
         default=100,
@@ -329,10 +339,18 @@ def build_parser() -> argparse.ArgumentParser:
 
     integrity = sub.add_parser(
         "check-wgdi-outputs",
-        help="Content-integrity check of one comparison's 8 WGDI products.",
+        help=(
+            "Content-integrity check of one comparison's core WGDI products "
+            "(dotplot, collinearity); with --ks also the six Ks-stage products."
+        ),
     )
     integrity.add_argument("--folder", type=Path, required=True)
     integrity.add_argument("--prefix", required=True)
+    integrity.add_argument(
+        "--ks",
+        action="store_true",
+        help="Also require the Ks-stage products (WGDI_KS=true mode).",
+    )
     integrity.set_defaults(func=_cmd_check_wgdi_outputs)
 
     adjudicate = sub.add_parser(
@@ -386,6 +404,12 @@ def build_parser() -> argparse.ArgumentParser:
     batch.add_argument("--validate-expected-count", type=int)
     batch.add_argument("--require-compat-links", action="store_true")
     batch.add_argument("--species-names", type=Path)
+    batch.add_argument(
+        "--sequence-mode",
+        choices=("chromosomes", "adaptive"),
+        default="chromosomes",
+        help="Sequence selection policy for the run stage (SOP default: chromosomes).",
+    )
     batch.set_defaults(func=_cmd_batch)
 
     audit = sub.add_parser(
@@ -664,6 +688,7 @@ def _cmd_run(args: argparse.Namespace) -> int:
         target_gene_coverage=args.coverage,
         max_sequences=args.max_sequences,
         min_genes_per_chromosome=args.min_genes_per_chromosome,
+        sequence_mode=args.sequence_mode,
         overwrite=args.overwrite,
         gff_format=args.gff_format,
         protein_normalization=args.protein_normalization,
@@ -747,7 +772,7 @@ def _cmd_readiness(args: argparse.Namespace) -> int:
 
 
 def _cmd_check_wgdi_outputs(args: argparse.Namespace) -> int:
-    problems = check_comparison_outputs(args.folder, args.prefix)
+    problems = check_comparison_outputs(args.folder, args.prefix, ks_enabled=args.ks)
     for problem in problems:
         print(problem)
     return 1 if problems else 0
@@ -807,9 +832,9 @@ def _cmd_chromosomes(args: argparse.Namespace) -> int:
     ids = _species_ids(args)
     missing = 0
     for code in ids:
-        path = args.project_root / "analysis_v2" / code / f"{code}.chromosomes.tsv"
+        path = args.project_root / "analysis_v2" / code / f"{code}.chromosome_map.tsv"
         if not path.is_file():
-            path = args.project_root / "clean_v2" / code / f"{code}.chromosomes.tsv"
+            path = args.project_root / "clean_v2" / code / f"{code}.chromosome_map.tsv"
         if not path.is_file():
             print(f"{code}: 缺少染色体清单（先 run）")
             missing += 1
@@ -842,6 +867,7 @@ def _cmd_batch(args: argparse.Namespace) -> int:
             validate_expected_count=args.validate_expected_count,
             require_compat_links=args.require_compat_links,
             species_names_path=args.species_names,
+            sequence_mode=args.sequence_mode,
         )
     except Exception as exc:
         print(f"ERROR: {exc}", file=sys.stderr)

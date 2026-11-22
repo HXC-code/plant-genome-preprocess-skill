@@ -5,6 +5,12 @@ cd "$(dirname "$0")"
 project_root="$(pwd -P)"
 export MPLBACKEND=Agg
 
+wgdi_ks="${WGDI_KS:-false}"
+case "$wgdi_ks" in
+    true|false) ;;
+    *) echo "错误：WGDI_KS 必须是 true 或 false，实际为：$wgdi_ks" >&2; exit 2 ;;
+esac
+
 [[ -s folder_list.txt ]] || { echo "错误：folder_list.txt 不存在或为空。"; exit 1; }
 mapfile -t species_ids < folder_list.txt
 
@@ -25,21 +31,15 @@ check_outputs() {
 
     if [[ "$base_id" == "$target_id" ]]; then
         prefix="$base_id"
-        required=(
-            "$prefix.png"
-            "$prefix.icl"
-            "$prefix.ks"
-            "$prefix.bi.csv"
-            "$prefix.bi.c.csv"
-            "$prefix.bk.png"
-            "$prefix.kp.png"
-            "$prefix.pf.png"
-        )
     else
         prefix="${base_id}_${target_id}"
-        required=(
-            "$prefix.png"
-            "$prefix.icl"
+    fi
+    required=(
+        "$prefix.png"
+        "$prefix.icl"
+    )
+    if [[ "$wgdi_ks" == "true" ]]; then
+        required+=(
             "$prefix.ks"
             "$prefix.bi.csv"
             "$prefix.bi.c.csv"
@@ -62,11 +62,15 @@ check_outputs() {
     # garbage table is not a finished result. Degrade to presence-only when
     # Python/the package is unavailable so the runner never hard-depends on it.
     local py integrity_out
+    local ks_args=()
+    if [[ "$wgdi_ks" == "true" ]]; then
+        ks_args=(--ks)
+    fi
     py="$(resolve_python)"
     if [[ -n "$py" ]]; then
         if integrity_out="$(PYTHONPATH="$project_root/code/src${PYTHONPATH:+:$PYTHONPATH}" \
             "$py" -m pgci_preprocess check-wgdi-outputs \
-            --folder "$folder" --prefix "$prefix" 2>/dev/null)"; then
+            --folder "$folder" --prefix "$prefix" "${ks_args[@]}" 2>/dev/null)"; then
             :
         elif [[ -n "$integrity_out" ]]; then
             printf '%s\n' "$integrity_out" > "$folder/missing_outputs.txt"

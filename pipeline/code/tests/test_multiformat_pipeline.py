@@ -144,9 +144,9 @@ def test_cli_and_legacy_wrapper_are_equivalent(tmp_path: Path) -> None:
     )
     assert all(result["status"] == "OK" for result in direct_results)
 
-    cli_result = _run_cli(cli, "--min-genes-per-sequence", "1", "--min-genes-per-chromosome", "0")
+    cli_result = _run_cli(cli, "--min-genes-per-sequence", "1", "--min-genes-per-chromosome", "0", "--sequence-mode", "adaptive")
     assert cli_result.returncode == 0, cli_result.stderr
-    wrapper_result = _run_cli(wrapper, "--min-genes-per-sequence", "1", "--min-genes-per-chromosome", "0", module=False)
+    wrapper_result = _run_cli(wrapper, "--min-genes-per-sequence", "1", "--min-genes-per-chromosome", "0", "--sequence-mode", "adaptive", module=False)
     assert wrapper_result.returncode == 0, wrapper_result.stderr
 
     for code in ("s1", "s2", "s3", "s4"):
@@ -179,6 +179,39 @@ def test_cli_and_legacy_wrapper_are_equivalent(tmp_path: Path) -> None:
     assert [row["code"] for row in read_tsv(direct / "resources" / "wgdi_v2_index.tsv")] == [
         row["code"] for row in read_tsv(cli / "resources" / "wgdi_v2_index.tsv")
     ] == [row["code"] for row in read_tsv(wrapper / "resources" / "wgdi_v2_index.tsv")]
+
+
+def test_cli_default_chromosomes_mode_fails_closed_without_chromosome_evidence(
+    tmp_path: Path,
+) -> None:
+    """SOP default: only chromosome-mounted sequences are eligible.
+
+    s1 carries a `chromosome=1` region row and passes; s2/s3/s4 have bare
+    numeric seqids with no chromosome evidence, so they must fail closed with
+    an explicit reason instead of silently substituting scaffolds. The
+    adaptive escape hatch restores the legacy behavior on the same project.
+    """
+    project = build_multiformat_project(tmp_path)["project"]
+    strict = _run_cli(
+        project,
+        "--min-genes-per-sequence", "1",
+        "--min-genes-per-chromosome", "0",
+    )
+    assert strict.returncode == 1
+    assert "no_chromosome_sequences" in strict.stdout + strict.stderr
+    assert (project / "analysis_v2" / "s1" / "s1.pep").is_file()
+    for code in ("s2", "s3", "s4"):
+        assert not (project / "analysis_v2" / code / f"{code}.pep").exists()
+
+    adaptive = _run_cli(
+        project,
+        "--min-genes-per-sequence", "1",
+        "--min-genes-per-chromosome", "0",
+        "--sequence-mode", "adaptive",
+    )
+    assert adaptive.returncode == 0, adaptive.stderr
+    for code in ("s2", "s3", "s4"):
+        assert (project / "analysis_v2" / code / f"{code}.pep").is_file()
 
 
 def _write(path: Path, text: str) -> None:
