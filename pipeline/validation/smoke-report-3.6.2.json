@@ -1,0 +1,290 @@
+{
+  "schema_version": "wgdi-smoke-v3",
+  "status": "PASS",
+  "created_at": "2026-11-22T13:50:51.709646+08:00",
+  "workflow_version": "3.6.2",
+  "scope": "Isolated synthetic fixture; DIAMOND and scripts 2-6 actually executed. Step 0 is covered separately by preprocessing tests/validation.",
+  "not_claimed": "This is not a full WGDI rerun of the 109-species dataset or a new biological WGD inference.",
+  "smoke_root": "<isolated-workspace>",
+  "fixture": {
+    "method": "deterministic synthetic orthologues",
+    "genes_per_species": 120,
+    "chromosomes": 8,
+    "protein_length": 80
+  },
+  "diamond": {
+    "engine": "diamond",
+    "executable": "/d/ProgramFiles/bioinfo/bin/diamond",
+    "version": "diamond version 2.2.8",
+    "evalue": "1e-5",
+    "sensitivity": "very-sensitive",
+    "max_target_seqs": "20",
+    "threads": "4",
+    "block_size": "4",
+    "comp_based_stats": "0"
+  },
+  "environment": {
+    "os": "Windows-11-10.0.26200-SP0",
+    "machine": "AMD64",
+    "python": "3.13.9",
+    "wgdi_python": "python.exe",
+    "wgdi_python_version": "3.13.9",
+    "wgdi": "0.75",
+    "tools": {
+      "diamond": {
+        "path": "diamond",
+        "version": "diamond version 2.2.8"
+      },
+      "blastp": {
+        "path": "blastp.EXE",
+        "version": "blastp: 2.17.0+"
+      },
+      "makeblastdb": {
+        "path": "makeblastdb.EXE",
+        "version": "makeblastdb: 2.17.0+"
+      },
+      "muscle": {
+        "path": "muscle.EXE",
+        "version": "muscle 5.3.win64 [d9725ac]"
+      },
+      "yn00": {
+        "path": "yn00.EXE",
+        "version": "YN00 in paml version 4.10.10, 27 Jan 2026"
+      },
+      "perl": {
+        "path": "perl",
+        "version": "This is perl 5, version 42, subversion 3 (v5.42.3) built for x86_64-cygwin-thread-multi"
+      },
+      "pal2nal": {
+        "path": "pal2nal.pl",
+        "version": "v14 (downloaded from upstream)"
+      }
+    }
+  },
+  "comparisons": [
+    {
+      "left": "SynA",
+      "right": "SynA",
+      "status": "PASS",
+      "auto_pep_blast_preserved_and_identical": true,
+      "outputs": {
+        "dotplot": {
+          "path": "Auto_wgdi\\SynA_base\\SynA_SynA\\SynA.png",
+          "exists_nonempty": true,
+          "bytes": 77202,
+          "sha256": "f3ba8a47d9d44d3c10422342b4d32600da788f0e5c93e01735d8d91ecd5b66fc"
+        },
+        "collinearity": {
+          "path": "Auto_wgdi\\SynA_base\\SynA_SynA\\SynA.icl",
+          "exists_nonempty": true,
+          "bytes": 3984,
+          "sha256": "07731478d576ee647e5c9d46f190e5cdd9ad5897b52603065de9e32df71bae27"
+        },
+        "ks": {
+          "path": "Auto_wgdi\\SynA_base\\SynA_SynA\\SynA.ks",
+          "exists_nonempty": true,
+          "bytes": 3076,
+          "sha256": "fb2a1111b8185a30dbb373d053f60451ae3731e580f4825099123810ee4ac6d7"
+        },
+        "blockinfo": {
+          "path": "Auto_wgdi\\SynA_base\\SynA_SynA\\SynA.bi.csv",
+          "exists_nonempty": true,
+          "bytes": 2301,
+          "sha256": "8052ffc60cdfb788f55545086030237f75f92fa7f9d17133db55f51a5d6488b2"
+        },
+        "correspondence": {
+          "path": "Auto_wgdi\\SynA_base\\SynA_SynA\\SynA.bi.c.csv",
+          "exists_nonempty": true,
+          "bytes": 2273,
+          "sha256": "b0699a990fdfc0ddb3efa28df259a1b3740fa3fad58fb5fde3137dc8563fecbf"
+        },
+        "blockks": {
+          "path": "Auto_wgdi\\SynA_base\\SynA_SynA\\SynA.bk.png",
+          "exists_nonempty": true,
+          "bytes": 169959,
+          "sha256": "5a21f38a347663a6d20bff8be8504d5031edbdc6f2d75a9067533a2e1a3762bf"
+        },
+        "kspeaks": {
+          "path": "Auto_wgdi\\SynA_base\\SynA_SynA\\SynA.kp.png",
+          "exists_nonempty": true,
+          "bytes": 257393,
+          "sha256": "5104926318ee9454bc7eeb8487e5cf2298c192bb1ce26cdfd44c10d7fe4c5e9d"
+        },
+        "peaksfit": {
+          "path": "Auto_wgdi\\SynA_base\\SynA_SynA\\SynA.pf.png",
+          "exists_nonempty": true,
+          "bytes": 172660,
+          "sha256": "f313a494500d6351cf81541b987815f4e27169286926d9e83502156ec70b4548"
+        }
+      }
+    },
+    {
+      "left": "SynA",
+      "right": "SynB",
+      "status": "PASS",
+      "auto_pep_blast_preserved_and_identical": true,
+      "outputs": {
+        "dotplot": {
+          "path": "Auto_wgdi\\SynA_base\\SynA_SynB\\SynA_SynB.png",
+          "exists_nonempty": true,
+          "bytes": 79214,
+          "sha256": "82885d7d98be16c1b738de089e274448c4b356293c0d8a2f34953fc062e1bc71"
+        },
+        "collinearity": {
+          "path": "Auto_wgdi\\SynA_base\\SynA_SynB\\SynA_SynB.icl",
+          "exists_nonempty": true,
+          "bytes": 8002,
+          "sha256": "66456422ec8c94531f00ac558f334442d938615f5bf1112ab53c9de57002d7c6"
+        },
+        "ks": {
+          "path": "Auto_wgdi\\SynA_base\\SynA_SynB\\SynA_SynB.ks",
+          "exists_nonempty": true,
+          "bytes": 12185,
+          "sha256": "075ff3feb3365ff4572b4b981f6c30d1e111bee97c635b17726aa4c2ac2f85b7"
+        },
+        "blockinfo": {
+          "path": "Auto_wgdi\\SynA_base\\SynA_SynB\\SynA_SynB.bi.csv",
+          "exists_nonempty": true,
+          "bytes": 4669,
+          "sha256": "f93d29f9a5f2fa7fdae32b3bf12f648b61985d6791f04f71d5f08e61a9dc4d41"
+        },
+        "correspondence": {
+          "path": "Auto_wgdi\\SynA_base\\SynA_SynB\\SynA_SynB.bi.c.csv",
+          "exists_nonempty": true,
+          "bytes": 2404,
+          "sha256": "339c8aa26f1581d29285c2df8eb9f6de958cb9a9e729a7be393387864ce187c9"
+        },
+        "blockks": {
+          "path": "Auto_wgdi\\SynA_base\\SynA_SynB\\SynA_SynB.bk.png",
+          "exists_nonempty": true,
+          "bytes": 186895,
+          "sha256": "5ab0927ad19aca949d466e037c119c2be43717d86d0fe8d0762ffe0914672988"
+        },
+        "kspeaks": {
+          "path": "Auto_wgdi\\SynA_base\\SynA_SynB\\SynA_SynB.kp.png",
+          "exists_nonempty": true,
+          "bytes": 257755,
+          "sha256": "87c2fda3185d66c0e3b7fcfe5788029049252b8866f4e870b9241090175b8b3d"
+        },
+        "peaksfit": {
+          "path": "Auto_wgdi\\SynA_base\\SynA_SynB\\SynA_SynB.pf.png",
+          "exists_nonempty": true,
+          "bytes": 190562,
+          "sha256": "b703aa777865a402565ef9bb3a0ddd762854c8f01a5018548d9c9e26483715c0"
+        }
+      }
+    },
+    {
+      "left": "SynB",
+      "right": "SynA",
+      "status": "PASS",
+      "auto_pep_blast_preserved_and_identical": true,
+      "outputs": {
+        "dotplot": {
+          "path": "Auto_wgdi\\SynB_base\\SynB_SynA\\SynB_SynA.png",
+          "exists_nonempty": true,
+          "bytes": 79446,
+          "sha256": "7dfc4b6e438a5ceaed2898789c3e9676c859efd7db9bb607095c1f548104e688"
+        },
+        "collinearity": {
+          "path": "Auto_wgdi\\SynB_base\\SynB_SynA\\SynB_SynA.icl",
+          "exists_nonempty": true,
+          "bytes": 7999,
+          "sha256": "1005b325a81752e35cef6e761553d5118f1a1cde97d411018295231830fa2bc4"
+        },
+        "ks": {
+          "path": "Auto_wgdi\\SynB_base\\SynB_SynA\\SynB_SynA.ks",
+          "exists_nonempty": true,
+          "bytes": 12185,
+          "sha256": "05f50b3efa45a26c5192ad547d82eee9e872cef78524f388ed3238db7e21fd69"
+        },
+        "blockinfo": {
+          "path": "Auto_wgdi\\SynB_base\\SynB_SynA\\SynB_SynA.bi.csv",
+          "exists_nonempty": true,
+          "bytes": 4511,
+          "sha256": "0f90fe600d55c95ae60ce04879e848f925cc898fb703f0d9fdde1cadb952473d"
+        },
+        "correspondence": {
+          "path": "Auto_wgdi\\SynB_base\\SynB_SynA\\SynB_SynA.bi.c.csv",
+          "exists_nonempty": true,
+          "bytes": 2329,
+          "sha256": "fcf83c328677866f1c522e9d1337b249c5609c29f62a82688708d7572591281e"
+        },
+        "blockks": {
+          "path": "Auto_wgdi\\SynB_base\\SynB_SynA\\SynB_SynA.bk.png",
+          "exists_nonempty": true,
+          "bytes": 187275,
+          "sha256": "fccb2697766bee38e8268222e91d1ceca5ec3e227149651273fc506990b95e12"
+        },
+        "kspeaks": {
+          "path": "Auto_wgdi\\SynB_base\\SynB_SynA\\SynB_SynA.kp.png",
+          "exists_nonempty": true,
+          "bytes": 257755,
+          "sha256": "87c2fda3185d66c0e3b7fcfe5788029049252b8866f4e870b9241090175b8b3d"
+        },
+        "peaksfit": {
+          "path": "Auto_wgdi\\SynB_base\\SynB_SynA\\SynB_SynA.pf.png",
+          "exists_nonempty": true,
+          "bytes": 190562,
+          "sha256": "88cdf63264777f09357da5f1ea2dfd4586d48d3aecbc8bea8eecdc5981921b3b"
+        }
+      }
+    },
+    {
+      "left": "SynB",
+      "right": "SynB",
+      "status": "PASS",
+      "auto_pep_blast_preserved_and_identical": true,
+      "outputs": {
+        "dotplot": {
+          "path": "Auto_wgdi\\SynB_base\\SynB_SynB\\SynB.png",
+          "exists_nonempty": true,
+          "bytes": 77900,
+          "sha256": "13dd8b351cc7dc32445a1f9740ef78eb3fe7788e563d4f2b1b24369fe9ccfb12"
+        },
+        "collinearity": {
+          "path": "Auto_wgdi\\SynB_base\\SynB_SynB\\SynB.icl",
+          "exists_nonempty": true,
+          "bytes": 3984,
+          "sha256": "250cf21ba073f727b03d184f73949a054df45397709ca31187469cd19dcf371e"
+        },
+        "ks": {
+          "path": "Auto_wgdi\\SynB_base\\SynB_SynB\\SynB.ks",
+          "exists_nonempty": true,
+          "bytes": 3070,
+          "sha256": "dbff7d3b655fcb40e9e04b9def7f973fa9b0091c7bbea27f526fd75698967902"
+        },
+        "blockinfo": {
+          "path": "Auto_wgdi\\SynB_base\\SynB_SynB\\SynB.bi.csv",
+          "exists_nonempty": true,
+          "bytes": 2267,
+          "sha256": "2d2332de39ff4f925ed95c1e2d8f394b9760aca942575ddd707fcb50912e0b54"
+        },
+        "correspondence": {
+          "path": "Auto_wgdi\\SynB_base\\SynB_SynB\\SynB.bi.c.csv",
+          "exists_nonempty": true,
+          "bytes": 2265,
+          "sha256": "6d2fd84418b38565bae4608842f2a04c38517aca5e4e014c41c8e561a7da2133"
+        },
+        "blockks": {
+          "path": "Auto_wgdi\\SynB_base\\SynB_SynB\\SynB.bk.png",
+          "exists_nonempty": true,
+          "bytes": 170903,
+          "sha256": "182d43fda0449aeefaf381b2a90375d9c9e481533dcfc6fe0b9594030e9a6e74"
+        },
+        "kspeaks": {
+          "path": "Auto_wgdi\\SynB_base\\SynB_SynB\\SynB.kp.png",
+          "exists_nonempty": true,
+          "bytes": 226880,
+          "sha256": "9ed3f3fb8fe352e6be3958bce4d0734926a7e94d09a3abb9e6aab75b95b36d36"
+        },
+        "peaksfit": {
+          "path": "Auto_wgdi\\SynB_base\\SynB_SynB\\SynB.pf.png",
+          "exists_nonempty": true,
+          "bytes": 187283,
+          "sha256": "a30e71de63cf4e5026c56399c7100f6dbd0dbdf786e53b6e16095d4d73d906c3"
+        }
+      }
+    }
+  ]
+}

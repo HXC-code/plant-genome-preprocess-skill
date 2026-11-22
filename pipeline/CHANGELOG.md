@@ -1,5 +1,18 @@
 # Changelog
 
+## 3.6.2 — 2026-11-22
+
+- Fix a crash introduced in 3.6.1: the chromosome inventory line printed
+  localized labels, so `run` aborted with `'charmap' codec can't encode`
+  on a non-UTF-8 Windows console (cp1252). The inventory line now uses
+  ASCII labels (`chromosomes N (id:genes)`, `inventory: <path>`).
+- The CLI additionally reconfigures stdout/stderr with `errors="replace"`,
+  so any remaining localized message degrades instead of failing the
+  command on such consoles. Shell wrappers still force UTF-8.
+- Engineering: 202 tests, including a regression test that runs the CLI
+  under `PYTHONIOENCODING=cp1252`; Ruff and Mypy pass; Windows synthetic
+  full-chain smoke receipt `validation/smoke-report-3.6.2.json`.
+
 ## 3.6.1 — 2026-11-22
 
 - `run` now prints the chromosome inventory to the caller for each processed

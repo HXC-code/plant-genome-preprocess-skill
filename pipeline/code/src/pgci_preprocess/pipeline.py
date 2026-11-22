@@ -1635,8 +1635,9 @@ def _print_chromosome_inventory(analysis_root: Path, code: str) -> None:
     if not rows:
         return
     pairs = "  ".join(f"{row['chromosome']}:{row['gene_count']}" for row in rows)
-    print(f"    染色体 {len(rows)} 条（编号:基因数） {pairs}", flush=True)
-    print(f"    清单: {path}", flush=True)
+    # ASCII labels: run must not crash on a non-UTF-8 Windows console (cp1252).
+    print(f"    chromosomes {len(rows)} (id:genes) {pairs}", flush=True)
+    print(f"    inventory: {path}", flush=True)
 
 
 def run_project(

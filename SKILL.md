@@ -266,7 +266,7 @@ prepare → 可选 normalize-gff → run → validate
 2. **报告输入路由**：列出所选文件、转换步骤和候选选择记录；
 3. **报告准备度**：运行后读取每个物种的 `wgdi_ready` 和保留率；
 4. **报告细胞器结果**：列出 `inferred` 和 `review_candidates`；
-5. **染色体清单与人工裁决**：`run` 输出已逐物种打印「染色体 N 条（编号:基因数）」，**必须把这份清单展示给调用方**（不得只报 seqs 总数或只字不提）；**必须取得人工签字**（`adjudicate`，reviewer 填实际复核人）后才能进入下游；不得代签或静默跳过；
+5. **染色体清单与人工裁决**：`run` 输出已逐物种打印 `chromosomes N (id:genes) ...` 与清单路径，**必须把这份清单展示给调用方**（不得只报 seqs 总数或只字不提）；**必须取得人工签字**（`adjudicate`，reviewer 填实际复核人）后才能进入下游；不得代签或静默跳过；
 6. **启用硬门禁**：验收用 `validate --require-adjudication`，下游设 `HOMOLOGY_REQUIRE_ADJUDICATION=true`；未裁决/过期/数量不符的物种会被 FAIL/跳过，如实报告；
 7. **报告跳过物种**：下游运行后读取 `skipped_species.txt`；
 8. **复核旧版本结果**：升级后备份并对指定物种使用 `--overwrite`（重跑会使旧裁决失效，需重新签字）；
@@ -281,13 +281,13 @@ cd pipeline\code
 python -m pytest -q
 ```
 
-测试覆盖多格式项目、GBFF 往返、GTF 转换、命名迁移、兼容链接、失败路径、版本一致性、共享脚本契约、发布包、Skill 镜像、染色体下限与人工裁决门禁（当前 201 项）。
+测试覆盖多格式项目、GBFF 往返、GTF 转换、命名迁移、兼容链接、失败路径、版本一致性、共享脚本契约、发布包、Skill 镜像、染色体下限、人工裁决门禁与非 UTF-8 控制台回归（当前 202 项）。
 
 ## 交接材料
 
 - 使用说明：`pipeline/QUICKSTART.md`
 - 发布门禁：`pipeline/VALIDATION.md`
-- 当前 Windows 验证回执：`pipeline/validation/smoke-report-3.6.1.json`
+- 当前 Windows 验证回执：`pipeline/validation/smoke-report-3.6.2.json`
 - Linux 验证回执：`pipeline/validation/smoke-report-3.5.2-linux.json`
 - 真实物种验证：`pipeline/validation/real-species-3.5.2.json`
 

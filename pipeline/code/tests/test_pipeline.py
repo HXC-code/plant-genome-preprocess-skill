@@ -3,6 +3,9 @@ from __future__ import annotations
 import csv
 import gzip
 import json
+import os
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -191,10 +194,44 @@ def test_run_shows_chromosome_inventory_to_the_caller(
         options=PipelineOptions(project_root=project, min_genes_per_sequence=0),
     )
     out = capsys.readouterr().out
-    assert "染色体" in out
+    assert "chromosomes " in out
     assert ".chromosomes.tsv" in out
     # per-chromosome gene counts must be visible, not only the sequence count
     assert "1:" in out
+    # the inventory line must stay ASCII so a cp1252 console cannot crash run
+    inventory = [
+        line for line in out.splitlines() if "(id:genes)" in line
+    ]
+    assert inventory
+    assert all(line.isascii() for line in inventory)
+
+
+def test_run_survives_a_non_utf8_windows_console(tmp_path: Path) -> None:
+    project, _ = _make_project(tmp_path)
+    src = Path(__file__).resolve().parents[1] / "src"
+    env = {**os.environ, "PYTHONIOENCODING": "cp1252", "PYTHONPATH": str(src)}
+    env.pop("PYTHONUTF8", None)
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pgci_preprocess",
+            "run",
+            "--project-root",
+            str(project),
+            "--min-genes-per-sequence",
+            "0",
+            "--min-genes-per-chromosome",
+            "0",
+        ],
+        env=env,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        capture_output=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
 
 
 def test_pipeline_quarantines_multiple_nuclear_taxa(tmp_path: Path) -> None:

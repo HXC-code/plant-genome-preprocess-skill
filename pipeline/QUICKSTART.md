@@ -329,7 +329,7 @@ python -m pgci_preprocess validate `
 
 ### 5.5 染色体清单与人工裁决（3.6.0）
 
-`run` 后每个物种生成 `<Abbr>.chromosomes.tsv`，列出保留了几条染色体、每条基因数/长度/来源，并在 run 输出里直接打印「染色体 N 条（编号:基因数）」给调用方。`--min-genes-per-chromosome`（CLI 默认 100）会丢弃基因数不足 100 的染色体（记入 chr_map 与 QC）。查看清单：
+`run` 后每个物种生成 `<Abbr>.chromosomes.tsv`，列出保留了几条染色体、每条基因数/长度/来源，并在 run 输出里直接打印 `chromosomes N (id:genes) ...` 给调用方（ASCII 标签，避免非 UTF-8 控制台编码失败）。`--min-genes-per-chromosome`（CLI 默认 100）会丢弃基因数不足 100 的染色体（记入 chr_map 与 QC）。查看清单：
 
 ```powershell
 python -m pgci_preprocess chromosomes --project-root D:\plant_project --species Hbr

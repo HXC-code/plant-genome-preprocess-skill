@@ -50,7 +50,7 @@ Build and inspect a source release:
 
 ```powershell
 python code/tools/build_release_package.py `
-  --output dist/plant-genome-preprocess-v3.6.1.zip
+  --output dist/plant-genome-preprocess-v3.6.2.zip
 ```
 
 The ZIP includes its own `PACKAGE_SHA256.tsv`; the build command prints the
@@ -75,6 +75,15 @@ derived real-data smoke can additionally be built with
 `build_wgdi_smoke_fixture.py`.
 
 ## Current status
+
+On 2026-11-22 version 3.6.2 passed:
+
+- Regression coverage for a non-UTF-8 Windows console: the CLI is executed
+  with `PYTHONIOENCODING=cp1252` and must exit 0; the inventory line is
+  asserted ASCII-only.
+- Windows synthetic full-chain smoke: four comparisons, eight products each
+  (`validation/smoke-report-3.6.2.json`).
+- The local Python suite passed `202` tests; Ruff and Mypy passed.
 
 On 2026-11-22 version 3.6.1 passed:
 
@@ -169,6 +178,7 @@ real-subset execution acceptance. It is not a BUSCO lineage assessment or a
 full-proteome biological WGD conclusion. See:
 
 - `validation/smoke-report-3.5.4.json`
+- `validation/smoke-report-3.6.2.json`
 - `validation/smoke-report-3.6.1.json`
 - `validation/smoke-report-3.6.0.json`
 - `validation/smoke-report-3.5.5.json`

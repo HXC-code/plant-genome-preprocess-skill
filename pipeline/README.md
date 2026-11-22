@@ -2,10 +2,10 @@
 
 HXC 植物基因组规范化与质控工具是一套面向植物比较基因组学研究的标准化数据预处理软件。它把原始下载的注释、基因组和编码序列整理为命名统一、结构一致、来源可追溯的 WGDI 输入，并可继续执行 DIAMOND/BLAST、共线性、Ks 和 Ks-peak 分析。
 
-当前版本：**3.6.1**
+当前版本：**3.6.2**
 
 - [快速上手](QUICKSTART.md)
-- [发布包](https://github.com/HXC-code/plant-genome-preprocess/releases/tag/v3.6.1)
+- [发布包](https://github.com/HXC-code/plant-genome-preprocess/releases/tag/v3.6.2)
 - [验证说明](VALIDATION.md)
 - [Agent Skill 仓库](https://github.com/HXC-code/plant-genome-preprocess-skill)
 
@@ -340,7 +340,7 @@ powershell -ExecutionPolicy Bypass -File .\run_all_pipeline.ps1
 
 两套仓库使用同一套代码、资源表和验证规则。
 
-## 染色体清单与裁决门禁（3.6.0 起，3.6.1 调用即显示）
+## 染色体清单与裁决门禁（3.6.0 起，3.6.1 起调用即显示）
 
 以下描述当前实现的行为。染色体数是否符合物种真实核型，程序不做判断，由复核人决定。
 
@@ -352,11 +352,11 @@ powershell -ExecutionPolicy Bypass -File .\run_all_pipeline.ps1
 
 ```text
 [OK] <code> show_id=<id> <species> genes=<n> seqs=<n> ready=<yes|marginal|no> reason=
-    染色体 <n> 条（编号:基因数） 1:<n>  2:<n>  ...
-    清单: <analysis_v2/code/code.chromosomes.tsv>
+    chromosomes <n> (id:genes) 1:<n>  2:<n>  ...
+    inventory: <analysis_v2/code/code.chromosomes.tsv>
 ```
 
-编号是产物的内部序列号，可能不连续（被排除的序列留空号）。`chromosomes` 子命令可随时重新读取该表打印。
+编号是产物的内部序列号，可能不连续（被排除的序列留空号）。该行使用 ASCII 标签，以免在非 UTF-8 的 Windows 控制台（cp1252）上编码失败。`chromosomes` 子命令可随时重新读取该表打印。
 
 **染色体基因数下限**
 
@@ -402,7 +402,7 @@ python -m ruff check src tests scripts tools
 python -m mypy src --ignore-missing-imports
 ```
 
-当前版本包含 201 项 Python 自动化测试，并通过 Ruff、Mypy、Shell 语法检查、Windows/Linux 合成 WGDI 流程和真实物种数据验收。详细回执见 [VALIDATION.md](VALIDATION.md) 和 `validation/`。
+当前版本包含 202 项 Python 自动化测试，并通过 Ruff、Mypy、Shell 语法检查、Windows/Linux 合成 WGDI 流程和真实物种数据验收。详细回执见 [VALIDATION.md](VALIDATION.md) 和 `validation/`。
 
 ## 许可
 
