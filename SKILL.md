@@ -134,7 +134,9 @@ python -m pgci_preprocess adjudicate --project-root D:\my_project --species <cod
 python -m pgci_preprocess validate --project-root D:\my_project --require-adjudication
 ```
 
-`run` 默认 `--min-genes-per-chromosome 100`，丢弃基因数不足 100 的染色体（记入 chr_map/QC）。重跑后旧签字自动失效，需重新裁决。下游设 `HOMOLOGY_REQUIRE_ADJUDICATION=true` 跳过未裁决物种。
+`run` 默认 `--min-genes-per-chromosome 100`，丢弃基因数不足 100 的染色体（记入 chr_map/QC）；该阈值按基因数机械过滤，也可能移除基因数少的真实染色体，需在 chr_map 中核对。重跑后 QC 哈希变化，旧签字转为 `stale`，需重新裁决。
+
+两个门禁开关默认关闭，**必须由本 skill 显式传入**：验收加 `--require-adjudication`，下游设 `HOMOLOGY_REQUIRE_ADJUDICATION=true`。不传时程序不检查裁决记录，因此不得省略。`reviewer` 填实际复核人，不得代签；仓库与发布包不包含任何裁决记录。
 
 ## 输入识别
 

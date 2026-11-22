@@ -340,23 +340,48 @@ powershell -ExecutionPolicy Bypass -File .\run_all_pipeline.ps1
 
 两套仓库使用同一套代码、资源表和验证规则。
 
-## 3.6.0 新增：染色体清单与人工裁决门禁
+## 染色体清单与裁决门禁（3.6.0 起）
 
-把“老师看 QC 和 chr_map 判断染色体数”的口头 SOP 变成程序里可审计、版本绑定的正式裁决步骤。
+以下描述当前实现的行为。染色体数是否符合物种真实核型，程序不做判断，由复核人决定。
 
-- **染色体清单**：`run` 后每个物种生成 `<Abbr>.chromosomes.tsv`（analysis_v2 与 clean_v2 各一份），列出保留了几条染色体、每条的基因数、长度、原始 seqid、是否 primary；QC 增加 `chromosome_summary`。用 `python -m pgci_preprocess chromosomes --project-root <root> --species <code>` 直接查看，供人工复核。
-- **染色体基因数下限**：`run --min-genes-per-chromosome`（CLI 默认 **100**，0 关闭）在序列选择后丢弃基因数不足 100 的染色体（多为小 scaffold/片段），排除原因 `below_min_genes_per_chromosome` 记入 chr_map，丢弃数记入 QC。该下限可能降低保留率甚至 readiness，属显式可审计的取舍。
-- **人工裁决硬门禁**：`adjudicate` 记录老师对最终染色体数的确认（confirmed_n、decision、署名 reviewer、理由 rationale），并**绑定被裁决 QC 的版本与 SHA-256**——重跑改变结果后旧签字自动失效（stale）。`validate --require-adjudication` 对缺失/过期/数量不符/拒绝的物种判 FAIL；下游 `run_homology.sh` / `run_all_pipeline.ps1` 设 `HOMOLOGY_REQUIRE_ADJUDICATION=true` 后跳过未裁决物种。**Skill 调用默认启用该门禁**，即“全部物种必须人工签字才能进入下游”。
+**染色体清单**
+
+`run` 为每个物种写出 `<Abbr>.chromosomes.tsv`（analysis_v2 与 clean_v2 各一份），列为 `chromosome`、`source_seqid`、`length`、`gene_count`、`is_primary`；QC 中对应 `chromosome_summary`（`n_chromosomes`、`total_genes`、`n_dropped_below_floor` 及逐条记录）与顶层 `n_wgdi_sequences`。`chromosomes` 子命令读取该表并打印。
+
+**染色体基因数下限**
+
+`--min-genes-per-chromosome` 在序列选择完成后过滤：保留集中代表基因数低于该值的序列被移出，`chr_map` 记 `below_min_genes_per_chromosome`，QC 记 `n_dropped_below_floor`，保留率与 `wgdi_ready` 按过滤后的集合重算。CLI 默认 100，传 0 关闭；Python API（`PipelineOptions`）默认 0，即不改变既有调用行为。
+
+该阈值是按基因数的机械过滤，不区分小 scaffold 与基因数少的真实染色体，因此可能移除真实染色体。被移除的序列可在 `chr_map` 中逐条核对。
+
+**裁决记录与门禁**
+
+`adjudicate` 在 `resources/adjudications/<code>.json` 写入 `confirmed_n`、`decision`、`reviewer`、`rationale`、`reviewed_at`，以及被判读 QC 的 `pipeline_version` 与 `qc_sha256`。`adjudication-status` 与门禁按下表返回状态：
+
+| 状态 | 条件 |
+| --- | --- |
+| `ok` | 记录存在、QC 版本与 SHA-256 均匹配、decision 为 accept 或 accept_with_note、reviewer 非空、`confirmed_n` 等于 QC 的 `n_wgdi_sequences` |
+| `missing` | 无记录 |
+| `stale` | QC 版本或 SHA-256 与记录不一致（重跑后出现） |
+| `count_mismatch` | `confirmed_n` 与 `n_wgdi_sequences` 不等 |
+| `rejected` / `pending_adjustment` | decision 为 reject / adjust |
+| `invalid_decision` / `missing_reviewer` | decision 不在取值范围 / reviewer 为空 |
+| `no_qc` | 找不到该物种的 QC |
+
+`validate --require-adjudication` 对非 `ok` 的物种追加 `adjudication_<状态>` 问题并判 FAIL。`run_homology.sh` 与 `run_all_pipeline.ps1` 在 `HOMOLOGY_REQUIRE_ADJUDICATION=true` 时跳过非 `ok` 的物种并写入 `skipped_species.txt`。
+
+这两个开关默认关闭：不带开关的 `validate` 与下游不检查裁决记录。SKILL.md 的调用规则要求代理启用它们，并要求取得复核人签字后才进入下游；这是文档层面的约定，程序本身不会强制未加开关的调用。
 
 ```powershell
-python -m pgci_preprocess chromosomes --project-root D:\proj --species Hbr
-python -m pgci_preprocess adjudicate --project-root D:\proj --species Hbr `
-  --confirmed-n 21 --decision accept --reviewer "<复核人姓名>" --rationale "与核型一致，叶绿体已排除"
-python -m pgci_preprocess adjudication-status --project-root D:\proj --species Hbr
-python -m pgci_preprocess validate --project-root D:\proj --require-adjudication
+python -m pgci_preprocess chromosomes --project-root <root> --species <code>
+python -m pgci_preprocess adjudicate --project-root <root> --species <code> `
+  --confirmed-n <复核确认的染色体数> --decision accept `
+  --reviewer "<复核人姓名>" --rationale "<判断依据>"
+python -m pgci_preprocess adjudication-status --project-root <root> --species <code>
+python -m pgci_preprocess validate --project-root <root> --require-adjudication
 ```
 
-裁决决定：`accept` / `accept_with_note`（confirmed_n 须等于程序染色体数）、`adjust`（待调整，门禁拦截）、`reject`（拒绝，门禁拦截）。门禁默认关闭以便归档复核，由 SOP/Skill 显式开启。
+上例为参数占位符。仓库与发布包不包含任何裁决记录；`reviewer` 应填写实际复核人。开发期曾用占位签字验证门禁分支，该记录已删除，不代表任何物种已通过人工复核。
 
 ## 测试与验证
 
