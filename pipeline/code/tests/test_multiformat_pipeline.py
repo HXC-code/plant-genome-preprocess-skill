@@ -42,7 +42,7 @@ def _run_cli(project: Path, *extra: str, module: bool = True) -> subprocess.Comp
 
 
 def _qc(project: Path, code: str) -> dict[str, object]:
-    return json.loads((project / "analysis_v2" / code / f"{code}.qc.json").read_text(encoding="utf-8"))
+    return json.loads((project / "wgdi_input" / code / f"{code}.qc.json").read_text(encoding="utf-8"))
 
 
 def test_run_multiformat_project(tmp_path: Path) -> None:
@@ -69,7 +69,7 @@ def test_run_multiformat_project(tmp_path: Path) -> None:
     assert qc2["n_regions"] == 1
     # Authoritative genome length (2000) supersedes the synthetic max-end (308).
     assert qc2["region_backfill"]["genome"] == ["1"]
-    assert (project / "analysis_v2" / "s2" / "s2.lens").read_text(encoding="utf-8").splitlines() == ["1\t2000\t2"]
+    assert (project / "wgdi_input" / "s2" / "s2.lens").read_text(encoding="utf-8").splitlines() == ["1\t2000\t2"]
 
     assert by_code["s3"]["n_representative_genes"] == 3
     assert by_code["s3"]["n_wgdi_sequences"] == 2
@@ -151,9 +151,9 @@ def test_cli_and_legacy_wrapper_are_equivalent(tmp_path: Path) -> None:
 
     for code in ("s1", "s2", "s3", "s4"):
         for suffix in (".new.gff", ".lens", ".cds", ".pep"):
-            left = (direct / "analysis_v2" / code / f"{code}{suffix}").read_bytes()
-            middle = (cli / "analysis_v2" / code / f"{code}{suffix}").read_bytes()
-            right = (wrapper / "analysis_v2" / code / f"{code}{suffix}").read_bytes()
+            left = (direct / "wgdi_input" / code / f"{code}{suffix}").read_bytes()
+            middle = (cli / "wgdi_input" / code / f"{code}{suffix}").read_bytes()
+            right = (wrapper / "wgdi_input" / code / f"{code}{suffix}").read_bytes()
             assert left == middle == right, (code, suffix)
         left_qc = _qc(direct, code)
         middle_qc = _qc(cli, code)
@@ -199,9 +199,9 @@ def test_cli_default_chromosomes_mode_fails_closed_without_chromosome_evidence(
     )
     assert strict.returncode == 1
     assert "no_chromosome_sequences" in strict.stdout + strict.stderr
-    assert (project / "analysis_v2" / "s1" / "s1.pep").is_file()
+    assert (project / "wgdi_input" / "s1" / "s1.pep").is_file()
     for code in ("s2", "s3", "s4"):
-        assert not (project / "analysis_v2" / code / f"{code}.pep").exists()
+        assert not (project / "wgdi_input" / code / f"{code}.pep").exists()
 
     adaptive = _run_cli(
         project,
@@ -211,7 +211,7 @@ def test_cli_default_chromosomes_mode_fails_closed_without_chromosome_evidence(
     )
     assert adaptive.returncode == 0, adaptive.stderr
     for code in ("s2", "s3", "s4"):
-        assert (project / "analysis_v2" / code / f"{code}.pep").is_file()
+        assert (project / "wgdi_input" / code / f"{code}.pep").is_file()
 
 
 def _write(path: Path, text: str) -> None:
@@ -308,7 +308,7 @@ def test_synthetic_regions_yield_to_authoritative_genome_lengths(tmp_path: Path)
     assert all(r["status"] == "OK" for r in results), results
 
     def lens(code: str) -> list[str]:
-        return (project / "analysis_v2" / code / f"{code}.lens").read_text(encoding="utf-8").splitlines()
+        return (project / "wgdi_input" / code / f"{code}.lens").read_text(encoding="utf-8").splitlines()
 
     assert lens("s1") == ["1\t2000\t2"]
     assert _qc(project, "s1")["region_backfill"]["genome"] == ["1"]

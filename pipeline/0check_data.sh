@@ -26,7 +26,7 @@ Options:
   --preprocess           Run the Python standardization pipeline first
   --species LIST         With --preprocess, process comma-separated show_ids
   --refresh-links        Refresh legacy root s<show_id> compatibility links
-  --no-compat-links      Validate canonical analysis_v2 data only
+  --no-compat-links      Skip legacy root compatibility links (default for wgdi_input)
   --allow-not-ready      Accept wgdi_ready=no bundles for data-integrity checks
   -h, --help             Show this help
 

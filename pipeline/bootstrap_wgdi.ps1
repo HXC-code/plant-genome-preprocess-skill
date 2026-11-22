@@ -5,7 +5,12 @@ param(
     [switch]$Force,
     [switch]$SkipExternalCheck,
     [switch]$SkipPal2nal,
-    [switch]$AllowUnpinnedFallback
+    [switch]$AllowUnpinnedFallback,
+    [string]$IndexUrl = "",
+    [switch]$Offline,
+    [switch]$CoreOnly,
+    [switch]$CheckOnly,
+    [switch]$UpgradePip
 )
 
 $ErrorActionPreference = "Stop"
@@ -27,5 +32,10 @@ if ($Force) { $arguments += "--force" }
 if ($SkipExternalCheck) { $arguments += "--skip-external-check" }
 if ($SkipPal2nal) { $arguments += "--skip-pal2nal" }
 if ($AllowUnpinnedFallback) { $arguments += "--allow-unpinned-fallback" }
+if (-not [string]::IsNullOrWhiteSpace($IndexUrl)) { $arguments += @("--index-url", $IndexUrl) }
+if ($Offline) { $arguments += "--offline" }
+if ($CoreOnly) { $arguments += "--core-only" }
+if ($CheckOnly) { $arguments += "--check-only" }
+if ($UpgradePip) { $arguments += "--upgrade-pip" }
 & $python @arguments
 exit $LASTEXITCODE

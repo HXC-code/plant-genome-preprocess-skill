@@ -29,4 +29,19 @@ fi
 if [[ "${WGDI_BOOTSTRAP_ALLOW_UNPINNED_FALLBACK:-false}" == "true" ]]; then
     args+=(--allow-unpinned-fallback)
 fi
+if [[ -n "${WGDI_BOOTSTRAP_INDEX_URL:-}" ]]; then
+    args+=(--index-url "$WGDI_BOOTSTRAP_INDEX_URL")
+fi
+if [[ "${WGDI_BOOTSTRAP_OFFLINE:-false}" == "true" ]]; then
+    args+=(--offline)
+fi
+if [[ "${WGDI_BOOTSTRAP_CORE_ONLY:-false}" == "true" ]]; then
+    args+=(--core-only)
+fi
+if [[ "${WGDI_BOOTSTRAP_CHECK_ONLY:-false}" == "true" ]]; then
+    args+=(--check-only)
+fi
+if [[ "${WGDI_BOOTSTRAP_UPGRADE_PIP:-false}" == "true" ]]; then
+    args+=(--upgrade-pip)
+fi
 exec "$python_bin" "${args[@]}"

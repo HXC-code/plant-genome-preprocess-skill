@@ -13,26 +13,49 @@ python -m pgci_preprocess --version
 
 输出 `pgci_preprocess 3.8.0` 表示本地环境已就绪。
 
+### 换电脑后第一步：扫描本机路径
+
+新电脑上只有 skill 文件夹和原始数据时，不要手工改路径，也不要手工抄物种清单：
+
+```powershell
+# 数据在 <项目>\data\<show_id>_<Order>_<Family>(<Species>)/ 下：
+python <skill>\pipeline\discover.py
+
+# 数据在其他磁盘或目录：
+python <skill>\pipeline\discover.py E:\raw_genomes --project-root D:\plant_project
+```
+
+这条命令不需要安装任何依赖，用系统里的 Python ≥ 3.11 直接运行。它会：
+
+1. 定位代码根（按 `pipeline/discover.py` 自身位置，符号链接/复制都不影响）；
+2. 扫描数据目录，按**文件内容**识别 gff/genome/cds/pep，并配对同一套组装；
+3. 判断每个物种有无染色体证据，写 `resources/sequence_mode.tsv`；
+4. 写 `resources/machine_paths.json` 与 `download_inventory.tsv`，并记住项目根。
+
+屏幕上会逐物种列出选中的四个文件，`resources/discovery_report.tsv` 列出全部候选
+和得分，供人工复核。之后所有命令都可以省略 `--project-root`：
+
+```powershell
+python -m pgci_preprocess doctor
+python -m pgci_preprocess run --sequence-mode from-map
+```
+
 创建项目后，可检查 Python、外部程序和输入文件：
 
 ```powershell
-python -m pgci_preprocess doctor --project-root D:\plant_project
+python -m pgci_preprocess doctor
 ```
 
 新项目还没有物种数据时加 `--allow-empty`：
 
 ```powershell
-python -m pgci_preprocess doctor `
-  --project-root D:\plant_project `
-  --allow-empty
+python -m pgci_preprocess doctor --allow-empty
 ```
 
 完整比较分析还可以执行：
 
 ```powershell
-python -m pgci_preprocess doctor `
-  --project-root D:\plant_project `
-  --workflow full
+python -m pgci_preprocess doctor --workflow full
 ```
 
 ## 2. 准备输入文件
@@ -87,7 +110,7 @@ D:\plant_project\
 │   ├── download_inventory.tsv
 │   ├── species_abbreviations.tsv
 │   └── format_exceptions.tsv
-├── analysis_v2\
+├── wgdi_input\
 ```
 
 旧项目的 `data\downloads\<物种目录>` 仍能直接读：`data/` 里有物种目录时以 `data/` 为准，
@@ -182,28 +205,27 @@ python -m pgci_preprocess run `
   --overwrite
 ```
 
-`--overwrite` 会替换相关物种的现有产物。使用前先备份 `analysis_v2` 和 `resources`。
+`--overwrite` 会替换相关物种的现有产物。使用前先备份 `wgdi_input` 和 `resources`。
 
 ### 3.5 验证
 
 ```powershell
-python -m pgci_preprocess validate `
-  --project-root D:\plant_project `
-  --refresh-links
+python -m pgci_preprocess validate --project-root D:\plant_project
 
 python -m pgci_preprocess check-names --project-root D:\plant_project
 python -m pgci_preprocess audit --project-root D:\plant_project
 ```
 
-`--refresh-links` 会在项目根生成 `<Abbr>/` 兼容目录，供下游脚本读取。
+新布局不需要兼容目录，下游脚本直接读取 `wgdi_input/<Abbr>/`。旧 `analysis_v2`
+项目可先用 `migrate-layout` 迁移；只有暂不迁移的旧项目才需要 `--refresh-links`。
 
 三个步骤全部通过后，将以下四个文件交给 WGDI：
 
 ```text
-analysis_v2\<Abbr>\<Abbr>.pep
-analysis_v2\<Abbr>\<Abbr>.cds
-analysis_v2\<Abbr>\<Abbr>.new.gff
-analysis_v2\<Abbr>\<Abbr>.lens
+wgdi_input\<Abbr>\<Abbr>.pep
+wgdi_input\<Abbr>\<Abbr>.cds
+wgdi_input\<Abbr>\<Abbr>.new.gff
+wgdi_input\<Abbr>\<Abbr>.lens
 ```
 
 ## 4. 批量流程
@@ -286,8 +308,8 @@ python -m pgci_preprocess readiness --project-root D:\plant_project --species Mu
 打开：
 
 ```text
-analysis_v2\<Abbr>\<Abbr>.qc.json
-analysis_v2\<Abbr>\<Abbr>.qc_record.md   # 人类可读 QC 摘要（由 qc.json 确定性生成）
+wgdi_input\<Abbr>\<Abbr>.qc.json
+wgdi_input\<Abbr>\<Abbr>.qc_record.md   # 人类可读 QC 摘要（由 qc.json 确定性生成）
 ```
 
 关注：
@@ -382,7 +404,7 @@ python -m pgci_preprocess doctor `
 逐步执行：
 
 ```bash
-bash 0check_data.sh --preprocess --refresh-links
+bash 0check_data.sh --preprocess
 bash run_homology.sh
 bash 2run_pre_wgdi.sh
 bash 3blast_to_wgdi.sh
@@ -393,7 +415,7 @@ bash 6run_wgdi.sh
 Windows 总控：
 
 ```powershell
-bash 0check_data.sh --preprocess --refresh-links
+bash 0check_data.sh --preprocess
 powershell -ExecutionPolicy Bypass -File .\run_all_pipeline.ps1
 ```
 
@@ -422,11 +444,11 @@ Windows 总控用 `-WithKs`。原因：上游 blockinfo/correspondence 依赖 Ks
 | --- | --- |
 | 命令提示找不到 `pgci_preprocess` | 切换到仓库 `code` 目录，并确认当前 `python` 是已部署环境 |
 | 产物名仍为 `s1234` | 提供 `--scientific-name`，或检查清单中的 `Species` 列 |
-| `validate` 报 `compat_missing_*` | 增加 `--refresh-links` |
+| 旧 `analysis_v2` 项目报 `compat_missing_*` | 运行 `migrate-layout`；暂不迁移时再用 `validate --refresh-links` |
 | `validate` 报 `wgdi_not_ready_low_coverage` | 查看 QC 保留率；按第 5.4 节复核组装和筛选参数 |
 | `run` 报 `no_chromosome_sequences` | 物种无染色体挂载证据；确认组装级别，或显式 `--sequence-mode adaptive` |
 | 旧版本 QC 更新后需要重算 | 备份结果，对指定物种使用 `run --overwrite` |
-| `compat_missing_*` 与文件名迁移同时出现 | 先运行 `migrate-artifacts`，再运行 `validate --refresh-links` |
+| 旧项目的 `compat_missing_*` 与文件名迁移同时出现 | 先运行 `migrate-artifacts`，再运行 `migrate-layout` |
 | 找不到 WGDI Python | 设置 `WGDI_PYTHON`，或使用本机已有的 `.wgdi-env` |
 | `PAL2NAL` 未找到 | 设置 `WGDI_PAL2NAL` 指向本机已有脚本 |
 | Windows 路径过长 | 将项目和临时目录放在较短路径下，建议总长度控制在 250 字符以内 |
@@ -434,7 +456,7 @@ Windows 总控用 `-WithKs`。原因：上游 blockinfo/correspondence 依赖 Ks
 
 ## 8. 目录瘦身（v3.8.0）
 
-默认不再写筛选前的 `.all.*` 快照（实测占 `analysis_v2` 的 51%）。需要回溯全量候选时：
+默认不再写筛选前的 `.all.*` 快照（实测占 `wgdi_input` 的 51%）。需要回溯全量候选时：
 
 ```powershell
 python -m pgci_preprocess run --project-root D:\plant_project --keep-all
@@ -465,7 +487,7 @@ python -m pgci_preprocess prune --project-root D:\plant_project --compat-links
 - [ ] `check-names` 显示 PASS；
 - [ ] `wgdi_ready` 状态已记录；
 - [ ] `review_candidates` 已完成人工复核；
-- [ ] `analysis_v2/<Abbr>/` 四件套齐全；
+- [ ] `wgdi_input/<Abbr>/` 四件套齐全；
 - [ ] `<Abbr>.gene_map.tsv` 和 `<Abbr>.chr_map.tsv` 已核对；
 - [ ] `<Abbr>.chromosome_map.tsv` 染色体数已人工裁决（`adjudication-status` 为 ok）；
 - [ ] `<Abbr>.removed_list.tsv` 剔除原因已抽查；

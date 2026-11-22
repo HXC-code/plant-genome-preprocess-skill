@@ -37,15 +37,27 @@
 
 第 4 步的点图、共线性块和统计表可以直接交给后续系统发育、文献核对、多重共线性和圈图分析使用。后续步骤由对应分析流程或人工判断接管。
 
+## 未发布重点变化（discover 与跨机器路径）
+
+换电脑不再需要改路径或手抄物种清单：
+
+| 项 | 变化 |
+| --- | --- |
+| **新增 `discover`** | `python pipeline/discover.py <数据目录>` 扫描本机数据，生成 `machine_paths.json`、`download_inventory.tsv`、`sequence_mode.tsv`、`discovery_report.tsv` |
+| **命令免路径** | 项目根写入指针，`doctor`/`run`/`validate` 等不再必须 `--project-root` |
+| **数据可在项目外** | `paths.data_root` 记录真实数据目录，`downloads_root()` 优先采用 |
+| **逐物种序列模式** | `run --sequence-mode from-map` 按 `sequence_mode.tsv` 分别套用严格/adaptive |
+| **配对与识别修复** | 细胞器只按整套序列比例判定；参考库不参与配对；以注释为锚点校验 seqid/ID，避免混拼两套组装 |
+
 ## 3.8.0 重点变化
 
 目录瘦身，不削弱审计链（实测基于 41 物种试点项目，逻辑体积 13.6 GB）：
 
 | 项 | 变化 |
 | --- | --- |
-| `<Abbr>.all.*` 筛选前快照 | **默认不写**（曾占 `analysis_v2` 的 51%，2.50 GB）；需要时 `run --keep-all` |
-| `gene_map` / `chr_map` 双份 | **取消 `clean_v2` 证据层**：追溯文件直接写入 `analysis_v2`，每份只存一次（省 205 MB 重复） |
-| 根目录 `<Abbr>/` 兼容目录 | 硬链接，不占额外空间；仅服务 0–6 下游脚本 |
+| `<Abbr>.all.*` 筛选前快照 | **默认不写**（曾占 `wgdi_input` 的 51%，2.50 GB）；需要时 `run --keep-all` |
+| `gene_map` / `chr_map` 双份 | **取消 `clean_v2` 证据层**：追溯文件直接写入 `wgdi_input`，每份只存一次（省 205 MB 重复） |
+| 根目录 `<Abbr>/` 兼容目录 | **新布局不再生成**；下游直接扫描 `wgdi_input/`，旧项目用 `migrate-layout` 清理 |
 | **原始数据布局** | 物种目录直接放 `data/` 下，不再套 `data/downloads/`；旧布局仍可读 |
 | **项目级哈希产物取消** | 不再生成 `wgdi_v2_manifest_sha256.tsv`，移除 `source-manifest` 命令与 `--skip-hashes`；`validate` 不再校内容哈希 |
 | 新增 `prune` 命令 | 已有项目可删可选产物并同步索引，**瘦身后 `validate` 仍 PASS** |
@@ -193,7 +205,7 @@ python -m pgci_preprocess run `
 ```text
 [OK] Mun show_id=2848 Morus notabilis genes=... seqs=10 ready=yes reason=
     chromosomes 10 (id:genes) 1:4210  2:3980  3:4521 ...
-    inventory: D:\plant_project\analysis_v2\Mun\Mun.chromosome_map.tsv
+    inventory: D:\plant_project\wgdi_input\Mun\Mun.chromosome_map.tsv
 ```
 
 ### 4. 复核染色体
@@ -207,10 +219,10 @@ python -m pgci_preprocess chromosomes `
 重点查看：
 
 ```text
-analysis_v2\Mun\Mun.chromosome_map.tsv
-analysis_v2\Mun\Mun.chr_map.tsv
-analysis_v2\Mun\Mun.qc_record.md
-analysis_v2\Mun\Mun.qc.json
+wgdi_input\Mun\Mun.chromosome_map.tsv
+wgdi_input\Mun\Mun.chr_map.tsv
+wgdi_input\Mun\Mun.qc_record.md
+wgdi_input\Mun\Mun.qc.json
 ```
 
 确认：
@@ -246,7 +258,6 @@ resources\adjudications\Mun.json
 ```powershell
 python -m pgci_preprocess validate `
   --project-root D:\plant_project `
-  --refresh-links `
   --require-adjudication
 
 python -m pgci_preprocess check-names --project-root D:\plant_project
@@ -256,10 +267,10 @@ python -m pgci_preprocess audit --project-root D:\plant_project
 验收通过后，四件套位于：
 
 ```text
-analysis_v2\<Abbr>\<Abbr>.pep
-analysis_v2\<Abbr>\<Abbr>.cds
-analysis_v2\<Abbr>\<Abbr>.new.gff
-analysis_v2\<Abbr>\<Abbr>.lens
+wgdi_input\<Abbr>\<Abbr>.pep
+wgdi_input\<Abbr>\<Abbr>.cds
+wgdi_input\<Abbr>\<Abbr>.new.gff
+wgdi_input\<Abbr>\<Abbr>.lens
 ```
 
 ## 关键 SOP 规则
@@ -325,7 +336,7 @@ CLI 默认 100；Python API 的 `PipelineOptions` 默认 0，需要显式传入 
 
 ## 输出
 
-### `analysis_v2/<Abbr>/`
+### `wgdi_input/<Abbr>/`
 
 ```text
 <Abbr>.pep
@@ -349,9 +360,9 @@ CLI 默认 100；Python API 的 `PipelineOptions` 默认 0，需要显式传入 
 <Abbr>.all.lens
 ```
 
-不再单独设 `clean_v2` 证据层：映射、剔除记录与 QC 全部在 `analysis_v2/<Abbr>/`
+不再单独设 `clean_v2` 证据层：映射、剔除记录与 QC 全部在 `wgdi_input/<Abbr>/`
 一个目录里。旧项目的 `clean_v2` 仍可读（迁移/审计兼容），重跑后新产物只写
-`analysis_v2`，旧层可整目录删除。
+`wgdi_input`，旧层可整目录删除。
 
 ### 目录瘦身
 
@@ -515,7 +526,7 @@ powershell -ExecutionPolicy Bypass -File .\run_all_pipeline.ps1 -WithKs
 所有剔除记录保存在：
 
 ```text
-analysis_v2/<Abbr>/<Abbr>.removed_list.tsv
+wgdi_input/<Abbr>/<Abbr>.removed_list.tsv
 ```
 
 `qc_record.md` 提供人类可读摘要；`qc.json` 保存完整机器可读结果。

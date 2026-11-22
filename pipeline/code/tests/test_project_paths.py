@@ -102,7 +102,7 @@ def test_end_to_end_run_from_flat_data(tmp_path: Path) -> None:
     assert all(r["status"] == "OK" for r in results), results
     assert downloads_root(flat) == flat / "data"
     for code in ("s1", "s2", "s3", "s4"):
-        assert (flat / "analysis_v2" / code / f"{code}.pep").is_file()
+        assert (flat / "wgdi_input" / code / f"{code}.pep").is_file()
 
 
 def test_relative_to_data_handles_both_layouts(tmp_path: Path) -> None:

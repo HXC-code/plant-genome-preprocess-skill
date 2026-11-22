@@ -10,9 +10,33 @@ from pathlib import Path
 
 import pytest
 
-from pgci_preprocess.pipeline import PipelineOptions, discover_species, process_species, run_project
+from pgci_preprocess.pipeline import (
+    PipelineOptions,
+    _read_genome_regions,
+    discover_species,
+    process_species,
+    run_project,
+)
 from pgci_preprocess.reports import read_tsv
 from pgci_preprocess.validate import ValidationOptions, validate_project
+
+
+def test_genome_regions_recognise_chromosome_seqids_without_description(
+    tmp_path: Path,
+) -> None:
+    genome = tmp_path / "genome.fa"
+    genome.write_text(
+        ">Chr1\nACGT\n"
+        ">Ajul.Chr01\nACGTACGT\n"
+        ">NW_026555332.1 unplaced genomic scaffold\nACGT\n",
+        encoding="utf-8",
+    )
+    regions = _read_genome_regions(genome)
+    assert regions["Chr1"].is_primary is True
+    assert regions["Chr1"].chromosome == "1"
+    assert regions["Ajul.Chr01"].is_primary is True
+    assert regions["Ajul.Chr01"].chromosome == "1"
+    assert regions["NW_026555332.1"].is_primary is False
 
 
 def _write_gz(path: Path, text: str) -> None:
@@ -122,7 +146,7 @@ def test_end_to_end_builds_consistent_wgdi_bundle(tmp_path: Path) -> None:
     result = process_species(species, options)
 
     assert result["status"] == "OK"
-    analysis = project / "analysis_v2" / "s1"
+    analysis = project / "wgdi_input" / "s1"
     assert (analysis / "s1.new.gff").is_file()
     assert (analysis / "s1.lens").is_file()
     assert (analysis / "s1.cds").is_file()
@@ -159,7 +183,7 @@ def test_validate_rejects_not_ready_bundle_unless_explicitly_allowed(
             max_sequences=200,
         ),
     )
-    qc_path = project / "analysis_v2" / "s1" / "s1.qc.json"
+    qc_path = project / "wgdi_input" / "s1" / "s1.qc.json"
     qc = json.loads(qc_path.read_text(encoding="utf-8"))
     qc["sequence_selection"]["wgdi_ready"] = "no"
     qc["sequence_selection"]["ratio"] = 0.25
@@ -193,7 +217,7 @@ def test_all_snapshot_is_opt_in_and_dedupes_gene_map(tmp_path: Path) -> None:
         options=PipelineOptions(project_root=project, min_genes_per_sequence=0),
     )
     code = str(results[0]["code"])
-    analysis = project / "analysis_v2" / code
+    analysis = project / "wgdi_input" / code
 
     # four-piece set is present, the pre-filtering snapshot is not written
     for suffix in (".pep", ".cds", ".new.gff", ".lens"):
@@ -230,7 +254,7 @@ def test_keep_all_writes_the_snapshot_and_indexes_it(tmp_path: Path) -> None:
         ),
     )
     code = str(results[0]["code"])
-    analysis = project / "analysis_v2" / code
+    analysis = project / "wgdi_input" / code
     for suffix in (".all.pep.fa", ".all.cds.fa", ".all.gff", ".all.lens"):
         assert (analysis / f"{code}{suffix}").is_file(), suffix
     row = next(
@@ -304,7 +328,7 @@ def test_pipeline_quarantines_multiple_nuclear_taxa(tmp_path: Path) -> None:
 
     assert result["status"] == "FAIL"
     assert result["reason"] == "multiple_nuclear_taxa"
-    assert not (project / "analysis_v2" / "s1" / "s1.new.gff").exists()
+    assert not (project / "wgdi_input" / "s1" / "s1.new.gff").exists()
 
 
 def test_run_project_writes_summary_index_and_checksums(tmp_path: Path) -> None:
@@ -424,7 +448,7 @@ def test_pipeline_options_default_to_no_overwrite(tmp_path: Path) -> None:
 
     first = process_species(species, options)
     assert first["status"] == "OK"
-    gff = project / "analysis_v2" / "s1" / "s1.new.gff"
+    gff = project / "wgdi_input" / "s1" / "s1.new.gff"
     before = gff.read_bytes()
 
     second = process_species(species, options)
@@ -483,5 +507,5 @@ def test_organelle_only_annotation_has_a_distinct_failure_reason(tmp_path: Path)
     assert result["status"] == "FAIL"
     assert result["reason"] == "organelle_only_annotation"
     assert result["detail"] == "transcripts=1"
-    assert not (project / "analysis_v2" / "s1").exists()
+    assert not (project / "wgdi_input" / "s1").exists()
 

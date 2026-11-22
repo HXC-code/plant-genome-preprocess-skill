@@ -22,7 +22,7 @@ SRC = Path(__file__).resolve().parents[1] / "src"
 
 def _qc_project(tmp_path: Path, n: int = 7) -> Path:
     project = tmp_path / "proj"
-    qc_dir = project / "analysis_v2" / "X"
+    qc_dir = project / "wgdi_input" / "X"
     qc_dir.mkdir(parents=True)
     (qc_dir / "X.qc.json").write_text(
         json.dumps(
@@ -67,7 +67,7 @@ def test_rerun_invalidates_stale_signoff(tmp_path: Path) -> None:
     project = _qc_project(tmp_path)
     write_adjudication(project, "X", confirmed_n=7, decision="accept", reviewer="T")
     assert gate_status(project, "X") == "ok"
-    qc_path = project / "analysis_v2" / "X" / "X.qc.json"
+    qc_path = project / "wgdi_input" / "X" / "X.qc.json"
     qc = json.loads(qc_path.read_text(encoding="utf-8"))
     qc["recomputed"] = True
     qc_path.write_text(json.dumps(qc), encoding="utf-8")
@@ -98,9 +98,9 @@ def test_validate_gate_requires_adjudication(tmp_path: Path) -> None:
     assert not strict.ok
     assert any("adjudication_missing" in str(row["problems"]) for row in strict.rows)
 
-    code = next((project / "analysis_v2").iterdir()).name
+    code = next((project / "wgdi_input").iterdir()).name
     qc = json.loads(
-        (project / "analysis_v2" / code / f"{code}.qc.json").read_text(encoding="utf-8")
+        (project / "wgdi_input" / code / f"{code}.qc.json").read_text(encoding="utf-8")
     )
     write_adjudication(
         project,
@@ -125,9 +125,9 @@ def test_cli_chromosomes_adjudicate_status(tmp_path: Path) -> None:
         project,
         options=PipelineOptions(project_root=project, min_genes_per_sequence=0),
     )
-    code = next((project / "analysis_v2").iterdir()).name
+    code = next((project / "wgdi_input").iterdir()).name
     qc = json.loads(
-        (project / "analysis_v2" / code / f"{code}.qc.json").read_text(encoding="utf-8")
+        (project / "wgdi_input" / code / f"{code}.qc.json").read_text(encoding="utf-8")
     )
     env = {**os.environ, "PYTHONPATH": str(SRC), "PYTHONIOENCODING": "utf-8"}
 

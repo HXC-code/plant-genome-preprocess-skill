@@ -51,6 +51,12 @@ if (-not [string]::IsNullOrWhiteSpace($DiamondPath)) { $env:DIAMOND = $DiamondPa
 if (-not [string]::IsNullOrWhiteSpace($BlastpPath)) { $env:BLASTP = $BlastpPath }
 if (-not [string]::IsNullOrWhiteSpace($MakeBlastDbPath)) { $env:MAKEBLASTDB = $MakeBlastDbPath }
 $script:ProjectRoot = $PSScriptRoot
+$script:SpeciesRoot = if (Test-Path -LiteralPath (Join-Path $script:ProjectRoot "wgdi_input") -PathType Container) {
+    Join-Path $script:ProjectRoot "wgdi_input"
+}
+else {
+    $script:ProjectRoot
+}
 $script:StateDirectory = Join-Path $script:ProjectRoot "_pipeline_state"
 $script:LogDirectory = Join-Path $script:ProjectRoot "_pipeline_logs"
 $script:MainLogPath = Join-Path $script:LogDirectory "pipeline_master.log"
@@ -128,6 +134,7 @@ function Get-WgdiSpeciesReadiness {
     finally { $env:PYTHONPATH = $savedPythonPath }
 
     $qcPaths = @(
+        (Join-Path $script:ProjectRoot ("wgdi_input\" + $SpeciesId + "\" + $SpeciesId + ".qc.json")),
         (Join-Path $script:ProjectRoot ("analysis_v2\" + $SpeciesId + "\" + $SpeciesId + ".qc.json")),
         (Join-Path $script:ProjectRoot ($SpeciesId + "\" + $SpeciesId + ".qc.json")),
         (Join-Path $script:ProjectRoot ("plant-genome-resources\analysis_v2\" + $SpeciesId + "\" + $SpeciesId + ".qc.json"))
@@ -204,11 +211,11 @@ function Get-PipelineSpecies {
     }
 
     return @(
-        Get-ChildItem -LiteralPath $script:ProjectRoot -Directory |
+        Get-ChildItem -LiteralPath $script:SpeciesRoot -Directory |
             Where-Object {
                 $_.Name -notlike "Auto_*" -and
                 $_.Name -notlike "_pipeline_*" -and
-                $_.Name -notin @("analysis_v2", "bin", "clean_v2", "code", "data", "dist", "external", "resources", "validation", "wgdi_run") -and
+                $_.Name -notin @("analysis_v2", "bin", "clean_v2", "code", "data", "dist", "external", "resources", "validation", "wgdi_input", "wgdi_run") -and
                 $_.Name -notlike ".*"
             } |
             ForEach-Object { $_.Name } |
@@ -250,7 +257,7 @@ function Get-DiscoveredSpeciesInputs {
     $canonical = New-Object System.Collections.Generic.List[object]
     $legacy = New-Object System.Collections.Generic.List[object]
 
-    foreach ($directory in (Get-ChildItem -LiteralPath $script:ProjectRoot -Directory)) {
+    foreach ($directory in (Get-ChildItem -LiteralPath $script:SpeciesRoot -Directory)) {
         if ($directory.Name -like "Auto_*" -or
             $directory.Name -like "_pipeline_*" -or
             $directory.Name -like "_script_backup*" -or
@@ -921,11 +928,11 @@ function Test-PipelinePrerequisites {
 
     if ($StepNumber -eq 1) {
         $species = @(
-            Get-ChildItem -LiteralPath $script:ProjectRoot -Directory |
+            Get-ChildItem -LiteralPath $script:SpeciesRoot -Directory |
                 Where-Object {
                     $_.Name -notlike "Auto_*" -and
                     $_.Name -notlike "_pipeline_*" -and
-                    $_.Name -notin @("analysis_v2", "bin", "clean_v2", "code", "data", "dist", "external", "resources", "validation", "wgdi_run") -and
+                    $_.Name -notin @("analysis_v2", "bin", "clean_v2", "code", "data", "dist", "external", "resources", "validation", "wgdi_input", "wgdi_run") -and
                     $_.Name -notlike ".*"
                 }
         )

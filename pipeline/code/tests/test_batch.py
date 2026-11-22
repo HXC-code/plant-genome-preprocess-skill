@@ -238,4 +238,4 @@ def test_legacy_conversion_folder_scan_and_finalize(tmp_path: Path) -> None:
     code = derive_code("Testus nonaginta")
     assert {row["code"] for row in read_tsv(resources / "wgdi_v2_index.tsv")} == {code}
     assert {row["code"] for row in read_tsv(resources / "stage_preprocess_v2_summary.tsv")} == {code}
-    assert (project / "analysis_v2" / code / f"{code}.qc.json").is_file()
+    assert (project / "wgdi_input" / code / f"{code}.qc.json").is_file()

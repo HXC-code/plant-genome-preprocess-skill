@@ -26,7 +26,12 @@ from pgci_preprocess.artifact_naming import (
     first_gene_id,
     is_canonical_gene_id,
 )
-from pgci_preprocess.project_paths import downloads_root, is_species_directory
+from pgci_preprocess.project_paths import (
+    downloads_root,
+    is_species_directory,
+    output_dirname,
+    output_root,
+)
 from pgci_preprocess.reports import read_tsv, write_tsv
 from pgci_preprocess.species_names import (
     SpeciesNamingError,
@@ -97,7 +102,7 @@ def audit_naming(project_root: Path | str, *, table_path: Path | str | None = No
     }
     legacy_dirs = sorted(
         f"{layer}/{path.name}"
-        for layer in ("analysis_v2", "clean_v2")
+        for layer in dict.fromkeys((output_dirname(canonical_root), "analysis_v2", "clean_v2"))
         for path in (canonical_root / layer).glob("s*")
         if path.is_dir() and path.name[1:].isdigit()
     )
@@ -175,7 +180,7 @@ def audit_naming(project_root: Path | str, *, table_path: Path | str | None = No
                 if code and not Path(relative).name.startswith(f"{code}."):
                     problems.append(f"index_file_not_code:{key}:{relative}")
             if code:
-                analysis_dir = canonical_root / "analysis_v2" / code
+                analysis_dir = output_root(canonical_root) / code
                 clean_dir = canonical_root / "clean_v2" / code
                 if analysis_dir.is_dir():
                     problems.extend(
@@ -209,7 +214,7 @@ def audit_naming(project_root: Path | str, *, table_path: Path | str | None = No
                     pass
                 elif analysis_dir.is_dir():
                     # Single-layer layout: traceability files must sit next to
-                    # the four-piece set inside analysis_v2.
+                    # the four-piece set inside the bundle directory.
                     problems.extend(
                         bundle_name_problems(
                             analysis_dir,

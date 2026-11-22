@@ -40,6 +40,11 @@ FORMATS = {
     "gene_cds_direct",
 }
 CHROM_RE = re.compile(r"^[Cc]hr(?:omosome)?[_]?0*(\d+)\b")
+#: Chromosome labels embedded in a prefixed seqid, e.g. ``Ajul.Chr01``,
+#: ``scaffold_Chr3`` or ``sample|chromosome12``.  Real assemblies often ship
+#: FASTA records whose seqid carries the chromosome label while the header
+#: description is empty; strict chromosome mode must still recognise them.
+CHROM_SEGMENT_RE = re.compile(r"(?:^|[._\s|])[Cc]hr(?:omosome)?[_]?0*(\d+)\b")
 CDS_PREFIX_RE = re.compile(r"^cds[.\-]")
 
 
@@ -80,9 +85,15 @@ class ParsedGff:
 
 
 def chromosome_from_seqid(seqid: str) -> str:
-    """Return a chromosome label from common seqid spellings, else empty."""
+    """Return a chromosome label from common seqid spellings, else empty.
 
-    match = CHROM_RE.match(seqid)
+    Both bare (``Chr1``, ``chromosome_02``) and prefixed (``Ajul.Chr01``,
+    ``sample|Chr3``) spellings are recognised.  Accessions such as
+    ``NW_026555332.1`` and ``GWHEUBM00000024.1`` deliberately return empty:
+    a scaffold accession is not chromosome-mounted evidence.
+    """
+
+    match = CHROM_RE.match(seqid) or CHROM_SEGMENT_RE.search(seqid)
     return match.group(1) if match else ""
 
 

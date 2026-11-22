@@ -64,7 +64,7 @@ Incremental runs preserve manifest and summary rows for unselected species.
 ```text
 data/              immutable raw input; one folder per species
 resources/         inventory, index, registry, QC, adjudications
-analysis_v2/       canonical CDS/PEP/GFF/lens plus all traceability files
+wgdi_input/       canonical CDS/PEP/GFF/lens plus all traceability files
                    (gene_map, chr_map, chromosome_map, removed_list, qc)
 results/           future BLAST/WGDI analysis output
 ```

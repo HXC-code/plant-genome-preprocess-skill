@@ -4,7 +4,7 @@ One species is identified by the globally unique abbreviation of the project
 species table (``resources/species_abbreviations.tsv``).  Every artifact must
 therefore satisfy two rules:
 
-* directory and file names use ``<code>`` (``analysis_v2/<code>/<code>.cds`` …);
+* directory and file names use ``<code>`` (``wgdi_input/<code>/<code>.cds`` …);
 * every canonical gene ID is ``<code><sequence>g<order>`` (``Lcu1g0001``).
 
 The helpers in this module are deliberately cheap: preprocessing calls
@@ -29,7 +29,7 @@ ANALYSIS_REQUIRED_SUFFIXES = (
 )
 # Written only on request (``run --keep-all``). They are the pre-filtering
 # snapshot of every candidate gene; nothing downstream reads them, and on the
-# 41-species pilot they were 51% of analysis_v2 (2.4 GB).
+# 41-species pilot they were 51% of the bundle container (2.4 GB).
 OPTIONAL_ANALYSIS_SUFFIXES = (
     ".all.pep.fa",
     ".all.cds.fa",

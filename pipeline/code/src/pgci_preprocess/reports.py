@@ -13,6 +13,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from pathlib import Path
 from typing import Any
 
+from pgci_preprocess.project_paths import OUTPUT_DIRNAME
 from pgci_preprocess.selection import natural_key
 
 REGISTRY_FIELDS = [
@@ -164,10 +165,12 @@ def merge_summary(
 def build_index_rows(
     results: Sequence[Mapping[str, Any]],
     *,
-    analysis_dirname: str = "analysis_v2",
-    clean_dirname: str = "analysis_v2",
+    analysis_dirname: str = "",
+    clean_dirname: str = "",
     project_root: Path | str | None = None,
 ) -> list[dict[str, Any]]:
+    analysis_dirname = analysis_dirname or OUTPUT_DIRNAME
+    clean_dirname = clean_dirname or OUTPUT_DIRNAME
     rows: list[dict[str, Any]] = []
     root = Path(project_root) if project_root is not None else None
     for result in results:
@@ -222,8 +225,8 @@ def finalize_project(
     species_rows: Sequence[Mapping[str, Any]],
     results: Sequence[Mapping[str, Any]],
     processed_codes: set[str],
-    analysis_dirname: str = "analysis_v2",
-    clean_dirname: str = "analysis_v2",
+    analysis_dirname: str = "",
+    clean_dirname: str = "",
 ) -> dict[str, Path]:
     """Consolidate registry, summary and index after a run.
 

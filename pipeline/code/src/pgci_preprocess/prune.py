@@ -4,7 +4,7 @@ Some artifacts are useful while building a dataset and pure weight afterwards:
 
 * ``<Abbr>.all.*`` — the pre-filtering snapshot of every candidate gene.
   Nothing downstream reads it; on the 41-species pilot it was 51% of
-  ``analysis_v2`` (2.4 GB). New runs skip it unless ``run --keep-all``.
+  the bundle directory (2.4 GB). New runs skip it unless ``run --keep-all``.
 * root ``<Abbr>/`` compatibility directories — hard links used only by the
   0-6 shell layer. They cost no extra bytes but add one directory per species.
 
@@ -17,6 +17,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from pgci_preprocess.artifact_naming import OPTIONAL_ANALYSIS_SUFFIXES
+from pgci_preprocess.project_paths import output_dirname
 from pgci_preprocess.reports import (
     INDEX_FIELDS,
     read_tsv,
@@ -64,7 +65,9 @@ def prune_project(
                 continue
             changed = False
             for suffix in OPTIONAL_ANALYSIS_SUFFIXES:
-                for layer in ("analysis_v2", "clean_v2"):
+                for layer in dict.fromkeys(
+                    (output_dirname(root), "analysis_v2", "clean_v2")
+                ):
                     path = root / layer / code / f"{code}{suffix}"
                     if not path.is_file():
                         continue

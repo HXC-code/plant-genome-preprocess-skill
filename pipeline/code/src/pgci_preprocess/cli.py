@@ -14,6 +14,10 @@ from pgci_preprocess.audit import audit_project, render_text
 from pgci_preprocess.batch import run_batch
 from pgci_preprocess.batch_prepare import BatchPreparationError, prepare_batch
 from pgci_preprocess.gff_standardize import GffStandardizationError, normalize_gff_species
+from pgci_preprocess.layout_migration import (
+    migrate_layout,
+    render_text as render_layout,
+)
 from pgci_preprocess.legacy_convert import (
     LegacyConversionError,
     default_downloads_root,
@@ -24,6 +28,12 @@ from pgci_preprocess.naming_audit import audit_naming
 from pgci_preprocess.naming_audit import render_text as render_naming
 from pgci_preprocess.project_init import ProjectInitError, init_project
 from pgci_preprocess.pipeline import PipelineOptions, run_project
+from pgci_preprocess.project_paths import (
+    OUTPUT_DIRNAME,
+    is_legacy_output,
+    output_dirname,
+    output_root,
+)
 from pgci_preprocess.organelle import MT_MIN_CORE_GENES
 from pgci_preprocess.prune import prune_project
 from pgci_preprocess.readiness import read_readiness_map
@@ -60,24 +70,44 @@ COMMANDS = {
     "convert",
     "migrate-species-names",
     "migrate-artifacts",
+    "migrate-layout",
     "check-names",
     "prune",
+    "preflight",
+    "discover",
 }
 def _default_project_root() -> Path:
     """Locate the project root without assuming code lives inside it.
 
     Resolution order:
       1. ``PGCI_PROJECT_ROOT`` environment variable (explicit override)
-      2. sibling ``plant-genome-resources`` of the code tree (this repository's layout)
-      3. the current working directory
+      2. the path map written by ``discover`` (pointer next to the code, then
+         the user's home directory) — this is what makes a copied skill work
+         on a new machine with no environment setup
+      3. sibling ``plant-genome-resources`` of the code tree (legacy layout)
+      4. the current working directory
     """
     environment = os.environ.get("PGCI_PROJECT_ROOT", "").strip()
     if environment:
         return Path(environment).expanduser().resolve()
+    try:
+        from pgci_preprocess import machine_scan
+
+        pointer = machine_scan.read_pointer()
+        if pointer:
+            candidate = Path(pointer["project_root"]).expanduser()
+            if candidate.is_dir():
+                return candidate.resolve()
+    except (OSError, ValueError, FileNotFoundError):
+        pass
     here = Path(__file__).resolve()
     for parent in here.parents:
         candidate = parent / "plant-genome-resources"
-        if (candidate / "resources").is_dir() or (candidate / "analysis_v2").is_dir():
+        if (
+            (candidate / "resources").is_dir()
+            or (candidate / OUTPUT_DIRNAME).is_dir()
+            or (candidate / "analysis_v2").is_dir()
+        ):
             return candidate
     return Path.cwd()
 
@@ -224,17 +254,18 @@ def build_parser() -> argparse.ArgumentParser:
         help=(
             "Also write the pre-filtering .all.* snapshot (pep/cds/gff/lens of "
             "every candidate gene). Off by default: nothing downstream reads it "
-            "and it roughly doubles analysis_v2."
+            "and it roughly doubles the bundle directory."
         ),
     )
     run.add_argument(
         "--sequence-mode",
-        choices=("chromosomes", "adaptive"),
+        choices=("chromosomes", "adaptive", "from-map"),
         default="chromosomes",
         help=(
             "chromosomes (SOP default): keep only chromosome-mounted sequences, "
             "fail closed when none exist; adaptive: fall back to gene-count/coverage "
-            "selection for fragmented assemblies."
+            "selection for fragmented assemblies; from-map: per-species mode from "
+            "resources/sequence_mode.tsv (written by `discover`)."
         ),
     )
     run.add_argument(
@@ -484,6 +515,15 @@ def build_parser() -> argparse.ArgumentParser:
     migrate_artifacts_parser.add_argument("--json", action="store_true")
     migrate_artifacts_parser.set_defaults(func=_cmd_migrate_artifacts)
 
+    migrate_layout_parser = sub.add_parser(
+        "migrate-layout",
+        help="Rename analysis_v2/ to wgdi_input/ and repair index paths.",
+    )
+    _add_project_root(migrate_layout_parser)
+    migrate_layout_parser.add_argument("--dry-run", action="store_true")
+    migrate_layout_parser.add_argument("--json", action="store_true")
+    migrate_layout_parser.set_defaults(func=_cmd_migrate_layout)
+
     check_names = sub.add_parser(
         "check-names",
         help="Audit the abbreviation table against downloads, index and bundles.",
@@ -504,7 +544,7 @@ def build_parser() -> argparse.ArgumentParser:
     prune.add_argument(
         "--all-snapshots",
         action="store_true",
-        help="Delete <Abbr>.all.* (pre-filtering snapshot; roughly half of analysis_v2).",
+        help="Delete <Abbr>.all.* (pre-filtering snapshot; roughly half of the bundle directory).",
     )
     prune.add_argument(
         "--compat-links",
@@ -517,6 +557,61 @@ def build_parser() -> argparse.ArgumentParser:
     prune.add_argument("--dry-run", action="store_true", help="Report without deleting.")
     prune.add_argument("--json", action="store_true", help="Print JSON instead of text.")
     prune.set_defaults(func=_cmd_prune)
+
+    preflight = sub.add_parser(
+        "preflight",
+        help=(
+            "Read-only environment scan BEFORE installing: interpreter, installed "
+            "packages, conflicts, index reachability, external tools, reusable env."
+        ),
+    )
+    _add_project_root(preflight)
+    preflight.add_argument("--python-exe", default="", help="Interpreter to scan (default: current).")
+    preflight.add_argument("--requirements", type=Path, help="Pinned requirements file.")
+    preflight.add_argument("--no-network", action="store_true", help="Skip the index reachability probe.")
+    preflight.add_argument(
+        "--index-url", default="", help="Mirror to probe instead of the default package index."
+    )
+    preflight.add_argument("--json", action="store_true")
+    preflight.set_defaults(func=_cmd_preflight)
+
+    discover = sub.add_parser(
+        "discover",
+        help=(
+            "Scan this machine for the skill, the data folders and external tools, "
+            "then write resources/machine_paths.json + download_inventory.tsv. "
+            "Run this first on a new computer."
+        ),
+    )
+    discover.add_argument(
+        "roots",
+        nargs="*",
+        type=Path,
+        help=(
+            "Data folders to scan (default: CWD plus its data/ raw/ genomes/ "
+            "sub-folders, or PGCI_SCAN_ROOTS)."
+        ),
+    )
+    discover.add_argument(
+        "--project-root",
+        type=Path,
+        default=None,
+        help="Where to create resources/ (default: inferred parent of the species folders).",
+    )
+    discover.add_argument(
+        "--max-depth", type=int, default=4, help="Depth inside each species folder (default 4)."
+    )
+    discover.add_argument(
+        "--force",
+        action="store_true",
+        help="Overwrite an existing download_inventory.tsv / sequence_mode.tsv.",
+    )
+    discover.add_argument(
+        "--probe-network", action="store_true", help="Probe the package index while scanning."
+    )
+    discover.add_argument("--index-url", default="", help="Mirror to probe.")
+    discover.add_argument("--json", action="store_true", help="Print the full path map as JSON.")
+    discover.set_defaults(func=_cmd_discover)
     return parser
 
 
@@ -686,26 +781,66 @@ def _cmd_run(args: argparse.Namespace) -> int:
         print("ERROR: --organelle-mt-min-genes must be >= 1", file=sys.stderr)
         return 2
     ids = set(_parse_ids(args.species)) or None
-    options = PipelineOptions(
-        project_root=args.project_root,
-        min_genes_per_sequence=args.min_genes_per_sequence,
-        target_gene_coverage=args.coverage,
-        max_sequences=args.max_sequences,
-        min_genes_per_chromosome=args.min_genes_per_chromosome,
-        sequence_mode=args.sequence_mode,
-        write_all_sequences=args.keep_all,
-        overwrite=args.overwrite,
-        gff_format=args.gff_format,
-        protein_normalization=args.protein_normalization,
-        accession_policy=args.accession_policy,
-        backfill_regions_from_transcripts=not args.no_transcript_region_backfill,
-        infer_organelles=not args.no_organelle_inference,
-        organelle_pattern=args.organelle_pattern,
-        organelle_mt_min_genes=args.organelle_mt_min_genes,
-        species_names_path=args.species_names,
-    )
+
+    def make_options(mode: str) -> PipelineOptions:
+        return PipelineOptions(
+            project_root=args.project_root,
+            min_genes_per_sequence=args.min_genes_per_sequence,
+            target_gene_coverage=args.coverage,
+            max_sequences=args.max_sequences,
+            min_genes_per_chromosome=args.min_genes_per_chromosome,
+            sequence_mode=mode,
+            write_all_sequences=args.keep_all,
+            overwrite=args.overwrite,
+            gff_format=args.gff_format,
+            protein_normalization=args.protein_normalization,
+            accession_policy=args.accession_policy,
+            backfill_regions_from_transcripts=not args.no_transcript_region_backfill,
+            infer_organelles=not args.no_organelle_inference,
+            organelle_pattern=args.organelle_pattern,
+            organelle_mt_min_genes=args.organelle_mt_min_genes,
+            species_names_path=args.species_names,
+        )
+
     try:
-        results = run_project(args.project_root, show_ids=ids, options=options)
+        if args.sequence_mode == "from-map":
+            from pgci_preprocess.machine_scan import read_sequence_mode_map
+
+            mapping = read_sequence_mode_map(args.project_root)
+            if not mapping:
+                print(
+                    "ERROR: --sequence-mode from-map needs resources/sequence_mode.tsv; "
+                    "run `discover` first (or pass --sequence-mode chromosomes/adaptive).",
+                    file=sys.stderr,
+                )
+                return 2
+            inventory = args.project_root / "resources" / "download_inventory.tsv"
+            if not inventory.is_file():
+                print(f"ERROR: missing {inventory}", file=sys.stderr)
+                return 2
+            import csv
+
+            with inventory.open(encoding="utf-8", newline="") as handle:
+                registered = [
+                    row.get("showid", "").strip()
+                    for row in csv.DictReader(handle, delimiter="\t")
+                    if row.get("showid", "").strip()
+                ]
+            targets = ids if ids is not None else set(registered)
+            groups: dict[str, set[str]] = {}
+            for show_id in sorted(targets):
+                mode = mapping.get(show_id, "chromosomes")
+                groups.setdefault(mode, set()).add(show_id)
+            results = []
+            for mode, group in sorted(groups.items()):
+                print(f"[mode={mode}] {','.join(sorted(group))}")
+                results.extend(
+                    run_project(args.project_root, show_ids=group, options=make_options(mode))
+                )
+        else:
+            results = run_project(
+                args.project_root, show_ids=ids, options=make_options(args.sequence_mode)
+            )
     except Exception as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
@@ -726,15 +861,24 @@ def _cmd_validate(args: argparse.Namespace) -> int:
     except FileNotFoundError as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
+    legacy_layout = is_legacy_output(canonical_root)
     if args.refresh_links:
-        for message in sync_compat_links(canonical_root, workspace):
-            print(message)
+        if legacy_layout:
+            for message in sync_compat_links(canonical_root, workspace):
+                print(message)
+        else:
+            print(
+                f"{output_dirname(canonical_root)}/ 是单层布局："
+                "每个物种目录本身即 WGDI 输入，无需兼容链接"
+            )
     try:
         result = validate_project(
             ValidationOptions(
                 project_root=workspace,
                 expected_count=args.expected_count,
-                require_compat_links=not args.no_compat_links,
+                # Compatibility directories belong to the legacy layout only;
+                # the single-layer bundle is already what WGDI reads.
+                require_compat_links=(not args.no_compat_links) and legacy_layout,
                 allow_not_ready=args.allow_not_ready,
                 require_adjudication=args.require_adjudication,
                 report_path=args.report,
@@ -836,7 +980,9 @@ def _cmd_chromosomes(args: argparse.Namespace) -> int:
     ids = _species_ids(args)
     missing = 0
     for code in ids:
-        path = args.project_root / "analysis_v2" / code / f"{code}.chromosome_map.tsv"
+        path = output_root(args.project_root) / code / f"{code}.chromosome_map.tsv"
+        if not path.is_file():
+            path = args.project_root / "analysis_v2" / code / f"{code}.chromosome_map.tsv"
         if not path.is_file():
             path = args.project_root / "clean_v2" / code / f"{code}.chromosome_map.tsv"
         if not path.is_file():
@@ -974,6 +1120,15 @@ def _cmd_migrate_species_names(args: argparse.Namespace) -> int:
     return 1 if result.unresolved else 0
 
 
+def _cmd_migrate_layout(args: argparse.Namespace) -> int:
+    result = migrate_layout(args.project_root, dry_run=args.dry_run)
+    if args.json:
+        print(json.dumps(result.as_dict(), ensure_ascii=False, indent=2))
+    else:
+        print(render_layout(result))
+    return 0 if result.ok else 1
+
+
 def _cmd_migrate_artifacts(args: argparse.Namespace) -> int:
     show_ids = set(_parse_ids(args.species)) or None
     try:
@@ -1058,6 +1213,65 @@ def _cmd_prune(args: argparse.Namespace) -> int:
         print(result["note"])
     if result["dry_run"]:
         print("dry run: nothing was deleted")
+    return 0
+
+
+def _cmd_preflight(args: argparse.Namespace) -> int:
+    from pgci_preprocess import envcheck
+    from pgci_preprocess.version import __version__
+
+    report = envcheck.scan(
+        args.project_root,
+        python_exe=args.python_exe,
+        requirements=args.requirements or "",
+        source_version=__version__,
+        probe_index=not args.no_network,
+        index_url=args.index_url,
+    )
+    if args.json:
+        print(json.dumps(report, ensure_ascii=False, indent=2))
+    else:
+        print(envcheck.render(report))
+    plan = str(report["plan"])
+    return {"reuse": 0, "install": 0, "offline": 3, "blocked": 2}.get(plan, 2)
+
+
+def _cmd_discover(args: argparse.Namespace) -> int:
+    from pgci_preprocess import machine_scan
+
+    roots = [Path(item) for item in args.roots] or machine_scan.default_scan_roots()
+    config = machine_scan.build_config(
+        roots,
+        project_root=args.project_root,
+        max_depth=args.max_depth,
+        probe_index=args.probe_network,
+        index_url=args.index_url,
+    )
+    project_root = Path(config["paths"]["project_root"])
+    machine_scan.seed_resources(project_root)
+    config_path = machine_scan.write_config(
+        config, project_root / "resources" / machine_scan.CONFIG_FILENAME
+    )
+    machine_scan.write_discovery_report(config, project_root)
+    machine_scan.write_sequence_mode_map(config, project_root)
+    inventory = machine_scan.write_inventory(
+        config, project_root, overwrite=args.force
+    )
+    machine_scan.write_pointer(project_root, config_path)
+
+    if args.json:
+        print(json.dumps(config, ensure_ascii=False, indent=2))
+    else:
+        print(machine_scan.render(config))
+        print(f"清单     : {inventory}")
+        print(f"路径地图 : {config_path}")
+    if not config["species"]:
+        print(
+            "未发现物种目录。请把数据所在文件夹作为参数传入，例如："
+            "python -m pgci_preprocess discover D:\\data\\my-project",
+            file=sys.stderr,
+        )
+        return 1
     return 0
 
 

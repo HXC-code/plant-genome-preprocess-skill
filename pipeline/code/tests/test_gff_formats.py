@@ -8,6 +8,7 @@ from pgci_preprocess.gff import parse_gff
 from pgci_preprocess.gff_formats import (
     apply_gwh_accessions,
     backfill_regions_from_transcripts,
+    chromosome_from_seqid,
     detect_gff_format,
     mrna_accession_map,
     normalize_cds_protein_ids,
@@ -20,6 +21,19 @@ from tests.support import build_multiformat_project
 
 def _gff_path(project: Path, show_id: str, name: str) -> Path:
     return project / "data" / "downloads" / f"{show_id}_Testales_Testaceae(Testus {['primus','secundus','tertius','quartus'][int(show_id)-1]})" / name
+
+
+def test_chromosome_from_seqid_handles_bare_prefixed_and_scaffolds() -> None:
+    assert chromosome_from_seqid("1") == ""
+    assert chromosome_from_seqid("Chr1") == "1"
+    assert chromosome_from_seqid("chr_02") == "2"
+    assert chromosome_from_seqid("chromosome12") == "12"
+    assert chromosome_from_seqid("Ajul.Chr01") == "1"
+    assert chromosome_from_seqid("sample|Chr3") == "3"
+    # Scaffold/accession spellings are not chromosome evidence.
+    assert chromosome_from_seqid("NW_026555332.1") == ""
+    assert chromosome_from_seqid("GWHEUBM00000024.1") == ""
+    assert chromosome_from_seqid("scaffold1") == ""
 
 
 def test_detect_all_supported_formats(tmp_path: Path) -> None:

@@ -36,6 +36,7 @@ from pgci_preprocess.artifact_naming import (
     legacy_gene_id_regex,
     legacy_prefix,
 )
+from pgci_preprocess.project_paths import output_dirname, output_root
 from pgci_preprocess.reports import (
     read_tsv,
     read_tsv_with_fields,
@@ -52,7 +53,15 @@ from pgci_preprocess.validate import (
     sync_compat_links,
 )
 
-LAYERS = ("clean_v2", "analysis_v2")
+LEGACY_LAYERS = ("clean_v2", "analysis_v2")
+
+
+def _layers(canonical_root: Path) -> tuple[str, ...]:
+    """Every directory that may hold a bundle, active container last."""
+
+    return tuple(
+        dict.fromkeys((*LEGACY_LAYERS, output_dirname(canonical_root)))
+    )
 TEXT_SUFFIXES = (
     ".gff",
     ".cds",
@@ -442,7 +451,7 @@ def _migrate_index(
 
 def _migrated_codes_from_layers(canonical_root: Path) -> dict[str, str]:
     codes: dict[str, str] = {}
-    for layer in LAYERS:
+    for layer in _layers(canonical_root):
         root = canonical_root / layer
         if not root.is_dir():
             continue
@@ -484,7 +493,7 @@ def _prune_legacy_compat(
     candidates: list[tuple[Path, Path]] = []
     for show_id, code in code_by_show_id.items():
         legacy_dir = workspace / legacy_prefix(show_id)
-        canonical_dir = canonical_root / "analysis_v2" / code
+        canonical_dir = output_root(canonical_root) / code
         if not legacy_dir.is_dir() or not canonical_dir.is_dir():
             continue
         identical = True
@@ -538,24 +547,29 @@ def migrate_artifacts(
 
     items: list[SpeciesMigration] = []
     migrated: dict[str, str] = {}
+    layers = _layers(canonical_root)
     for show_id in selected:
         code = names.code_for(show_id)
         item = SpeciesMigration(show_id=show_id, code=code, status="MIGRATED")
         has_legacy = any(
             (canonical_root / layer / legacy_prefix(show_id)).is_dir()
-            for layer in LAYERS
+            for layer in layers
         )
-        canonical_complete = all(
-            (canonical_root / layer / code).is_dir() for layer in LAYERS
-        )
+        canonical_complete = (
+            canonical_root / output_dirname(canonical_root) / code
+        ).is_dir()
         if not has_legacy and not canonical_complete:
             continue
         if not has_legacy and canonical_complete:
             problems: list[str] = []
-            for layer, required in (
-                ("clean_v2", CLEAN_REQUIRED_SUFFIXES),
-                ("analysis_v2", ANALYSIS_REQUIRED_SUFFIXES),
-            ):
+            for layer in layers:
+                required = (
+                    CLEAN_REQUIRED_SUFFIXES
+                    if layer == "clean_v2"
+                    else ANALYSIS_REQUIRED_SUFFIXES
+                )
+                if not (canonical_root / layer / code).is_dir():
+                    continue
                 problems.extend(
                     f"{layer}:{problem}"
                     for problem in bundle_name_problems(
@@ -578,24 +592,20 @@ def migrate_artifacts(
             migrated[show_id] = code
             continue
         try:
-            _migrate_layer(
-                canonical_root,
-                "clean_v2",
-                show_id,
-                code,
-                dry_run=dry_run,
-                item=item,
-                required=CLEAN_REQUIRED_SUFFIXES,
-            )
-            _migrate_layer(
-                canonical_root,
-                "analysis_v2",
-                show_id,
-                code,
-                dry_run=dry_run,
-                item=item,
-                required=ANALYSIS_REQUIRED_SUFFIXES,
-            )
+            for layer in layers:
+                _migrate_layer(
+                    canonical_root,
+                    layer,
+                    show_id,
+                    code,
+                    dry_run=dry_run,
+                    item=item,
+                    required=(
+                        CLEAN_REQUIRED_SUFFIXES
+                        if layer == "clean_v2"
+                        else ANALYSIS_REQUIRED_SUFFIXES
+                    ),
+                )
         except (NamingViolation, OSError) as exc:
             item.status = "FAIL"
             item.problems.append(str(exc))

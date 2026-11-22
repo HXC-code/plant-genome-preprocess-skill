@@ -1,5 +1,64 @@
 # Changelog
 
+## Unreleased — 产物目录统一为 wgdi_input（2026-11-22）
+
+一个物种一个目录，四件套与追溯文件同层，项目根不再出现第二份同名目录。
+
+### 目录与命令
+- 预处理产物由 `analysis_v2/<Abbr>/` 迁到 `wgdi_input/<Abbr>/`；WGDI 直接
+  `-d wgdi_input/<Abbr>`，无需再经根目录兼容层。
+- 不再生成 `<项目>/<Abbr>/` 兼容硬链接：单层目录本身就是 WGDI 输入，根目录不再重复。
+- 新增 `python -m pgci_preprocess migrate-layout [--dry-run] [--json]`：原地改名、
+  重写 `resources/wgdi_v2_index.tsv` 路径、只删除经 `samefile` 校验的兼容目录
+  （目录里若还有别的文件则保留并提示）。
+- `discover` 在 `machine_paths.json` 写入 `paths.output_dirname`；已有 `analysis_v2/`
+  的旧项目仍自动按旧布局读写，直到显式迁移。
+
+### 校验与下游
+- `validate`：旧布局默认继续校验兼容链接，新布局自动跳过；`--refresh-links` 在新布局
+  为空操作，不再重建根目录。
+- `sync_compat_links()` 在新布局直接返回空列表；`prune --compat-links` 仍可清理旧项目。
+- `run_homology.sh` 与 `run_all_pipeline.ps1` 优先扫描 `wgdi_input/`，找不到时回退项目根，
+  兼容尚未迁移的旧项目。
+
+## Unreleased — discover 与跨机器路径（2026-11-22）
+
+跨机器可用：路径、物种清单和序列模式由扫描决定，不再依赖某一台电脑的目录布局。
+
+### 新增 `discover`：换电脑先扫描
+- `pipeline/discover.py` 可用任意 Python ≥ 3.11 直接运行（无需安装），扫描任意数据
+  目录后写出 `resources/machine_paths.json`（代码根/项目根/数据根/解释器/外部工具）、
+  `download_inventory.tsv`、`sequence_mode.tsv`、`discovery_report.tsv`。
+- 项目根写入指针（`pipeline/code/.pgci-machine.json`，只读安装回落 `~/.pgci-machine.json`），
+  之后 `doctor`/`run`/`validate` 等命令无需再传 `--project-root`。
+- 数据不在项目内时，`paths.data_root` 记录真实位置，`downloads_root()` 优先采用，
+  不必复制数据或建符号链接。
+- `discover` 会补齐 `species_abbreviations.tsv`、`format_exceptions.tsv`，避免新项目
+  回落到 `s<id>` 旧命名。
+- `run --sequence-mode from-map` 按 `sequence_mode.tsv` 逐物种套用严格/adaptive 模式。
+
+### 文件识别与配对修复
+- 细胞器判定改为“整套序列比例”而非“任一 header 命中”：基因产物描述里的
+  `chloroplastic`/`mitochondrial` 不再把核基因 CDS/PEP 误判为细胞器基因组。
+- SwissProt、InterPro、EggNOG、单拷贝比对等参考文件标记为 `reference`，不参与四件套配对。
+- 五列简化 GFF 按行数计分，不再被误报“no gene/CDS features”。
+- 以注释为锚点配对同一套组装：genome 需与 GFF seqid 有交集，CDS/PEP 需有 ID 交集或
+  同名；无法配对的 genome 留空并在报告中标注 `UNPAIRED`，不再把两套组装拼在一起。
+  与注释无关的转录组不进入 inventory。
+- 含物种子目录的容器目录（如 `<项目>/data`）不再被整体当成一个物种。
+
+### 本机验证修复（同日）
+- **严格染色体模式误判**：genome FASTA header 描述为空时，染色体编号写在 seqid 里
+  （`Chr1`、`Ajul.Chr01`）；现在同时识别裸写与带前缀的 `Chr/chromosome` seqid，
+  `NW_…`、`GWHEU…` 等 scaffold accession 仍不算证据。
+- **区域回填保留染色体证据**：genome FASTA 覆盖 GFF 合成区域时保留 `is_primary`。
+- **环境预扫修正**：`--no-network` 不再谎报索引可达；`--index-url` 用于镜像探测；
+  离线提示按系统输出 `set`/`export`；包装器补齐 `--core-only`。
+- 新增 `tests/test_machine_scan.py`（18 项）。全量测试 243 项通过；并在独立目录用
+  7 物种数据模拟新电脑，`discover` 自动生成的清单与原人工清单产出一致
+  （Apc 24,524/12、Aju 34,958/13、Bbl 29,915/14、Mof 47,553/8、Npl 22,164/14、
+  Pie 25,241/15、Vun 29,916/11）。
+
 ## 3.8.0 — 2026-11-22
 
 Layout and weight: fewer directories, fewer generated files, same guarantees

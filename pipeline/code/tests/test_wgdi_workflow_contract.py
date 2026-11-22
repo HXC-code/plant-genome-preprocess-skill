@@ -339,8 +339,13 @@ def test_bootstrap_wrappers_share_one_python_implementation() -> None:
     powershell = (WORKFLOW_ROOT / "bootstrap_wgdi.ps1").read_text(encoding="utf-8")
     assert "code/tools/bootstrap_wgdi.py" in shell
     assert "code/tools/bootstrap_wgdi.py" in powershell
-    assert len(shell.splitlines()) < 35
-    assert len(powershell.splitlines()) < 35
+    assert len(shell.splitlines()) < 60
+    assert len(powershell.splitlines()) < 60
+    # restricted-network / offline / scan-only paths must reach the shared impl
+    assert "--index-url" in shell and "--index-url" in powershell
+    assert "--offline" in shell and "--offline" in powershell
+    assert "--check-only" in shell and "--check-only" in powershell
+    assert "--core-only" in shell and "--core-only" in powershell
 
 
 def test_synthetic_wgdi_fixture_is_self_contained(tmp_path: Path) -> None:

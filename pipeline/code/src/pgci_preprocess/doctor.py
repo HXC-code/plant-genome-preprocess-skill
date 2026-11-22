@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import importlib.util
+import json
 import os
 import shutil
 import subprocess
@@ -156,6 +157,33 @@ def run_doctor(
             f"{sys.version.split()[0]} ({sys.executable})",
         )
     )
+    checks.append(
+        DoctorCheck(
+            "pip",
+            "PASS" if importlib.util.find_spec("pip") else "WARN",
+            "available" if importlib.util.find_spec("pip")
+            else "pip missing; install cannot run here (use another interpreter or offline source mode)",
+        )
+    )
+    from pgci_preprocess import envcheck
+    from pgci_preprocess.version import __version__
+
+    pins = envcheck.parse_requirements(root / "requirements-wgdi-validated.txt")
+    conflicts = envcheck.evaluate_conflicts(
+        envcheck.installed_packages(sys.executable), pins, __version__
+    )
+    blockers = [c for c in conflicts if c["level"] == "blocker"]
+    warns = [c for c in conflicts if c["level"] == "warn"]
+    if blockers:
+        detail = "; ".join(f"{c['item']}: {c['detail']}" for c in blockers)
+        status = "FAIL"
+    elif warns:
+        detail = "; ".join(f"{c['item']}: {c['detail']}" for c in warns)
+        status = "WARN"
+    else:
+        detail = "no conflicting installed packages detected"
+        status = "PASS"
+    checks.append(DoctorCheck("package-conflicts", status, detail))
     biopython = importlib.util.find_spec("Bio")
     if biopython:
         checks.append(DoctorCheck("biopython", "PASS", "available"))
@@ -189,6 +217,43 @@ def run_doctor(
                 str(downloads),
             )
         )
+        # A path map is what lets commands run without --project-root on a new
+        # machine; a stale one silently points at another project, so surface it.
+        config_path = root / "resources" / "machine_paths.json"
+        if not config_path.is_file():
+            checks.append(
+                DoctorCheck(
+                    "machine_paths",
+                    "WARN",
+                    "resources/machine_paths.json not found; run `python pipeline/discover.py` "
+                    "so commands can resolve this project without --project-root",
+                )
+            )
+        else:
+            try:
+                payload = json.loads(config_path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                payload = {}
+            recorded = str(((payload.get("paths") or {}).get("data_root")) or "")
+            if not recorded:
+                checks.append(DoctorCheck("machine_paths", "WARN", f"no data_root in {config_path}"))
+            elif Path(recorded).resolve() != downloads.resolve():
+                checks.append(
+                    DoctorCheck(
+                        "machine_paths",
+                        "WARN",
+                        f"recorded data_root {recorded} differs from resolved {downloads}; "
+                        "re-run discover if the data moved",
+                    )
+                )
+            else:
+                checks.append(
+                    DoctorCheck(
+                        "machine_paths",
+                        "PASS",
+                        f"data_root={recorded} scanned_at={payload.get('generated_at', '?')}",
+                    )
+                )
         if not inventory_path.is_file():
             checks.append(DoctorCheck("inventory", "FAIL", f"missing: {inventory_path}"))
         else:

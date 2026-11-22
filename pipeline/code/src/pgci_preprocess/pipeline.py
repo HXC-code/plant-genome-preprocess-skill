@@ -29,6 +29,7 @@ from pgci_preprocess.gff_formats import (
     GffFormatError,
     apply_gwh_accessions,
     backfill_regions_from_transcripts,
+    chromosome_from_seqid,
     mrna_accession_map,
     normalize_cds_protein_ids,
     parse_with_adapter,
@@ -36,7 +37,11 @@ from pgci_preprocess.gff_formats import (
 from pgci_preprocess.input_router import InputRoutingError, select_role_source
 from pgci_preprocess.models import Anomaly, Candidate, Region
 from pgci_preprocess.organelle import MT_MIN_CORE_GENES, infer_synthetic_organelles
-from pgci_preprocess.project_paths import downloads_root, is_species_directory
+from pgci_preprocess.project_paths import (
+    downloads_root,
+    is_species_directory,
+    output_dirname,
+)
 from pgci_preprocess.reports import (
     finalize_project,
     read_tsv as read_report_tsv,
@@ -88,11 +93,13 @@ class SpeciesInput:
 class PipelineOptions:
     project_root: Path
     # Single-layer SOP layout: traceability files (gene_map/chr_map/
-    # removed_list/chromosome_map) live in analysis_v2 next to the four-piece
-    # set. The parameter is kept so legacy dual-layer projects can still be
-    # addressed explicitly; the default no longer creates clean_v2.
-    clean_dirname: str = "analysis_v2"
-    analysis_dirname: str = "analysis_v2"
+    # removed_list/chromosome_map) live next to the four-piece set inside the
+    # bundle container (``wgdi_input`` by default, ``analysis_v2`` in projects
+    # that have not been migrated yet).  The parameters are kept empty so
+    # ``__post_init__`` can resolve the project's actual container; legacy
+    # dual-layer projects can still pin ``clean_dirname`` explicitly.
+    clean_dirname: str = ""
+    analysis_dirname: str = ""
     min_genes_per_sequence: int = 50
     target_gene_coverage: float = 0.90
     max_sequences: int = 200
@@ -101,7 +108,7 @@ class PipelineOptions:
     # "chromosomes" (strict chromosome-mounted selection, fail-closed).
     sequence_mode: str = "adaptive"
     # The pre-filtering ``.all.*`` snapshot is not read downstream and doubled
-    # the pilot's analysis_v2. Opt in per run with ``--keep-all``.
+    # bundle directory. Opt in per run with ``--keep-all``.
     write_all_sequences: bool = False
     # Default must match the CLI: never replace an existing validated bundle
     # unless the caller opts in explicitly with overwrite=True.
@@ -119,6 +126,20 @@ class PipelineOptions:
     # before they are reused, so preprocessing never reports name-compliant
     # output while the content still carries legacy gene IDs.
     migrate_legacy_artifacts: bool = True
+
+    def __post_init__(self) -> None:
+        """Fill the bundle container from the project's actual layout.
+
+        A fresh project resolves to ``wgdi_input``; a project that still has
+        ``analysis_v2`` keeps writing there until ``migrate-layout`` moves it,
+        so an upgrade never scatters one project across two containers.
+        """
+
+        active = output_dirname(self.project_root)
+        if not self.clean_dirname:
+            self.clean_dirname = active
+        if not self.analysis_dirname:
+            self.analysis_dirname = active
 
 
 class PipelineFailure(RuntimeError):
@@ -527,9 +548,20 @@ def _read_genome_regions(path: Path) -> dict[str, Region]:
         else:
             genome_type = "genomic"
         chromosome_match = CHROMOSOME_LABEL_RE.search(description)
-        chromosome = chromosome_match.group(1) if chromosome_match else ""
+        # Many assemblies ship headers as bare ``>Chr1`` / ``>Ajul.Chr01``
+        # without any description.  The chromosome label then lives in the
+        # seqid itself; ignoring it made strict --sequence-mode chromosomes
+        # fail closed with no_chromosome_sequences on perfectly good
+        # chromosome-level assemblies.
+        chromosome = (
+            chromosome_match.group(1)
+            if chromosome_match
+            else chromosome_from_seqid(current_id)
+        )
         is_primary = genome_type == "genomic" and (
-            bool(chromosome_match) or "OriSeqID=Chr" in description
+            bool(chromosome_match)
+            or bool(chromosome)
+            or "OriSeqID=Chr" in description
         )
         regions[current_id] = Region(
             seqid=current_id,
@@ -868,7 +900,16 @@ def _process_species_into(
             # region rows and ##sequence-region directives are never touched.
             for seqid in sorted(synthetic_seqids):
                 if seqid in genome_regions:
-                    parsed.regions[seqid] = genome_regions[seqid]
+                    authoritative = genome_regions[seqid]
+                    synthetic = parsed.regions[seqid]
+                    # Keep the authoritative length but never discard
+                    # chromosome evidence already derived from the GFF.
+                    if synthetic.is_primary and not authoritative.is_primary:
+                        authoritative.is_primary = True
+                        authoritative.chromosome = (
+                            authoritative.chromosome or synthetic.chromosome
+                        )
+                    parsed.regions[seqid] = authoritative
                     region_backfill["genome"].append(seqid)
             for seqid in sorted(missing_region_seqids):
                 if seqid in genome_regions and seqid not in parsed.regions:

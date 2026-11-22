@@ -14,6 +14,8 @@ import csv
 import json
 from pathlib import Path
 
+from pgci_preprocess.project_paths import output_root
+
 VALID_READINESS = frozenset({"yes", "marginal", "no"})
 
 
@@ -31,6 +33,7 @@ def extract_qc_readiness(qc: dict[str, object]) -> str:
 
 def _qc_candidates(project_root: Path, species_id: str) -> list[Path]:
     return [
+        output_root(project_root) / species_id / f"{species_id}.qc.json",
         project_root / "analysis_v2" / species_id / f"{species_id}.qc.json",
         project_root
         / "plant-genome-resources"

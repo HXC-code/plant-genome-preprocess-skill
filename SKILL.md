@@ -45,8 +45,53 @@ description: 植物比较基因组 WGDI、DIAMOND 与共线性分析工作流（
    `qc.json`，人工裁决绑定 QC 版本+指纹（重跑作废旧签字）；项目级哈希清单与
    `source-manifest` 命令已按用户决策移除，不属于必保范围。
 6. 分析开始前明确告知用户上述能力边界（第 5–8 步不支持）。
+7. 换电脑后先运行 `discover` 重建路径地图，禁止把某一台机器的绝对路径、符号链接
+   或人工写死的物种清单当成流程前提；哪些物种可用、是否有染色体证据，都由扫描
+   结果决定（`--sequence-mode from-map`）。
 
 ## 核心工作流
+
+### 步骤 0：换电脑 / 新环境先扫描（discover）
+
+数据放哪儿由扫描确定，**不要手工改路径、不要依赖符号链接**。新电脑上只需要
+skill 目录和原始数据，任意 Python ≥ 3.11 直接运行：
+
+```powershell
+# 数据在 <项目>\data\<show_id>_<Order>_<Family>(<Species>)/ 时，在项目根执行：
+python <skill>\pipeline\discover.py
+
+# 数据在别处时，显式给出数据目录和项目位置：
+python <skill>\pipeline\discover.py E:\raw_genomes --project-root D:\my_project
+```
+
+扫描会完成四件事，并在屏幕上逐物种打印选中的注释与 genome/cds/pep（`annot=`）：
+
+| 产物 | 作用 |
+|---|---|
+| `resources/machine_paths.json` | 本机路径地图：代码根、项目根、数据根、解释器、外部工具 |
+| `resources/download_inventory.tsv` | 由文件内容识别角色并自动配对同一套组装；已有物种行时默认不覆盖（`--force` 才重写） |
+| `resources/sequence_mode.tsv` | 逐物种判定有无染色体证据，给出 `chromosomes` / `adaptive` |
+| `resources/discovery_report.tsv` | 全部候选与得分，供人工复核 |
+
+同时把项目根写进指针（`pipeline/code/.pgci-machine.json`，只读安装时回落
+`~/.pgci-machine.json`），因此之后**所有命令都不用再传 `--project-root`**：
+
+```powershell
+python -m pgci_preprocess doctor
+python -m pgci_preprocess run --sequence-mode from-map
+```
+
+`from-map` 表示逐物种套用 `sequence_mode.tsv`：有染色体证据的走严格模式，
+scaffold-only 组装的物种才走 adaptive，不再需要人工记哪几个物种特殊。
+
+预处理产物统一写入 `wgdi_input/<Abbr>/`（每个物种一个目录，目录名就是缩写）。
+项目根因此只保留原始数据、`resources/`、skill 和这一个产物目录；旧项目的
+`analysis_v2/` 与根下兼容链接可用 `migrate-layout` 迁到新布局。
+
+识别规则（与电脑和物种无关，按内容判断）：染色体证据只看 genome header /
+GFF seqid 的 `Chr1`、`Chr01`、`Ajul.Chr01`、`Chromosome 1` 等写法，`NW_…`
+scaffold 不算；`chloroplastic`/`mitochondrial` 只出现在基因产物描述里不算细胞器，
+只有整套序列都标注细胞器才排除；SwissProt/InterPro/单拷贝比对等参考文件不参与配对。
 
 ### 步骤 1：数据收集与基础校验
 
@@ -71,7 +116,7 @@ python -m pgci_preprocess doctor --project-root D:\my_project
 
 ```powershell
 python -m pgci_preprocess run      --project-root D:\my_project
-python -m pgci_preprocess validate --project-root D:\my_project --refresh-links
+python -m pgci_preprocess validate --project-root D:\my_project
 python -m pgci_preprocess check-names --project-root D:\my_project
 ```
 
@@ -126,12 +171,12 @@ Windows 总控：`run_all_pipeline.ps1`（1–6 步），加 `-WithKs` 启用 Ks
 
 ### 输出体积控制（v3.8.0）
 
-筛选前的 `.all.*` 快照**默认不写**（实测占 `analysis_v2` 的 51%）：
+筛选前的 `.all.*` 快照**默认不写**（实测占产物目录的 51%）：
 
 - 需要回溯全量候选时：`run --keep-all`；
 - 已有项目瘦身：`prune --all-snapshots`（先加 `--dry-run` 看能省多少）。
   `prune` 会同时清空索引中失效路径，**瘦身后 `validate` 仍 PASS**；
-- 根目录 `<Abbr>/` 兼容目录是硬链接，不占额外空间，`prune --compat-links` 只减目录数量；
+- 新布局不再生成根目录 `<Abbr>/` 兼容目录；旧项目可用 `migrate-layout` 一并清理；
 - **不要手动删产物文件**：手工删除不会同步索引，`validate` 会报缺失。
 
 ## 支持哪些后缀
@@ -181,6 +226,7 @@ python -m pytest -q        # 213 个用例；临时目录受限时加 --basetemp
   PAL2NAL 由 `install_pal2nal.py` 从官方源安装，不随包分发。
 - CI 跑 pytest/ruff/mypy + 镜像漂移检查；代码变更先在 canonical 仓库落地再同步。
 - 预处理与下游比较是两个明确模式；"四件套就绪"不等于 WGDI 已完成。
-- `analysis_v2/<Abbr>/` 是唯一输出目录：四件套与全部追溯文件（gene_map、chr_map、
-  chromosome_map、removed_list、qc）都在这一层；不再写 `clean_v2`（旧项目的仍可读），
-  根下 `<Abbr>/` 只是兼容链接。
+- `wgdi_input/<Abbr>/` 是唯一输出目录：四件套与全部追溯文件（gene_map、chr_map、
+  chromosome_map、removed_list、qc）都在这一层，直接把 WGDI 的 `-d` 指到这里即可；
+  不再写 `clean_v2`、也不再在根下生成 `<Abbr>/` 兼容链接。旧项目用
+  `pgci_preprocess migrate-layout` 一步改名并修好索引（`--dry-run` 可预演）。

@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Any
 
 from pgci_preprocess.batch_prepare import compound_suffix
+from pgci_preprocess.project_paths import output_root
 from pgci_preprocess.reports import read_tsv
 
 
@@ -89,7 +90,7 @@ def audit_project(
     if not index:
         report.problems.append("wgdi_v2_index.tsv is missing or empty")
 
-    analysis_root = project / "analysis_v2"
+    analysis_root = output_root(project)
     clean_root = project / "clean_v2"
     if analysis_root.is_dir():
         report.status_distribution["analysis_dirs"] = sum(

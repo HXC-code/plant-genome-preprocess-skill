@@ -21,7 +21,7 @@ from pgci_preprocess.input_router import (
     route_annotation,
     select_role_source,
 )
-from pgci_preprocess.project_paths import downloads_root
+from pgci_preprocess.project_paths import downloads_root, output_root
 from pgci_preprocess.sequence_extract import (
     SequenceExtractionError,
     extract_cds_pep_from_gff,
@@ -389,7 +389,7 @@ def _prepared_file(
 
 
 def _discover_processed(project_root: Path) -> set[str]:
-    analysis = project_root / "analysis_v2"
+    analysis = output_root(project_root)
     if not analysis.is_dir():
         return set()
     return {

@@ -20,7 +20,7 @@ python -m pgci_preprocess migrate-species-names --project-root .
 ```
 
 迁移命令先备份 metadata，再更新 inventory/registry/summary/index；既有生物结果不重算，
-兼容目录会生成 `Lcu.pep`、`Lcu.cds`、`Lcu.new.gff`、`Lcu.lens` 等缩写文件名。
+`wgdi_input/<Abbr>/` 内使用 `Lcu.pep`、`Lcu.cds`、`Lcu.new.gff`、`Lcu.lens` 等缩写文件名。
 
 原始下载目录不会被修改：
 
@@ -34,8 +34,9 @@ resources/download_inventory.tsv
 
 ## 新项目初始化与依赖预检
 
-预处理项目根保存 `data`（物种目录直接放这一层）和 `resources`，分析执行根保存
-`0check_data.sh` 至 `6run_wgdi.sh` 以及 `<Abbr>/` 四件套兼容目录。两个目录分别管理数据与执行参数，便于长期归档和复现。
+预处理项目根保存 `data`（物种目录直接放这一层）、`resources` 和 `wgdi_input/<Abbr>/`
+四件套；分析执行根保存 `0check_data.sh` 至 `6run_wgdi.sh`，下游直接扫描 `wgdi_input/`。
+数据与执行参数分开管理，便于长期归档和复现。
 
 ```powershell
 # 自动创建嵌套项目根、data、resources 和两张标准 TSV 表头
@@ -154,7 +155,7 @@ python scripts/validate_wgdi_dataset.py --expected-count 109 --no-compat-links
 
 ### 染色体清单与人工裁决（3.6.0）
 
-`run` 生成 `<code>.chromosome_map.tsv`（analysis_v2），列出保留染色体数、
+`run` 生成 `<code>.chromosome_map.tsv`（wgdi_input），列出保留染色体数、
 每条基因数/长度/来源/是否 primary；QC 增 `chromosome_summary` 与顶层
 `n_wgdi_sequences`。`--min-genes-per-chromosome`（CLI 默认 100）在选择后丢弃
 基因数不足的染色体，排除原因 `below_min_genes_per_chromosome` 记入 chr_map。
@@ -356,7 +357,7 @@ CSV/TSV/JSONL 转换依据明确 schema 执行。
 ## 输出
 
 ```text
-analysis_v2/{code}/
+wgdi_input/{code}/
 ├── {code}.cds                 # WGDI 筛选集 CDS
 ├── {code}.pep                 # WGDI 筛选集蛋白
 ├── {code}.new.gff             # WGDI 七列位置文件
@@ -400,7 +401,7 @@ resources/species_registry_v2.tsv
 plant-genome-resources/
 ├── data/                # 物种目录直接放这一层，只读
 ├── resources/           # 索引、清单、QC、裁决
-├── analysis_v2/         # WGDI 四件套 + 全部追溯文件（单层）
+├── wgdi_input/         # WGDI 四件套 + 全部追溯文件（单层）
 ├── results/
 │   ├── blast/
 │   ├── wgdi/

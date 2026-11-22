@@ -7,7 +7,6 @@ from pgci_preprocess.pipeline import PipelineOptions, discover_species, run_proj
 from pgci_preprocess.reports import read_tsv
 from pgci_preprocess.species_names import load_species_names, resolve_show_ids
 from pgci_preprocess.species_names_migration import migrate_species_names
-from pgci_preprocess.validate import sync_compat_links
 from tests.support import build_multiformat_project
 
 
@@ -52,15 +51,15 @@ def test_discovery_outputs_and_index_use_abbreviations(tmp_path: Path) -> None:
         options=PipelineOptions(project_root=project, min_genes_per_sequence=1),
     )
     assert {str(item["code"]) for item in results} == {"Adi", "Aes", "Alb", "Act"}
-    assert (project / "analysis_v2" / "Adi" / "Adi.qc.json").is_file()
-    assert (project / "analysis_v2" / "Adi" / "Adi.gene_map.tsv").is_file()
+    assert (project / "wgdi_input" / "Adi" / "Adi.qc.json").is_file()
+    assert (project / "wgdi_input" / "Adi" / "Adi.gene_map.tsv").is_file()
     assert not (project / "clean_v2").exists()
-    assert not (project / "analysis_v2" / "s1").exists()
+    assert not (project / "wgdi_input" / "s1").exists()
 
     index = read_tsv(project / "resources" / "wgdi_v2_index.tsv")
     assert {row["code"] for row in index} == {"Adi", "Aes", "Alb", "Act"}
     assert {row["show_id"] for row in index} == {"1", "2", "3", "4"}
-    assert all("analysis_v2/Adi/" in row["pep" ] for row in index if row["code"] == "Adi")
+    assert all("wgdi_input/Adi/" in row["pep" ] for row in index if row["code"] == "Adi")
 
 
 def test_species_selectors_accept_abbreviation_and_legacy_code(tmp_path: Path) -> None:
@@ -84,7 +83,7 @@ def test_legacy_s_outputs_are_reused_but_index_and_compat_links_use_abbreviation
         project,
         options=PipelineOptions(project_root=project, min_genes_per_sequence=1),
     )
-    assert (project / "analysis_v2" / "s1" / "s1.qc.json").is_file()
+    assert (project / "wgdi_input" / "s1" / "s1.qc.json").is_file()
 
     _write_test_mapping(project)
     results = run_project(
@@ -99,14 +98,12 @@ def test_legacy_s_outputs_are_reused_but_index_and_compat_links_use_abbreviation
 
     index = {row["code"]: row for row in read_tsv(project / "resources" / "wgdi_v2_index.tsv")}
     assert set(index) == {"Adi", "Aes", "Alb", "Act"}
-    assert index["Adi"]["pep"] == "analysis_v2/Adi/Adi.pep"
+    assert index["Adi"]["pep"] == "wgdi_input/Adi/Adi.pep"
     assert index["Adi"]["show_id"] == "1"
-    assert not (project / "analysis_v2" / "s1").exists()
+    assert not (project / "wgdi_input" / "s1").exists()
 
-    workspace = project.parent
-    sync_compat_links(project, workspace)
-    assert (workspace / "Adi" / "Adi.pep").is_file()
-    assert not (workspace / "Adi" / "s1.pep").exists()
+    # 单层布局：wgdi_input/Adi/ 本身就是 WGDI 输入，不再生成根目录兼容链接。
+    assert not (project.parent / "Adi").exists()
 
 
 def test_metadata_migration_updates_codes_without_rewriting_artifacts(
@@ -133,10 +130,10 @@ def test_metadata_migration_updates_codes_without_rewriting_artifacts(
     assert {row["code"] for row in index} == {"Adi", "Aes", "Alb", "Act"}
     assert {row["artifact_code"] for row in index} == {"s1", "s2", "s3", "s4"}
     assert {row["show_id"] for row in index} == {"1", "2", "3", "4"}
-    assert all(row["pep"].startswith("analysis_v2/s") for row in index)
-    assert (project.parent / "Adi" / "Adi.pep").is_file()
+    assert all(row["pep"].startswith("wgdi_input/s") for row in index)
+    assert not (project.parent / "Adi").exists()
     qc = json.loads(
-        (project / "analysis_v2" / "s1" / "s1.qc.json").read_text(encoding="utf-8")
+        (project / "wgdi_input" / "s1" / "s1.qc.json").read_text(encoding="utf-8")
     )
     assert qc["code"] == "Adi"
     assert qc["artifact_code"] == "s1"

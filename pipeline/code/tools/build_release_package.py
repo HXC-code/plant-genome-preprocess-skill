@@ -48,6 +48,7 @@ TOP_LEVEL_FILES = (
     "bootstrap_wgdi.ps1",
     "bootstrap_wgdi.sh",
     "requirements-wgdi-validated.txt",
+    "discover.py",
     "0check_data.sh",
     "1run_blast.sh",
     "1run_diamond.sh",

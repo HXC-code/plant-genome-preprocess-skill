@@ -23,14 +23,14 @@ def _project_with_snapshot(tmp_path: Path) -> tuple[Path, str]:
         ),
     )
     code = str(results[0]["code"])
-    analysis = project / "analysis_v2" / code
+    analysis = project / "wgdi_input" / code
     assert (analysis / f"{code}.all.pep.fa").is_file()
     return project, code
 
 
 def test_prune_drops_snapshots_and_keeps_the_project_valid(tmp_path: Path) -> None:
     project, code = _project_with_snapshot(tmp_path)
-    analysis = project / "analysis_v2" / code
+    analysis = project / "wgdi_input" / code
 
     result = prune_project(project, all_snapshots=True)
 
@@ -63,7 +63,7 @@ def test_prune_drops_snapshots_and_keeps_the_project_valid(tmp_path: Path) -> No
 
 def test_prune_dry_run_deletes_nothing(tmp_path: Path) -> None:
     project, code = _project_with_snapshot(tmp_path)
-    analysis = project / "analysis_v2" / code
+    analysis = project / "wgdi_input" / code
 
     result = prune_project(project, all_snapshots=True, dry_run=True)
 

@@ -12,3 +12,6 @@ dist/
 smoke_*/
 _pipeline_logs/
 _pipeline_state/
+
+# Machine-specific path map written by `discover` (never ship between computers)
+.pgci-machine.json

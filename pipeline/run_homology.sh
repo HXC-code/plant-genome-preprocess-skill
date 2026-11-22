@@ -126,6 +126,7 @@ species_readiness_grep() {
     local qc_path
     local index_path
     for qc_path in \
+        "$project_root/wgdi_input/$species_id/$species_id.qc.json" \
         "$project_root/analysis_v2/$species_id/$species_id.qc.json" \
         "$project_root/plant-genome-resources/analysis_v2/$species_id/$species_id.qc.json" \
         "$project_root/$species_id/$species_id.qc.json"; do
@@ -223,10 +224,17 @@ declare -A pep_path_by_id=()
 declare -A pep_name_by_id=()
 complete_count=0
 
-for species_dir in */; do
+# Preprocessing writes one directory per species under wgdi_input/; older
+# projects kept those directories at the project root.
+species_root="."
+if [[ -d wgdi_input ]]; then
+    species_root="wgdi_input"
+fi
+for species_dir in "$species_root"/*/; do
     species_dir="${species_dir%/}"
+    species_dir="${species_dir#./}"
     case "$species_dir" in
-        Auto_*|_pipeline_*|analysis_v2|bin|clean_v2|code|data|dist|external|resources|validation|wgdi_run|.*) continue ;;
+        Auto_*|_pipeline_*|analysis_v2|bin|clean_v2|code|data|dist|external|resources|validation|wgdi_input|wgdi_run|.*) continue ;;
     esac
 
     pep_files=("$species_dir"/*.pep)

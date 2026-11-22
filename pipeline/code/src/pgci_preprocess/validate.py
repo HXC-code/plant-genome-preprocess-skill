@@ -12,6 +12,7 @@ from pathlib import Path
 
 from pgci_preprocess.artifact_naming import is_canonical_gene_id
 from pgci_preprocess.adjudication import gate_status_from_qc
+from pgci_preprocess.project_paths import is_legacy_output, output_dirname
 from pgci_preprocess.readiness import extract_qc_readiness
 from pgci_preprocess.species_names import load_species_names
 
@@ -33,7 +34,10 @@ PROTEIN_ALPHABET = frozenset("ACDEFGHIKLMNPQRSTVWYBXZUOJ*")
 class ValidationOptions:
     project_root: Path
     expected_count: int | None = None
-    require_compat_links: bool = True
+    # ``wgdi_input`` bundles are already WGDI-shaped, so no extra root-level
+    # compatibility directory is required.  ``None`` means "decide from the
+    # project's actual layout"; legacy projects keep the check by default.
+    require_compat_links: bool | None = None
     allow_not_ready: bool = False
     require_adjudication: bool = False
     report_path: Path | None = None
@@ -403,7 +407,9 @@ def validate_project(options: ValidationOptions) -> ValidationReport:
 
     legacy_dirs = sorted(
         f"{layer}/{path.name}"
-        for layer in ("analysis_v2", "clean_v2")
+        for layer in dict.fromkeys(
+            (output_dirname(canonical_root), "analysis_v2", "clean_v2")
+        )
         for path in (canonical_root / layer).glob("s*")
         if path.is_dir() and LEGACY_DIR_RE.fullmatch(path.name)
     )
@@ -500,7 +506,10 @@ def validate_project(options: ValidationOptions) -> ValidationReport:
                 global_gene_ids[gene_id] = code
         rows.append(result)
 
-    if options.require_compat_links:
+    require_compat_links = options.require_compat_links
+    if require_compat_links is None:
+        require_compat_links = is_legacy_output(canonical_root)
+    if require_compat_links:
         expected_codes = {display_code(row) for row in index_rows}
         known_species_dirs = set(expected_codes)
         known_species_dirs.update(
@@ -563,6 +572,10 @@ def validate_project(options: ValidationOptions) -> ValidationReport:
 def sync_compat_links(canonical_root: Path | str, workspace: Path | str) -> list[str]:
     canonical_root = Path(canonical_root).resolve()
     workspace = Path(workspace).resolve()
+    if not is_legacy_output(canonical_root):
+        # ``wgdi_input/<code>`` already holds ``<code>.pep/.cds/.new.gff/.lens``;
+        # duplicating it at the project root would only add clutter.
+        return []
     index_rows = _read_index(canonical_root / INDEX_RELATIVE)
     names = load_species_names(canonical_root)
     messages: list[str] = []
