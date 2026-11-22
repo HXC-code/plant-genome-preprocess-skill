@@ -295,16 +295,96 @@ python -m pgci_preprocess convert-annotation `
 
 ## 输入格式
 
-| 类型 | 支持 |
-| --- | --- |
-| GFF/GFF3 | standard、transcript-only、simplified5、gene-span、gene-CDS-direct |
-| GTF | 转换为 GFF3 后进入流程 |
-| GBFF/GenBank | 提取编码 GFF3、CDS、蛋白，可导出 genome |
-| genome/CDS/蛋白 | FASTA 格式 |
-| 压缩 | gzip、bzip2、xz、单成员 ZIP |
-| 功能注释 | CSV/TSV 作为辅助元数据 |
+### 注释文件
 
-文件后缀作为提示，格式和角色最终由内容决定。
+| 类型 | 常见后缀 | 处理方式 |
+| --- | --- | --- |
+| GFF/GFF3 | `.gff`、`.gff3` | 直接识别并进入解析 |
+| GTF | `.gtf` | 转换为 GFF3 后继续 |
+| GenBank/GBFF | `.gbff`、`.gbk`、`.gb`、`.genbank` | 提取编码区 GFF3、CDS、蛋白，可导出 genome |
+| 功能注释 | `.annotations.csv`、`.csv`、`.tsv` | 七列功能表规范化为辅助元数据 |
+
+常见压缩组合同样支持，例如：
+
+```text
+species.gff.gz
+species.gff3.gz
+species.gtf.gz
+species.gbff.gz
+species.gbk.gz
+species.genbank.gz
+species.annotations.csv.gz
+```
+
+GTF 支持的注释行包括：
+
+```text
+gene
+transcript
+exon
+CDS
+start_codon
+stop_codon
+```
+
+GFF/GFF3 支持以下五种结构：
+
+```text
+standard
+transcript-only
+simplified5
+gene-span
+gene-CDS-direct
+```
+
+### 序列文件
+
+| 角色 | 常见后缀或组合名 |
+| --- | --- |
+| genome | `.genome.fa`、`.genome.fasta`、`.genome.fna`、`.genome.fas`、`_genomic.fna`、`.fna` |
+| CDS | `.cds.fa`、`.cds.fasta`、`.cds.fna`、`.CDS.fasta`、`.cds.fas` |
+| 蛋白 | `.pep.fa`、`.pep.fasta`、`.protein.faa`、`.protein.fasta`、`.pro.fa`、`.faa` |
+| 通用 FASTA | `.fa`、`.fasta`、`.fna`、`.faa`、`.fas` |
+
+序列角色由文件名语义、FASTA 首条记录和序列字符共同判定。文件使用通用 `.fa`、`.fasta` 时，建议文件名中包含 `genome`、`cds`、`protein`、`pep` 或 `pro` 等角色线索。
+
+压缩组合示例：
+
+```text
+species.genome.fasta.gz
+species.genome.fa.gz
+species_genomic.fna.gz
+species.CDS.fasta.gz
+species.cds.fa.gz
+species.Protein.faa.gz
+species.pep.fa.gz
+species.pro.fa.gz
+```
+
+RNA/transcript FASTA 可以被扫描识别为辅助或参考数据，但不参与 WGDI 四件套的核心角色配对。
+
+### 压缩格式
+
+| 压缩 | 后缀 |
+| --- | --- |
+| gzip | `.gz` |
+| bzip2 | `.bz2` |
+| xz | `.xz` |
+| ZIP | `.zip` |
+
+压缩类型优先按文件魔数识别，后缀错误或省略时仍可尝试读取。
+
+ZIP 文件当前要求压缩包内只有一个非空数据文件。
+
+### 识别原则
+
+文件后缀用于提示。注释结构、FASTA 角色和压缩类型最终以内容判断：
+
+- 标准后缀有利于 `discover` 快速识别和自动配对；
+- 非标准后缀的文件如果内容符合 GFF、GTF、GBFF 或 FASTA，也可以进入读取流程；
+- `.lens` 是预处理输出，不需要提前准备；
+- 功能注释表作为辅助元数据，不替代 GFF/CDS/PEP；
+- 同名角色的多个候选可以写成 `A|B`，由扫描和路由选择唯一兼容文件。
 
 ## 预处理规则
 

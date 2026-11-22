@@ -183,13 +183,24 @@ Windows 总控：`run_all_pipeline.ps1`（1–6 步），加 `-WithKs` 启用 Ks
 
 按**内容**判定，后缀只作提示；`.gz/.bz2/.xz/.zip` 按压缩魔数识别。
 
-| 后缀 | 处理 |
+| 类型/后缀 | 处理 |
 | --- | --- |
 | `.gff` `.gff3` | standard / transcript_only / simplified5 / gene_span / gene_cds_direct 五种结构 |
-| `.gtf` | 转 GFF3 后继续 |
+| `.gtf` | gene/transcript/exon/CDS/start_codon/stop_codon，转 GFF3 后继续 |
 | `.gbff` `.gbk` `.gb` `.genbank` | 提取编码 GFF3 + CDS/PEP（可导 genome）；需 biopython |
-| `.annotations.csv.gz` / 功能表 | 规范化为元数据，**不当坐标输入** |
-| FASTA 家族及组合名 | 文件名语义 + 首记录内容判定 genome/cds/pep 角色 |
+| `.annotations.csv` `.csv` `.tsv` | 七列功能表规范化为辅助元数据，不替代坐标注释 |
+| `.genome.fa` `.genome.fasta` `.genome.fna` `.genome.fas` `_genomic.fna` `.fna` | genome FASTA |
+| `.cds.fa` `.cds.fasta` `.cds.fna` `.CDS.fasta` `.cds.fas` | CDS FASTA |
+| `.pep.fa` `.pep.fasta` `.protein.faa` `.protein.fasta` `.pro.fa` `.faa` | 蛋白 FASTA |
+| `.fa` `.fasta` `.fna` `.faa` `.fas` | 通用 FASTA，角色由文件名语义 + 首记录内容判定 |
+| `.gz` `.bz2` `.xz` `.zip` | 可组合到上述后缀；按压缩魔数识别 |
+
+常见压缩组合包括 `.gff.gz`、`.gff3.gz`、`.gtf.gz`、`.gbff.gz`、
+`.genome.fasta.gz`、`.CDS.fasta.gz`、`.Protein.faa.gz`、`.pep.fa.gz` 等。
+ZIP 要求压缩包内只有一个非空数据文件。
+
+非标准后缀的文件只要内容符合上述格式，也可以进入内容识别流程；`discover`
+对标准后缀和带角色语义的文件名识别更稳定。`.lens` 是输出文件，不是输入。
 
 ## 极端情况（都有明确行为）
 
