@@ -1,6 +1,10 @@
-# Plant Genome Preprocess Skill
+# 植物基因组预处理与比较分析技能
 
-`plant-genome-preprocess` 是 HXC 植物基因组规范化与质控工具的 Agent Skill。它把数据识别、预处理命令、质量检查、结果复核和可选下游分析组织成一套可执行工作流，适合在 Codex、WorkBuddy 等支持 Agent Skill 的环境中直接调用。
+**Plant Genome Preprocessing and Comparative Analysis Skill**
+
+`plant-genome-preprocess` 是 HXC 植物基因组规范化、质控与比较分析工作流的 Agent Skill。它覆盖数据识别、预处理、人工染色体裁决，以及可选的下游 DIAMOND/BLAST、WGDI 共线性和 Ks 分析，适合在 Codex、WorkBuddy 等支持 Agent Skill 的环境中直接调用。
+
+调用名 `plant-genome-preprocess` 保持稳定；展示标题覆盖完整工作流，便于使用者理解这个 Skill 同时支持预处理和后续比较分析。
 
 当前版本：**3.6.2**
 

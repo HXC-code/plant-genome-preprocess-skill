@@ -1,11 +1,11 @@
 ---
 name: plant-genome-preprocess
-description: 植物基因组预处理与可选 WGDI 比较工作流。把 GFF/GFF3/GTF/GBFF/功能注释 CSV 与 genome/CDS/蛋白 FASTA 清洗成 WGDI 四件套，完成命名校验、代表转录本选择、QC、细胞器审核和结果留痕；也可继续执行 DIAMOND/BLAST、共线性、block-Ks 和 Ks-peak 分析。
+description: 植物基因组规范化、人工染色体裁决与可选 WGDI 比较工作流。把 GFF/GFF3/GTF/GBFF/功能注释 CSV 与 genome/CDS/蛋白 FASTA 清洗成 WGDI 四件套，完成命名校验、代表转录本选择、QC、细胞器审核和结果留痕；随后可执行 DIAMOND/BLAST、WGDI 共线性、block-Ks 和 Ks-peak 分析。
 ---
 
-# 植物基因组预处理
+# 植物基因组预处理与比较分析
 
-`plant-genome-preprocess` 是植物基因组规范化与质控工具的 Agent 调用入口。`pipeline/` 提供与程序仓同步的完整运行副本，包含源码、测试、资源表、下游脚本和 WGDI 启动器。
+`plant-genome-preprocess` 是植物基因组规范化、质控与比较分析工作流的 Agent 调用入口。`pipeline/` 提供与程序仓同步的完整运行副本，包含源码、测试、资源表、下游脚本和 WGDI 启动器。
 
 预处理核心结束于 `pgci_preprocess run`，生成 WGDI 输入四件套。DIAMOND/BLAST、共线性和 Ks 分析作为可选下游模式执行。
 
