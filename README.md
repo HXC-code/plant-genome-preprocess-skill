@@ -5,14 +5,6 @@
 
 当前版本：**3.8.0**
 
-本仓库是 skill 包，同时包含完整可运行工程目录 `pipeline/`：
-
-- **Skill 仓库**：<https://github.com/HXC-code/plant-genome-preprocess-skill>
-- **程序仓**：<https://github.com/HXC-code/plant-genome-preprocess>
-- **Agent 使用说明**：[`SKILL.md`](SKILL.md)
-- **快速上手**：[`pipeline/QUICKSTART.md`](pipeline/QUICKSTART.md)
-- **验证门禁**：[`pipeline/VALIDATION.md`](pipeline/VALIDATION.md)
-
 ## 覆盖范围
 
 ```text
@@ -23,12 +15,9 @@
    └── Ks 可选分支（默认关闭）
 ```
 
-本 skill **不包含**系统发育树、已发表树核对、多重共线性列表和共线性圈图。
-这些分别属于后续流程第 5–8 步。
-
 ## 主要能力
 
-- 跨机器扫描数据、工具和解释器，避免写死绝对路径。
+- 跨机器扫描数据、工具和解释器
 - 按文件内容识别 GFF/GFF3、GTF、GBFF、genome、CDS 和蛋白。
 - 自动配对同一套组装，避免混用注释和序列版本。
 - 统一注释层级、ID、region、坐标、链和序列长度。
