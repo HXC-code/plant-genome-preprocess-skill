@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — 两目录布局：输入归 wgdi_input，结果归 wgdi_output（2026-11-23）
+
+- 取消 `Auto_wgdi/` 比较目录树与 `Auto_pep/` 顶层目录：DIAMOND 结果、数据库、设置和日志进入 `wgdi_input/blast/`；49 个扁平配置进入 `wgdi_input/config/`；点图与共线性块统一写入 `wgdi_output/results/`，日志与阶段断点标记分别写入 `wgdi_output/logs/`、`wgdi_output/state/`。
+- 扫描元数据目录正名为 `metadata/`（`folder_list.txt`、`species_map.tsv`、`skipped_species.txt`、`data-validation-report.tsv` 也移入）；`resources/` 保留为目录联接以兼容既有代码路径，不产生第二份数据。项目根新增 `README.md` 目录说明。
+- `discover` 自动完成 `resources` → `metadata` 改名与兼容联接；`run_homology.sh` 修复 `wgdi_input/blast` 被误当作物种根目录的问题，并清理 `species_map.tsv.tmp.*` 残留。
+- 配置与执行全部使用项目相对路径，换机或整体搬移无需重写配置；阶段级断点续跑与 fail-fast 校验保留。
+- 修复引导器误复用非目标 `--env-dir`、Windows 总控从项目根错误查找 skill 工具、核心模式误要求 Ks 工具，以及 WSL 向 Windows Python 传递 Linux 路径的问题。新机器的 Linux/WGDI 解释器仍由 `discover` 现场确认或由 `WGDI_PYTHON` 显式指定，不扫描其他用户目录。
+
 ## Unreleased — 产物目录统一为 wgdi_input（2026-11-22）
 
 一个物种一个目录，四件套与追溯文件同层，项目根不再出现第二份同名目录。

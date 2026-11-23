@@ -1,160 +1,130 @@
 #!/usr/bin/env python3
-"""Generate WGDI comparison directories and configuration from one implementation."""
+"""Generate flat WGDI configs from the homology scan map.
+
+Layout (v5 -- two data directories, no per-comparison folders):
+
+* ``wgdi_input/`` holds everything WGDI reads: species four-piece bundles
+  (``<code>/``), DIAMOND tables (``blast/<code>_pep/``) and one flat config per
+  comparison (``config/<left>_<right>.conf``).
+* ``wgdi_output/`` holds everything produced: ``results/`` (PNG dotplots and
+  ICL collinearity blocks), ``logs/`` and ``state/`` (resume markers, Ks
+  intermediates).
+
+All references are relative to the project root, so a config stays valid after
+the project moves to another machine or drive.  No input file is copied.
+"""
 
 from __future__ import annotations
 
 import argparse
 import os
-import re
-import shlex
-import shutil
-import stat
 from pathlib import Path
 
-
-def read_species(project_root: Path) -> list[str]:
-    folder_list = project_root / "folder_list.txt"
-    if not folder_list.is_file() or not folder_list.read_text(encoding="utf-8").strip():
-        raise ValueError("folder_list.txt 不存在或为空")
-    species: list[str] = []
-    seen: set[str] = set()
-    for line in folder_list.read_text(encoding="utf-8").splitlines():
-        code = line.strip()
-        if code and code not in seen:
-            seen.add(code)
-            species.append(code)
-    return species
+INPUT_DIR = "wgdi_input"
+BLAST_DIR = "blast"
+CONFIG_DIR = "config"
+OUTPUT_DIR = "wgdi_output"
+RESULTS_DIR = "results"
+LOGS_DIR = "logs"
+STATE_DIR = "state"
 
 
-def resolve_wgdi_entry(project_root: Path) -> Path | str:
-    requested = os.environ.get("WGDI", "")
-    if requested:
-        requested_path = Path(requested)
-        if requested_path.is_file():
-            return requested_path.resolve()
-        if shutil.which(requested):
-            return requested
-        raise FileNotFoundError(f"找不到 WGDI：{requested}（可用 WGDI 环境变量指定）")
-    elif (project_root / "bin" / "wgdi").is_file():
-        return (project_root / "bin" / "wgdi").resolve()
-    else:
-        if shutil.which("wgdi"):
-            return "wgdi"
-        raise FileNotFoundError("找不到 WGDI：wgdi（可用 WGDI 环境变量指定）")
+def read_species_map(project_root: Path) -> dict[str, dict[str, str]]:
+    """Parse ``species_map.tsv`` (homology output): code -> scan-resolved paths.
 
+    Columns: ``<code>\t<bundle_dir>\t<pep>\t<cds>\t<gff>\t<lens>``.
+    """
 
-def _bash_path(value: Path | str) -> str:
-    """Render an absolute Windows path for Bash without backslash escapes."""
-
-    text = value.as_posix() if isinstance(value, Path) else str(value)
-    match = re.fullmatch(r"([A-Za-z]):/(.+)", text.replace("\\", "/"))
-    if match:
-        return f"/{match.group(1).lower()}/{match.group(2)}"
-    return text
-
-
-def _run_script(
-    left: str,
-    right: str,
-    wgdi_entry: Path | str,
-    tandem: bool,
-    ks_enabled: bool,
-) -> str:
-    common_products = left != right
-    prep = ""
-    if common_products:
-        prep = f'''
-cat "{left}.cds" "{right}.cds" > all.cds
-cat "{left}.pep" "{right}.pep" > all.pep
-'''
-
-    remove_tandem = (
-        not tandem
-        and isinstance(wgdi_entry, Path)
-        and wgdi_entry.name == "wgdi"
+    candidates = (
+        project_root / "metadata" / "species_map.tsv",
+        project_root / "resources" / "species_map.tsv",
+        project_root / "species_map.tsv",
     )
-    tandem_setup = (
-        "WGDI_TANDEM_ARGS=(--remove-tandem)"
-        if remove_tandem
-        else "WGDI_TANDEM_ARGS=()"
+    path = next((candidate for candidate in candidates if candidate.is_file()), candidates[0])
+    if not path.is_file() or not path.read_text(encoding="utf-8").strip():
+        raise FileNotFoundError("species_map.tsv 不存在或为空（先运行第 3 步同源比对）")
+    mapping: dict[str, dict[str, str]] = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        fields = [field.strip() for field in line.split("\t")]
+        if len(fields) < 6 or not fields[0]:
+            continue
+        code, directory, pep, cds, gff, lens = fields[:6]
+        if code in mapping:
+            raise ValueError(f"species_map.tsv 物种重复：{code}")
+        if not all((directory, pep, cds, gff, lens)):
+            raise ValueError(f"species_map.tsv 行不完整：{line!r}")
+        mapping[code] = {
+            "dir": directory,
+            "pep": pep,
+            "cds": cds,
+            "gff": gff,
+            "lens": lens,
+        }
+    if not mapping:
+        raise ValueError("species_map.tsv 没有可用行")
+    return mapping
+
+
+def bundle_dir(project_root: Path, row: dict[str, str]) -> Path:
+    directory = Path(row["dir"])
+    resolved = directory if directory.is_absolute() else project_root / directory
+    if not resolved.is_dir():
+        raise FileNotFoundError(f"物种目录不存在：{resolved}")
+    return resolved
+
+
+def bundle_file(project_root: Path, row: dict[str, str], key: str) -> Path:
+    return bundle_dir(project_root, row) / row[key]
+
+
+def blast_file(project_root: Path, left: str, right: str) -> Path:
+    return (
+        project_root
+        / INPUT_DIR
+        / BLAST_DIR
+        / f"{left}_pep"
+        / f"{left}_{right}.blast"
     )
-    entry = shlex.quote(_bash_path(wgdi_entry))
-    prefix = left if left == right else f"{left}_{right}"
-    # SOP step 4 core: dotplot + collinearity blocks. The six Ks-dependent
-    # stages (ks/blockinfo/correspondence/blockks/kspeaks/peaksfit) run only
-    # when the caller opts in with WGDI_KS=true: upstream blockinfo and
-    # correspondence consume Ks values, and with ks=none correspondence
-    # filters out every block, so they must not run in the default mode.
-    stages = [
-        f'run_stage dotplot "{prefix}.png" "${{WGDI_CMD[@]}}" -d total.conf',
-        f'run_stage collinearity "{prefix}.icl" "${{WGDI_CMD[@]}}" -icl total.conf',
-    ]
-    if ks_enabled:
-        stages += [
-            f'run_stage ks "{prefix}.ks" "${{WGDI_CMD[@]}}" -ks total.conf',
-            f'run_stage blockinfo "{prefix}.bi.csv" "${{WGDI_CMD[@]}}" -bi total.conf',
-            f'run_stage correspondence "{prefix}.bi.c.csv" "${{WGDI_CMD[@]}}" "${{WGDI_TANDEM_ARGS[@]}}" -c total.conf',
-            f'run_stage blockks "{prefix}.bk.png" "${{WGDI_CMD[@]}}" "${{WGDI_TANDEM_ARGS[@]}}" -bk total.conf',
-            f'run_stage kspeaks "{prefix}.kp.png" "${{WGDI_CMD[@]}}" "${{WGDI_TANDEM_ARGS[@]}}" -kp total.conf',
-            f'run_stage peaksfit "{prefix}.pf.png" "${{WGDI_CMD[@]}}" -pf total.conf',
-        ]
-    stage_lines = "\n".join(stages)
-    return f"""#!/usr/bin/env bash
-set -euo pipefail
-export MPLBACKEND=Agg
 
-mkdir -p .wgdi_steps
-{prep}
-WGDI_ENTRY={entry}
-if [[ -f "$WGDI_ENTRY" ]]; then
-    WGDI_CMD=(bash "$WGDI_ENTRY")
-else
-    WGDI_CMD=("$WGDI_ENTRY")
-fi
-{tandem_setup}
 
-run_stage() {{
-    local stage_name="$1"
-    local output_file="$2"
-    shift 2
-    local marker=".wgdi_steps/${{stage_name}}.done"
-    if [[ -f "$marker" && -f "$output_file" ]]; then
-        echo "跳过已完成阶段：$stage_name"
-        return 0
-    fi
-    "$@"
-    [[ -f "$output_file" ]] || {{
-        echo "错误：阶段 $stage_name 未生成 $output_file"
-        return 1
-    }}
-    touch "$marker"
-}}
+def rel_ref(project_root: Path, target: Path) -> str:
+    """Forward-slash path relative to the project root (the WGDI working dir)."""
 
-{stage_lines}
-"""
+    return Path(os.path.relpath(target, project_root)).as_posix()
 
 
 def _config_text(
     left: str,
     right: str,
     *,
+    blast: str,
+    gff1: str,
+    gff2: str,
+    lens1: str,
+    lens2: str,
+    cds_file: str,
+    pep_file: str,
+    png: str,
+    icl: str,
+    ks: str,
+    bi: str,
+    bic: str,
+    bk: str,
+    kp: str,
+    kpp: str,
+    pf: str,
     evalue: str,
     tandem: bool,
     ks_column: str,
     ks_enabled: bool,
 ) -> str:
-    same = left == right
-    output_prefix = left if same else f"{left}_{right}"
-    blast_file = f"{left}_{right}.blast"
-    cds_file = f"{left}.cds" if same else "all.cds"
-    pep_file = f"{left}.pep" if same else "all.pep"
     tandem_value = "true" if tandem else "false"
     core = f"""[dotplot]
-blast = {blast_file}
-gff1 = {left}.new.gff
-gff2 = {right}.new.gff
-lens1 = {left}.lens
-lens2 = {right}.lens
+blast = {blast}
+gff1 = {gff1}
+gff2 = {gff2}
+lens1 = {lens1}
+lens2 = {lens2}
 genome1_name = {left}
 genome2_name = {right}
 multiple = 1
@@ -167,14 +137,14 @@ ancestor_left = none
 ancestor_top = none
 markersize = 0.5
 figsize = 10,10
-savefig = {output_prefix}.png
+savefig = {png}
 
 [collinearity]
-blast = {blast_file}
-gff1 = {left}.new.gff
-gff2 = {right}.new.gff
-lens1 = {left}.lens
-lens2 = {right}.lens
+blast = {blast}
+gff1 = {gff1}
+gff2 = {gff2}
+lens1 = {lens1}
+lens2 = {lens2}
 blast_reverse = false
 multiple = 1
 process = 8
@@ -185,35 +155,35 @@ mg = 25,25
 pvalue = 1
 repeat_number = 10
 position = order
-savefile = {output_prefix}.icl
+savefile = {icl}
 """
     ks_part = f"""
 [ks]
 cds_file = {cds_file}
 pep_file = {pep_file}
 align_software = muscle
-pairs_file = {output_prefix}.icl
-ks_file = {output_prefix}.ks
+pairs_file = {icl}
+ks_file = {ks}
 
 [blockinfo]
-blast = {blast_file}
-gff1 = {left}.new.gff
-gff2 = {right}.new.gff
-lens1 = {left}.lens
-lens2 = {right}.lens
-collinearity = {output_prefix}.icl
+blast = {blast}
+gff1 = {gff1}
+gff2 = {gff2}
+lens1 = {lens1}
+lens2 = {lens2}
+collinearity = {icl}
 score = 100
 evalue = {evalue}
 repeat_number = 20
 position = order
-ks = {output_prefix}.ks
+ks = {ks}
 ks_col = {ks_column}
-savefile = {output_prefix}.bi.csv
+savefile = {bi}
 
 [correspondence]
-blockinfo = {output_prefix}.bi.csv
-lens1 = {left}.lens
-lens2 = {right}.lens
+blockinfo = {bi}
+lens1 = {lens1}
+lens2 = {lens2}
 tandem = {tandem_value}
 tandem_length = 200
 pvalue = 0.2
@@ -221,14 +191,14 @@ block_length = 5
 tandem_ratio = 0.5
 multiple = 1
 homo = -1,1
-savefile = {output_prefix}.bi.c.csv
+savefile = {bic}
 
 [blockks]
-lens1 = {left}.lens
-lens2 = {right}.lens
+lens1 = {lens1}
+lens2 = {lens2}
 genome1_name = {left}
 genome2_name = {right}
-blockinfo = {output_prefix}.bi.csv
+blockinfo = {bi}
 pvalue = 0.2
 tandem = {tandem_value}
 tandem_length = 200
@@ -236,10 +206,10 @@ markersize = 1
 area = 0,2
 block_length = 5
 figsize = 8,8
-savefig = {output_prefix}.bk.png
+savefig = {bk}
 
 [kspeaks]
-blockinfo = {output_prefix}.bi.csv
+blockinfo = {bi}
 pvalue = 0.2
 tandem = {tandem_value}
 block_length = 5
@@ -249,11 +219,11 @@ homo = 0,1
 fontsize = 9
 area = 0,3
 figsize = 10,6.18
-savefig = {output_prefix}.kp.png
-savefile = {output_prefix}.kp
+savefig = {kp}
+savefile = {kpp}
 
 [peaksfit]
-blockinfo = {output_prefix}.bi.csv
+blockinfo = {bi}
 mode = median
 bins_number = 200
 ks_area = 0,10
@@ -261,27 +231,16 @@ fontsize = 9
 area = 0,3
 figsize = 10,6.18
 shadow = true
-savefig = {output_prefix}.pf.png
-
-[ksfigure]
-ksfit = ks_fit_result.csv
-labelfontsize = 15
-legendfontsize = 15
-xlabel = none
-ylabel = none
-title = none
-area = 0,2
-figsize = 10,6.18
-shadow = false
-savefig = {output_prefix}.kf.png
+savefig = {pf}
 """
     return core + ks_part if ks_enabled else core
 
 
 def generate(project_root: Path, mode: str) -> int:
     root = project_root.resolve()
-    species = read_species(root)
-    wgdi_entry = resolve_wgdi_entry(root)
+    mapping = read_species_map(root)
+    species = list(mapping)
+
     tandem_raw = os.environ.get("WGDI_TANDEM", "false").strip().lower()
     if tandem_raw not in {"true", "false"}:
         raise ValueError("WGDI_TANDEM 必须是 true 或 false")
@@ -295,6 +254,11 @@ def generate(project_root: Path, mode: str) -> int:
         raise ValueError("WGDI_KS 必须是 true 或 false")
     ks_enabled = ks_raw == "true"
 
+    config_root = root / INPUT_DIR / CONFIG_DIR
+    config_root.mkdir(parents=True, exist_ok=True)
+    for name in (RESULTS_DIR, LOGS_DIR, STATE_DIR):
+        (root / OUTPUT_DIR / name).mkdir(parents=True, exist_ok=True)
+
     comparisons: list[tuple[str, str]] = []
     for left in species:
         for right in species:
@@ -307,13 +271,56 @@ def generate(project_root: Path, mode: str) -> int:
 
     configured = 0
     for left, right in comparisons:
-        folder = root / "Auto_wgdi" / f"{left}_base" / f"{left}_{right}"
-        if not folder.is_dir():
-            raise FileNotFoundError(f"缺少目录：{folder}")
-        (folder / "total.conf").write_text(
+        prefix = left if left == right else f"{left}_{right}"
+        blast = blast_file(root, left, right)
+        gff1 = bundle_file(root, mapping[left], "gff")
+        gff2 = bundle_file(root, mapping[right], "gff")
+        lens1 = bundle_file(root, mapping[left], "lens")
+        lens2 = bundle_file(root, mapping[right], "lens")
+        cds1 = bundle_file(root, mapping[left], "cds")
+        pep1 = bundle_file(root, mapping[left], "pep")
+        cds2 = bundle_file(root, mapping[right], "cds")
+        pep2 = bundle_file(root, mapping[right], "pep")
+
+        required = [blast, gff1, gff2, lens1, lens2]
+        if ks_enabled:
+            required += [cds1, pep1]
+            if left != right:
+                required += [cds2, pep2]
+        for path in required:
+            if not path.is_file():
+                raise FileNotFoundError(f"缺少输入文件：{path}")
+
+        result_root = root / OUTPUT_DIR / RESULTS_DIR
+        if left == right:
+            cds_file = rel_ref(root, cds1)
+            pep_file = rel_ref(root, pep1)
+        else:
+            # Cross-species Ks needs combined CDS/PEP, built by the executor
+            # in wgdi_output/state/<prefix>/ on demand.
+            cds_file = rel_ref(root, root / OUTPUT_DIR / STATE_DIR / prefix / "all.cds")
+            pep_file = rel_ref(root, root / OUTPUT_DIR / STATE_DIR / prefix / "all.pep")
+
+        (config_root / f"{prefix}.conf").write_text(
             _config_text(
                 left,
                 right,
+                blast=rel_ref(root, blast),
+                gff1=rel_ref(root, gff1),
+                gff2=rel_ref(root, gff2),
+                lens1=rel_ref(root, lens1),
+                lens2=rel_ref(root, lens2),
+                cds_file=cds_file,
+                pep_file=pep_file,
+                png=rel_ref(root, result_root / f"{prefix}.png"),
+                icl=rel_ref(root, result_root / f"{prefix}.icl"),
+                ks=rel_ref(root, result_root / f"{prefix}.ks"),
+                bi=rel_ref(root, root / OUTPUT_DIR / RESULTS_DIR / f"{prefix}.bi.csv"),
+                bic=rel_ref(root, root / OUTPUT_DIR / RESULTS_DIR / f"{prefix}.bi.c.csv"),
+                bk=rel_ref(root, root / OUTPUT_DIR / RESULTS_DIR / f"{prefix}.bk.png"),
+                kp=rel_ref(root, root / OUTPUT_DIR / RESULTS_DIR / f"{prefix}.kp.png"),
+                kpp=rel_ref(root, root / OUTPUT_DIR / RESULTS_DIR / f"{prefix}.kp"),
+                pf=rel_ref(root, root / OUTPUT_DIR / RESULTS_DIR / f"{prefix}.pf.png"),
                 evalue=evalue,
                 tandem=tandem,
                 ks_column=ks_column,
@@ -322,24 +329,10 @@ def generate(project_root: Path, mode: str) -> int:
             encoding="utf-8",
             newline="\n",
         )
-        run_path = folder / "run.sh"
-        run_path.write_text(
-            _run_script(left, right, wgdi_entry, tandem, ks_enabled),
-            encoding="utf-8",
-            newline="\n",
-        )
-        run_path.chmod(run_path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
-        steps = folder / ".wgdi_steps"
-        if steps.is_dir():
-            for marker in steps.glob("*.done"):
-                marker.unlink()
-        done_marker = folder / ".wgdi.done"
-        if done_marker.exists():
-            done_marker.unlink()
         configured += 1
 
-    label = "同物种" if mode == "same" else "不同物种"
-    print(f"{label} WGDI 配置完成：{configured} 个。")
+    label = "同物种" if mode == "same" else "不同物种" if mode == "different" else "全部"
+    print(f"{label} WGDI 配置完成（两目录布局）：{configured} 个。")
     return configured
 
 

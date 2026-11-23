@@ -3,8 +3,13 @@
 #
 # Python resolution order:
 #   1. $WGDI_PYTHON (explicit interpreter, e.g. a conda env or venv)
-#   2. ./.wgdi-env/Scripts/python.exe (Windows venv) or ./.wgdi-env/bin/python
-#   3. python3 / python on PATH, accepted only when it can import wgdi
+#   2. the currently activated conda environment
+#   3. project-local venvs, then Windows-compatible fallbacks
+#   4. python3 / python on PATH, accepted only when it can import wgdi
+#
+# A new machine must be discovered here (or the user must set WGDI_PYTHON);
+# this launcher deliberately does not scan another user's home or arbitrary
+# Linux installations.
 #
 # Perl is only required by PAML yn00 (-ks).  $WGDI_PERL_BIN (or the folder that
 # contains perl.exe) is prepended to PATH when set; otherwise perl is used from
@@ -21,6 +26,17 @@ normalize_shell_path() {
         local drive="${BASH_REMATCH[1],,}"
         local remainder="${BASH_REMATCH[2]//\\//}"
         printf '/%s/%s\n' "$drive" "$remainder"
+    else
+        printf '%s\n' "$value"
+    fi
+}
+
+to_native_path() {
+    local value="$1"
+    if command -v cygpath >/dev/null 2>&1; then
+        cygpath -w "$value"
+    elif command -v wslpath >/dev/null 2>&1 && grep -qi microsoft /proc/version 2>/dev/null; then
+        wslpath -w "$value"
     else
         printf '%s\n' "$value"
     fi
@@ -44,10 +60,12 @@ can_import_wgdi() {
 wgdi_python="${WGDI_PYTHON:-}"
 if [[ -z "$wgdi_python" ]]; then
     for candidate in \
-        "$project_root/.wgdi-env/Scripts/python.exe" \
+        "${CONDA_PREFIX:-}/bin/python" \
+        "$project_root/.venv/bin/python" \
         "$project_root/.wgdi-env/bin/python" \
         "$project_root/.venv/Scripts/python.exe" \
-        "$project_root/.venv/bin/python"; do
+        "$project_root/.wgdi-env/Scripts/python.exe" \
+        "$project_root/.wgdi-env/python.exe"; do
         if [[ -f "$candidate" ]] && can_import_wgdi "$candidate"; then
             wgdi_python="$candidate"
             break
@@ -100,4 +118,8 @@ export LANG=C
 
 # 通过 wgdi_entry.py 启动：在进程内注入 matplotlib 兼容补丁(cm.get_cmap)，
 # 兼容 matplotlib 3.11（wgdi 0.75 的 block_ks.py 用了已移除的 cm.get_cmap）。
-exec "$wgdi_python" -u "$project_root/bin/wgdi_entry.py" "$@"
+entry_path="$project_root/bin/wgdi_entry.py"
+case "$wgdi_python" in
+    *.exe|*.EXE|/mnt/*.exe|/mnt/*.EXE) entry_path="$(to_native_path "$entry_path")" ;;
+esac
+exec "$wgdi_python" -u "$entry_path" "$@"

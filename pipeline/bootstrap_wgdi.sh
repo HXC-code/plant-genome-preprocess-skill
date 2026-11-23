@@ -3,7 +3,8 @@ set -euo pipefail
 export PYTHONUTF8=1
 export PYTHONIOENCODING=utf-8
 project_root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-python_bin="${PYTHON:-python}"
+python_bin="${PYTHON:-$(command -v python || command -v python3 || true)}"
+[[ -n "$python_bin" ]] || { echo "错误：找不到 Python。" >&2; exit 2; }
 args=("$project_root/code/tools/bootstrap_wgdi.py" --project-root "$project_root")
 if [[ $# -gt 1 ]]; then
     echo "用法：bash bootstrap_wgdi.sh [ENV_DIR]" >&2

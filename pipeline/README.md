@@ -469,10 +469,8 @@ bash 1run_blast.sh
 ### WGDI 核心模式
 
 ```bash
-bash 2run_pre_wgdi.sh
-bash 3blast_to_wgdi.sh
-python code/tools/generate_wgdi_configs.py --mode all
-bash 6run_wgdi.sh
+bash 2gen_wgdi_conf.sh all      # 扁平比较目录 + 相对路径配置（零复制）
+bash 3run_wgdi.sh               # 点图 + 共线性（阶段级断点续跑）
 ```
 
 核心模式产出：
@@ -485,8 +483,8 @@ bash 6run_wgdi.sh
 ### Ks 可选分支
 
 ```bash
-WGDI_KS=true python code/tools/generate_wgdi_configs.py --mode all
-WGDI_KS=true bash 6run_wgdi.sh
+WGDI_KS=true bash 2gen_wgdi_conf.sh all
+WGDI_KS=true bash 3run_wgdi.sh
 ```
 
 追加产物：
@@ -507,7 +505,8 @@ powershell -ExecutionPolicy Bypass -File .\run_all_pipeline.ps1
 powershell -ExecutionPolicy Bypass -File .\run_all_pipeline.ps1 -WithKs
 ```
 
-下游按 `wgdi_ready` 与人工裁决状态选择物种；跳过记录写入 `skipped_species.txt`。
+下游按 `wgdi_ready` 与人工裁决状态选择物种；跳过记录写入
+`metadata/skipped_species.txt`。
 
 ## 数据检查
 

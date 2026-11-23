@@ -115,8 +115,8 @@ failed one of four comparisons at the WGDI `-icl` (collinearity) stage with no
 error text in `run.log` and no leftover intermediate files. Re-running the same
 comparison manually produced a well-formed `.icl`, and a clean rerun of the
 whole fixture passed 4/4. `WGDI 0.75` runs collinearity with multiprocessing
-(`process = 8`); treat a single `-icl` failure as retryable — `run.sh` is
-stage-idempotent, so re-running `6run_wgdi.sh` resumes at the failed stage.
+(`process = 8`); treat a single `-icl` failure as retryable — `3run_wgdi.sh`
+is stage-idempotent, so re-running it resumes at the failed stage.
 
 On 2026-11-22 version 3.7.0 passed:
 

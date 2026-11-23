@@ -100,9 +100,19 @@ def test_skill_mirror_uses_the_same_shared_wrappers(tmp_path: Path) -> None:
     )
     assert result.returncode == 0, result.stdout + result.stderr
     assert (pipeline / "run_homology.sh").is_file()
-    assert "--mode different" in (pipeline / "4run_wgdi_different.sh").read_text(
+    assert "--mode" in (pipeline / "2gen_wgdi_conf.sh").read_text(
         encoding="utf-8"
     )
+    assert (pipeline / "3run_wgdi.sh").is_file()
+    assert (pipeline / "_pgci_env.sh").is_file()
+    for legacy in (
+        "2run_pre_wgdi.sh",
+        "3blast_to_wgdi.sh",
+        "4run_wgdi_different.sh",
+        "5run_wgdi_same.sh",
+        "6run_wgdi.sh",
+    ):
+        assert not (pipeline / legacy).exists(), legacy
     assert (pipeline / "validation" / RECEIPT_NAME).is_file()
     assert (pipeline / "code" / "tools" / "install_pal2nal.py").is_file()
     assert (pipeline / "code" / "docs" / "HANDOFF.md").is_file()

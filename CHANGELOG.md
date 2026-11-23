@@ -1,5 +1,33 @@
 # Changelog
 
+## Unreleased — WGDI 两目录布局与轻量比较层（2026-11-23）
+
+第 4 步改为“输入归 `wgdi_input/`、结果归 `wgdi_output/`”，每个比较只保留
+一份扁平配置，不再复制四件套、BLAST 表或执行脚本。
+
+### 布局与配置
+- DIAMOND 结果、数据库、设置和日志统一进入 `wgdi_input/blast/`；每个比较一个
+  `wgdi_input/config/<pair>.conf`；点图、共线性块和 Ks 产物统一进入
+  `wgdi_output/results/`，运行日志与阶段标记分别进入 `wgdi_output/logs/` 和
+  `wgdi_output/state/`。
+- 配置由 `species_map.tsv` 解析物种目录与四件套，全部使用项目相对路径；整体
+  搬移项目或换机无需重写配置。
+- 扫描元数据正名为 `metadata/`，`resources/` 作为兼容联接保留。若无权限创建
+  联接，读取端会依次回退 `metadata/`、`resources/`、项目根，不依赖联接是否成功。
+
+### 脚本与校验
+- `2run_pre_wgdi.sh`、`3blast_to_wgdi.sh`、`4run_wgdi_different.sh`、
+  `5run_wgdi_same.sh`、`6run_wgdi.sh` 合并为 `2gen_wgdi_conf.sh` 与
+  `3run_wgdi.sh`；Windows 总控相应为 3 步，Ks 仍是显式可选分支。
+- 阶段断点同时校验配置内容、BLAST、GFF/lens、CDS/PEP 和 WGDI 启动器指纹；
+  相同配置重新生成不会误触发重算，参数或输入变化则会重建对应阶段。
+- 冒烟收集器 schema 升至 `wgdi-smoke-v4`，按单一 BLAST 副本、
+  `wgdi_output/results/` 产物和阶段标记验收。
+- 修复 WSL 调 Windows Python/WGDI 时的路径转换、shell 文件 CRLF、Windows 总控
+  优先错误查找项目根下工具、核心模式被 Ks 依赖误拦截，以及显式新建
+  `--env-dir` 被误判为可复用旧环境的问题。新机器仍须现场运行 `discover` 或
+  显式设置 `WGDI_PYTHON`，不自动沿用他人的 Linux 安装路径。
+
 ## Unreleased — 产物目录统一为 wgdi_input（2026-11-22）
 
 一个物种一个目录，四件套与追溯文件同层，项目根不再出现第二份同名目录。

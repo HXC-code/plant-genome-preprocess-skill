@@ -91,14 +91,12 @@ def install_smoke_runtime(workflow: Path, output: Path) -> None:
     """Copy the shared workflow entry points needed by an isolated smoke run."""
     for name in (
         "0check_data.sh",
+        "_pgci_env.sh",
         "run_homology.sh",
         "1run_blast.sh",
         "1run_diamond.sh",
-        "2run_pre_wgdi.sh",
-        "3blast_to_wgdi.sh",
-        "4run_wgdi_different.sh",
-        "5run_wgdi_same.sh",
-        "6run_wgdi.sh",
+        "2gen_wgdi_conf.sh",
+        "3run_wgdi.sh",
         "run_all_pipeline.ps1",
     ):
         shutil.copy2(workflow / name, output / name)

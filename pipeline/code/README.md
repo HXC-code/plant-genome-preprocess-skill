@@ -35,7 +35,7 @@ resources/download_inventory.tsv
 ## 新项目初始化与依赖预检
 
 预处理项目根保存 `data`（物种目录直接放这一层）、`resources` 和 `wgdi_input/<Abbr>/`
-四件套；分析执行根保存 `0check_data.sh` 至 `6run_wgdi.sh`，下游直接扫描 `wgdi_input/`。
+四件套；分析执行根保存 `0check_data.sh` 至 `3run_wgdi.sh`，下游直接扫描 `wgdi_input/`。
 数据与执行参数分开管理，便于长期归档和复现。
 
 ```powershell
@@ -187,20 +187,19 @@ export PATH="$PWD/bin:$PATH"  # 提供项目内 WGDI wrapper
 # 非本机路径时设置 DIAMOND、WGDI_PYTHON、WGDI_PERL_BIN，或把工具加入 PATH
 bash 0check_data.sh             # 可选：预处理项目根存在时执行完整预处理和验证
 bash run_homology.sh            # 默认 DIAMOND, very-sensitive + 1e-5
-bash 2run_pre_wgdi.sh
-bash 3blast_to_wgdi.sh          # 复制比对结果，保留 Auto_pep 原始文件
-python tools/generate_wgdi_configs.py --mode all
-bash 6run_wgdi.sh               # 验收：默认 2 个核心结果（点图+共线性）；WGDI_KS=true 时 8 个
+bash 2gen_wgdi_conf.sh all      # 扁平比较目录 + 相对路径配置（零复制）
+bash 3run_wgdi.sh               # 验收：默认 2 个核心结果（点图+共线性）；WGDI_KS=true 时 8 个
 ```
 
 `run_homology.sh` 按 QC/index 的 `wgdi_ready` 跳过 `ready=no` 和没有可读准备度
-记录的物种（写入 `skipped_species.txt`），并把 `bin/`、`code/`、`resources/` 等
-基础设施目录排除在物种扫描之外；确需复核未就绪物种时设
-`HOMOLOGY_ALLOW_NOT_READY=true`。生成的 `run.sh` 使用 Bash 安全的 POSIX 路径
-（Windows `D:\...` → `/d/...`）。
+记录的物种（写入 `metadata/skipped_species.txt`），并把 `bin/`、`code/`、
+`resources/`、`metadata/` 等基础设施目录排除在物种扫描之外；确需复核未就绪
+物种时设 `HOMOLOGY_ALLOW_NOT_READY=true`。DIAMOND 结果、数据库与设置统一写入
+`wgdi_input/blast/`。`species_map.tsv` 解析出的四件套与 BLAST 位置写成项目相对
+路径（`wgdi_input/...`），配置集中在 `wgdi_input/config/`，结果集中在
+`wgdi_output/results/`，项目整体搬移或换机无需重新生成配置。
 
-`1run_diamond.sh`、`1run_blast.sh`、`4run_wgdi_different.sh` 和
-`5run_wgdi_same.sh` 是兼容入口；新脚本只需要维护共享实现。
+`1run_diamond.sh`、`1run_blast.sh` 是兼容入口；新脚本只需要维护共享实现。
 
 WGDI 的串联重复过滤由 `tandem=false` 控制，本项目默认开启。上游 `-r <config>` 用于
 保留率分析；项目 wrapper 使用末尾单独 `-r` 或 `--remove-tandem` 控制串联重复过滤。
@@ -208,12 +207,12 @@ WGDI 的串联重复过滤由 `tandem=false` 控制，本项目默认开启。�
 
 **Ks 分支默认关闭**（SOP 第 4 步可选分支）：默认只运行 dotplot + collinearity，
 产出 `.png` 与 `.icl`。设置 `WGDI_KS=true` 后追加 ks/blockinfo/correspondence/
-blockks/kspeaks/peaksfit 六个阶段（配置生成、`6run_wgdi.sh` 验收、Windows 总控
+blockks/kspeaks/peaksfit 六个阶段（配置生成、`3run_wgdi.sh` 验收、Windows 总控
 `-WithKs` 均读同一开关）。原因：上游 blockinfo/correspondence 依赖 Ks 值，
 缺 Ks 时 correspondence 会过滤掉全部区块。
 
 DIAMOND 可用 `DIAMOND_EVALUE`、`DIAMOND_SENSITIVITY`、`DIAMOND_THREADS`、
-`DIAMOND_MAX_TARGETS` 配置；本次参数写入 `Auto_pep/diamond_run_settings.tsv`。`1e-5` 是同源
+`DIAMOND_MAX_TARGETS` 配置；本次参数写入 `wgdi_input/blast/diamond_run_settings.tsv`。`1e-5` 是同源
 搜索阈值，由下游脚本配置。`very-sensitive` 是速度—灵敏度折中；`ultra-sensitive` 提供更高灵敏度并增加运行时间，可按数据集和验证结果选用。
 
 Windows 总控默认选择 DIAMOND，不需要指定历史 `bioinfo_win` 环境：
@@ -398,21 +397,19 @@ resources/species_registry_v2.tsv
 ## 项目目录
 
 ```text
-plant-genome-resources/
-├── data/                # 物种目录直接放这一层，只读
-├── resources/           # 索引、清单、QC、裁决
-├── wgdi_input/         # WGDI 四件套 + 全部追溯文件（单层）
-├── results/
-│   ├── blast/
-│   ├── wgdi/
-│   ├── synteny/
-│   ├── tree/
-│   └── wgd/
-├── logs/
-├── runs/
-├── scripts/
-├── src/
-└── tests/
+<project>/
+├── DATA/ or data/       # 原始数据（只读）
+├── plant-wgdi-preprocess/  # skill 本体
+├── README.md            # 目录说明
+├── metadata/            # 清单、路径地图、物种映射、校验报告（resources/ 为兼容联接）
+├── wgdi_input/          # WGDI 全部输入
+│   ├── <Abbr>/          #   四件套 + 追溯文件
+│   ├── blast/           #   DIAMOND 结果、数据库、设置与日志
+│   └── config/          #   扁平的 <pair>.conf
+└── wgdi_output/         # WGDI 全部结果
+    ├── results/         #   .png 点图 + .icl 共线性块（+ Ks 产物）
+    ├── logs/            #   每组运行日志
+    └── state/           #   阶段断点标记 + Ks 中间文件
 ```
 
 目录决策见 `docs/adr/0001-data-layout-and-validation-contract.md`。
@@ -455,5 +452,5 @@ WGDI 配置中的 CDS、PEP、GFF 和 lens 应使用同一套筛选集：
 - **Windows 长路径守卫**：`run` 遇到物种目录/输入/输出路径超过 250 字符时返回 `FAIL path_too_long_for_windows`（detail 给出整改建议），不再抛出裸 `FileNotFoundError`。
 - **GFF 结构错误语义**：`GffFormatError` 统一转为 `FAIL gff_format_error`（不再以 `ERROR` 跳过统计）；原始 GTF/GBFF 直接进 run 则返回 `FAIL conversion_required` 并附可执行 `convert-annotation` 命令。
 - **Biopython**：仅 GBFF 转换需要 `biopython>=1.83`；`doctor` 会扫描当前解释器、PATH 上的 `python/python3/py` 以及 `PGCI_PYTHON_CANDIDATES`（`;` 分隔）并列出可用的解释器版本。
-- **脚本行尾**：`0check_data.sh` 至 `6run_wgdi.sh` 已统一为 LF（备份在 `99_ARCHIVE\shell_lineendings_20261120`），Git Bash 与 WSL/Linux 下 `bash -n` 均通过。
+- **脚本行尾**：`0check_data.sh` 至 `3run_wgdi.sh` 已统一为 LF（备份在 `99_ARCHIVE\shell_lineendings_20261120`），Git Bash 与 WSL/Linux 下 `bash -n` 均通过。
 

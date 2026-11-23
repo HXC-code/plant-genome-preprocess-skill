@@ -29,10 +29,10 @@ python <skill>\pipeline\discover.py E:\raw_genomes --project-root D:\plant_proje
 
 1. 定位代码根（按 `pipeline/discover.py` 自身位置，符号链接/复制都不影响）；
 2. 扫描数据目录，按**文件内容**识别 gff/genome/cds/pep，并配对同一套组装；
-3. 判断每个物种有无染色体证据，写 `resources/sequence_mode.tsv`；
-4. 写 `resources/machine_paths.json` 与 `download_inventory.tsv`，并记住项目根。
+3. 判断每个物种有无染色体证据，写 `metadata/sequence_mode.tsv`；
+4. 写 `metadata/machine_paths.json` 与 `download_inventory.tsv`，并记住项目根。
 
-屏幕上会逐物种列出选中的四个文件，`resources/discovery_report.tsv` 列出全部候选
+屏幕上会逐物种列出选中的四个文件，`metadata/discovery_report.tsv` 列出全部候选
 和得分，供人工复核。之后所有命令都可以省略 `--project-root`：
 
 ```powershell
@@ -406,10 +406,8 @@ python -m pgci_preprocess doctor `
 ```bash
 bash 0check_data.sh --preprocess
 bash run_homology.sh
-bash 2run_pre_wgdi.sh
-bash 3blast_to_wgdi.sh
-python code/tools/generate_wgdi_configs.py --mode all
-bash 6run_wgdi.sh
+bash 2gen_wgdi_conf.sh all
+bash 3run_wgdi.sh
 ```
 
 Windows 总控：
@@ -422,7 +420,7 @@ powershell -ExecutionPolicy Bypass -File .\run_all_pipeline.ps1
 `run_homology.sh` 和 Windows 总控会读取 `wgdi_ready`，并跳过未就绪物种。跳过名单写入：
 
 ```text
-skipped_species.txt
+metadata/skipped_species.txt
 ```
 
 结果汇报时同时列出成功物种、跳过物种和实施参数。
@@ -431,8 +429,8 @@ skipped_species.txt
 block-Ks 与分布峰值图时显式启用（配置生成、执行、验收三处都读同一开关）：
 
 ```bash
-WGDI_KS=true python code/tools/generate_wgdi_configs.py --mode all
-WGDI_KS=true bash 6run_wgdi.sh
+WGDI_KS=true bash 2gen_wgdi_conf.sh all
+WGDI_KS=true bash 3run_wgdi.sh
 ```
 
 Windows 总控用 `-WithKs`。原因：上游 blockinfo/correspondence 依赖 Ks 值，

@@ -139,3 +139,18 @@ def test_classify_failure_buckets() -> None:
     assert module.classify_failure("No matching distribution found for numpy==2.4.6") == "wheel"
     assert module.classify_failure("ResolutionImpossible: conflict") == "conflict"
     assert module.classify_failure("something else") == "unknown"
+
+
+def test_bootstrap_reuses_only_the_requested_environment(tmp_path: Path) -> None:
+    from importlib.util import module_from_spec, spec_from_file_location
+
+    spec = spec_from_file_location("bw", PROJECT_ROOT / "tools" / "bootstrap_wgdi.py")
+    module = module_from_spec(spec)
+    spec.loader.exec_module(module)
+    target = tmp_path / "selected-env"
+
+    assert not module.should_reuse_environment("reuse", target, force=False)
+    target.mkdir()
+    assert module.should_reuse_environment("reuse", target, force=False)
+    assert not module.should_reuse_environment("reuse", target, force=True)
+    assert not module.should_reuse_environment("install", target, force=False)

@@ -30,6 +30,7 @@ from pgci_preprocess.project_init import ProjectInitError, init_project
 from pgci_preprocess.pipeline import PipelineOptions, run_project
 from pgci_preprocess.project_paths import (
     OUTPUT_DIRNAME,
+    index_file,
     is_legacy_output,
     output_dirname,
     output_root,
@@ -900,7 +901,7 @@ def _cmd_readiness(args: argparse.Namespace) -> int:
     if args.species:
         ids = [item.strip() for item in args.species.split(",") if item.strip()]
     else:
-        folder_list = args.project_root / "folder_list.txt"
+        folder_list = index_file(args.project_root, "folder_list.txt")
         ids = (
             [
                 line.strip()
@@ -929,7 +930,7 @@ def _cmd_check_wgdi_outputs(args: argparse.Namespace) -> int:
 def _species_ids(args: argparse.Namespace) -> list[str]:
     if args.species:
         return [item.strip() for item in args.species.split(",") if item.strip()]
-    folder_list = args.project_root / "folder_list.txt"
+    folder_list = index_file(args.project_root, "folder_list.txt")
     if folder_list.is_file():
         return [
             line.strip()

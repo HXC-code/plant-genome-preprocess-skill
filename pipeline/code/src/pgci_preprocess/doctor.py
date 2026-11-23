@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from pgci_preprocess.pipeline import discover_species
-from pgci_preprocess.project_paths import downloads_root
+from pgci_preprocess.project_paths import downloads_root, index_file
 from pgci_preprocess.species_names import SpeciesNamingError, load_species_names
 
 
@@ -219,13 +219,13 @@ def run_doctor(
         )
         # A path map is what lets commands run without --project-root on a new
         # machine; a stale one silently points at another project, so surface it.
-        config_path = root / "resources" / "machine_paths.json"
+        config_path = index_file(root, "machine_paths.json")
         if not config_path.is_file():
             checks.append(
                 DoctorCheck(
                     "machine_paths",
                     "WARN",
-                    "resources/machine_paths.json not found; run `python pipeline/discover.py` "
+                    "metadata/machine_paths.json not found; run `python pipeline/discover.py` "
                     "so commands can resolve this project without --project-root",
                 )
             )

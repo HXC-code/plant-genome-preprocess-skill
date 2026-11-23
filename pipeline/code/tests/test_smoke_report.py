@@ -13,23 +13,36 @@ if not COLLECTOR.is_file():
 
 
 def _build_receipt_fixture(root: Path) -> None:
-    comparison = root / "Auto_wgdi" / "s1_base" / "s1_s1"
+    comparison = root / "wgdi_output" / "results"
     comparison.mkdir(parents=True)
+    state = root / "wgdi_output" / "state"
+    state.mkdir(parents=True)
     (root / "fixture_manifest.json").write_text(
         json.dumps({"selection": {"selected_genes": 10, "selected_sequences": 1}}),
         encoding="utf-8",
     )
-    settings = root / "Auto_pep" / "diamond_run_settings.tsv"
+    settings = root / "wgdi_input" / "blast" / "diamond_run_settings.tsv"
     settings.parent.mkdir(parents=True)
     settings.write_text(
         "key\tvalue\nexecutable\tdiamond\nversion\ttest\nevalue\t1e-5\nsensitivity\tvery-sensitive\n",
         encoding="utf-8",
     )
-    source_blast = root / "Auto_pep" / "s1_pep" / "s1_s1.blast"
+    # Single authoritative BLAST table under wgdi_input/blast; markers carry
+    # the resume fingerprints and live in wgdi_output/state.
+    source_blast = root / "wgdi_input" / "blast" / "s1_pep" / "s1_s1.blast"
     source_blast.parent.mkdir(parents=True)
     source_blast.write_text("q\ts\t100\t3\t0\t0\t1\t3\t1\t3\t1e-5\t10\n", encoding="utf-8")
-    (comparison / "s1_s1.blast").write_bytes(source_blast.read_bytes())
-    (comparison / ".wgdi.done").write_text("done\n", encoding="utf-8")
+    for stage in (
+        "dotplot",
+        "collinearity",
+        "ks",
+        "blockinfo",
+        "correspondence",
+        "blockks",
+        "kspeaks",
+        "peaksfit",
+    ):
+        (state / f"s1.done.{stage}").write_text("core;blast=24-1000\n", encoding="utf-8")
     for name in ("s1.png", "s1.icl", "s1.ks", "s1.bi.csv", "s1.bi.c.csv", "s1.bk.png", "s1.kp.png", "s1.pf.png"):
         (comparison / name).write_text("nonempty\n", encoding="utf-8")
     (root / "smoke_status.tsv").write_text(
@@ -38,7 +51,7 @@ def _build_receipt_fixture(root: Path) -> None:
     )
 
 
-def test_smoke_receipt_requires_all_outputs_and_preserves_blast(tmp_path: Path) -> None:
+def test_smoke_receipt_requires_all_outputs_and_single_blast_copy(tmp_path: Path) -> None:
     root = tmp_path / "smoke"
     root.mkdir()
     _build_receipt_fixture(root)
@@ -51,7 +64,7 @@ def test_smoke_receipt_requires_all_outputs_and_preserves_blast(tmp_path: Path) 
     assert passed.returncode == 0, passed.stdout + passed.stderr
     report = json.loads((root / "smoke_report.json").read_text(encoding="utf-8"))
     assert report["status"] == "PASS"
-    assert report["schema_version"] == "wgdi-smoke-v3"
+    assert report["schema_version"] == "wgdi-smoke-v4"
     assert set(report["environment"]["tools"]) == {
         "diamond",
         "blastp",
@@ -62,9 +75,9 @@ def test_smoke_receipt_requires_all_outputs_and_preserves_blast(tmp_path: Path) 
         "pal2nal",
     }
     assert len(report["comparisons"][0]["outputs"]) == 8
-    assert report["comparisons"][0]["auto_pep_blast_preserved_and_identical"] is True
+    assert report["comparisons"][0]["auto_pep_blast_present"] is True
 
-    (root / "Auto_wgdi" / "s1_base" / "s1_s1" / "s1.pf.png").unlink()
+    (root / "wgdi_output" / "results" / "s1.pf.png").unlink()
     failed = subprocess.run(
         [sys.executable, str(COLLECTOR), str(root)],
         text=True,
@@ -85,7 +98,7 @@ def test_smoke_receipt_core_mode_requires_only_dotplot_and_collinearity(
         "status\tPASS\ndiamond_evalue\t1e-5\ndiamond_sensitivity\tvery-sensitive\nks_enabled\tfalse\n",
         encoding="utf-8",
     )
-    comparison = root / "Auto_wgdi" / "s1_base" / "s1_s1"
+    comparison = root / "wgdi_output" / "results"
     for name in ("s1.ks", "s1.bi.csv", "s1.bi.c.csv", "s1.bk.png", "s1.kp.png", "s1.pf.png"):
         (comparison / name).unlink()
     result = subprocess.run(

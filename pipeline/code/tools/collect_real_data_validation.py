@@ -34,7 +34,8 @@ def main() -> int:
     root = args.project_root.resolve()
     smoke = json.loads(args.smoke_report.resolve().read_text(encoding="utf-8"))
     index = read_tsv(root / "resources" / "wgdi_v2_index.tsv")
-    validation = read_tsv(root / "data-validation-report.tsv")
+    report = root / "metadata" / "data-validation-report.tsv"
+    validation = read_tsv(report if report.parent.is_dir() else root / "data-validation-report.tsv")
     naming = read_tsv(root / "resources" / "naming_audit.tsv")
     validation_by_code = {row["code"]: row for row in validation}
     naming_by_code = {row["code"]: row for row in naming}

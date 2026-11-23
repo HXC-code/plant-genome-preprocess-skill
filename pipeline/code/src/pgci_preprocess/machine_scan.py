@@ -66,6 +66,9 @@ SKIP_DIR_NAMES = frozenset(
         # otherwise be mistaken for raw species bundles when a project root is
         # scanned.
         "wgdi_input",
+        "wgdi_output",
+        "metadata",
+        "plant-wgdi-preprocess",
         "analysis_v2",
         "clean_v2",
         "resources",

@@ -31,6 +31,12 @@ def venv_python(env_dir: Path) -> Path:
     raise FileNotFoundError(f"虚拟环境创建失败：{env_dir}")
 
 
+def should_reuse_environment(plan: str, env_dir: Path, *, force: bool) -> bool:
+    """Reuse only the exact target environment, never a different discovered one."""
+
+    return plan == "reuse" and not force and env_dir.is_dir()
+
+
 def classify_failure(log_text: str) -> str:
     low = log_text.lower()
     if any(k in low for k in ("could not fetch", "connection", "timed out", "timeout",
@@ -133,7 +139,14 @@ def bootstrap(args: argparse.Namespace) -> int:
         print("GBFF 转换如需 biopython，另行离线安装 wheel；WGDI 下游另跑 bootstrap。")
         return 0
 
-    if plan == "reuse" and not args.force:
+    reuse_target = should_reuse_environment(plan, env_dir, force=args.force)
+    if plan == "reuse" and not reuse_target and not args.force:
+        print(
+            f"[CREATE] 预扫发现的是另一套环境；显式目标不存在: {env_dir}",
+            flush=True,
+        )
+
+    if reuse_target:
         runtime_python = venv_python(env_dir)
         print(f"[REUSE] 已有环境满足钉版，跳过安装: {runtime_python}")
     else:

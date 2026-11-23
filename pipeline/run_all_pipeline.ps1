@@ -1,10 +1,10 @@
 ﻿[CmdletBinding()]
 param(
-    [ValidateRange(1, 6)]
+    [ValidateRange(1, 3)]
     [int]$StartStep = 1,
 
-    [ValidateRange(1, 6)]
-    [int]$EndStep = 6,
+    [ValidateRange(1, 3)]
+    [int]$EndStep = 3,
 
     [switch]$DryRun,
 
@@ -50,7 +50,36 @@ $env:WGDI_KS = if ($WithKs) { "true" } else { "false" }
 if (-not [string]::IsNullOrWhiteSpace($DiamondPath)) { $env:DIAMOND = $DiamondPath }
 if (-not [string]::IsNullOrWhiteSpace($BlastpPath)) { $env:BLASTP = $BlastpPath }
 if (-not [string]::IsNullOrWhiteSpace($MakeBlastDbPath)) { $env:MAKEBLASTDB = $MakeBlastDbPath }
-$script:ProjectRoot = $PSScriptRoot
+function Resolve-ProjectRoot {
+    # New-machine contract: explicit override -> discover pointer -> script dir.
+    if (-not [string]::IsNullOrWhiteSpace($env:PGCI_PROJECT_ROOT)) {
+        return $env:PGCI_PROJECT_ROOT
+    }
+    $pointer = Join-Path $PSScriptRoot "code\.pgci-machine.json"
+    if (Test-Path -LiteralPath $pointer -PathType Leaf) {
+        try {
+            $value = (Get-Content -LiteralPath $pointer -Raw -Encoding UTF8 | ConvertFrom-Json).project_root
+            if (-not [string]::IsNullOrWhiteSpace($value)) {
+                return $value
+            }
+        }
+        catch {
+            # Fall through to the classic layout below.
+        }
+    }
+    return $PSScriptRoot
+}
+
+$script:ProjectRoot = Resolve-ProjectRoot
+$script:IndexRoot = if (Test-Path -LiteralPath (Join-Path $script:ProjectRoot "metadata") -PathType Container) {
+    Join-Path $script:ProjectRoot "metadata"
+}
+elseif (Test-Path -LiteralPath (Join-Path $script:ProjectRoot "resources") -PathType Container) {
+    Join-Path $script:ProjectRoot "resources"
+}
+else {
+    $script:ProjectRoot
+}
 $script:SpeciesRoot = if (Test-Path -LiteralPath (Join-Path $script:ProjectRoot "wgdi_input") -PathType Container) {
     Join-Path $script:ProjectRoot "wgdi_input"
 }
@@ -175,7 +204,7 @@ function Get-WgdiAdjudicationStatus {
     param([string]$SpeciesId)
 
     $pythonExe = if ($env:PYTHON) { $env:PYTHON } else { "python" }
-    $srcDir = Join-Path $script:ProjectRoot "code\src"
+    $srcDir = Join-Path $PSScriptRoot "code\src"
     $savedPythonPath = $env:PYTHONPATH
     try {
         $env:PYTHONPATH = if ($savedPythonPath) { "$srcDir;$savedPythonPath" } else { $srcDir }
@@ -200,7 +229,7 @@ function Test-WgdiAdjudicationAllowsRun {
 }
 
 function Get-PipelineSpecies {
-    $listPath = Join-Path $script:ProjectRoot "folder_list.txt"
+    $listPath = Join-Path $script:IndexRoot "folder_list.txt"
     if (Test-Path -LiteralPath $listPath -PathType Leaf) {
         return @(
             Get-Content -LiteralPath $listPath |
@@ -215,7 +244,7 @@ function Get-PipelineSpecies {
             Where-Object {
                 $_.Name -notlike "Auto_*" -and
                 $_.Name -notlike "_pipeline_*" -and
-                $_.Name -notin @("analysis_v2", "bin", "clean_v2", "code", "data", "dist", "external", "resources", "validation", "wgdi_input", "wgdi_run") -and
+                $_.Name -notin @("analysis_v2", "bin", "blast", "clean_v2", "code", "config", "data", "dist", "external", "metadata", "plant-wgdi-preprocess", "resources", "validation", "wgdi_input", "wgdi_output", "wgdi_run") -and
                 $_.Name -notlike ".*"
             } |
             ForEach-Object { $_.Name } |
@@ -225,7 +254,7 @@ function Get-PipelineSpecies {
 }
 
 function Get-SpeciesMap {
-    $mapPath = Join-Path $script:ProjectRoot "species_map.tsv"
+    $mapPath = Join-Path $script:IndexRoot "species_map.tsv"
     if (-not (Test-Path -LiteralPath $mapPath -PathType Leaf)) {
         return @()
     }
@@ -318,15 +347,19 @@ function Get-ComparisonFolders {
 
     $folders = New-Object System.Collections.Generic.List[object]
     foreach ($baseName in $Species) {
-        $baseDirectory = Join-Path $script:ProjectRoot ("Auto_wgdi\" + $baseName + "_base")
         foreach ($otherName in $Species) {
             $folderName = $baseName + "_" + $otherName
+            $isSame = ($baseName -eq $otherName)
+            # Config/result prefix: same-species comparisons use the species code
+            # alone (Aju.conf / Aju.png), cross-species pairs use Aju_Apc.
+            $prefix = if ($isSame) { $baseName } else { $folderName }
             $folders.Add([pscustomobject]@{
                 BaseName = $baseName
                 OtherName = $otherName
-                IsSame = ($baseName -eq $otherName)
+                IsSame = $isSame
                 Name = $folderName
-                Path = Join-Path $baseDirectory $folderName
+                Prefix = $prefix
+                Path = Join-Path $script:ProjectRoot ("wgdi_input\config\" + $prefix + ".conf")
             })
         }
     }
@@ -386,20 +419,14 @@ function Test-Step01 {
     foreach ($baseSpecies in $speciesMap) {
         foreach ($targetSpecies in $speciesMap) {
             $blastPath = Join-Path $script:ProjectRoot (
-                "Auto_pep\" + $baseSpecies.SpeciesId + "_pep\" +
+                "wgdi_input\blast\" + $baseSpecies.SpeciesId + "_pep\" +
                 $baseSpecies.SpeciesId + "_" + $targetSpecies.SpeciesId + ".blast"
             )
-            $movedBlastPath = Join-Path $script:ProjectRoot (
-                "Auto_wgdi\" + $baseSpecies.SpeciesId + "_base\" +
-                $baseSpecies.SpeciesId + "_" + $targetSpecies.SpeciesId + "\" +
-                $baseSpecies.SpeciesId + "_" + $targetSpecies.SpeciesId + ".blast"
-            )
-            if ((Test-Path -LiteralPath $blastPath -PathType Leaf) -or
-                (Test-Path -LiteralPath $movedBlastPath -PathType Leaf)) {
+            if (Test-Path -LiteralPath $blastPath -PathType Leaf) {
                 $foundCount++
             }
             else {
-                $errors.Add("缺少 BLAST 结果：$blastPath（也未在 WGDI 目录找到）")
+                $errors.Add("缺少 BLAST 结果：$blastPath")
             }
         }
     }
@@ -418,13 +445,18 @@ function Test-Step02 {
     }
 
     $comparisonFolders = @(Get-ComparisonFolders $species)
+    $complete = 0
     foreach ($comparison in $comparisonFolders) {
-        if (-not (Test-Path -LiteralPath $comparison.Path -PathType Container)) {
-            $errors.Add("缺少比较文件夹：$($comparison.Path)")
+        $configPath = $comparison.Path
+        if (Test-Path -LiteralPath $configPath -PathType Leaf) {
+            $complete++
+        }
+        else {
+            $errors.Add("缺少配置：$configPath")
         }
     }
 
-    $summary = "比较文件夹 $($comparisonFolders.Count) 个"
+    $summary = "WGDI 配置 $complete/$($comparisonFolders.Count)"
     return (New-ValidationResult $errors.ToArray() $summary)
 }
 
@@ -437,89 +469,14 @@ function Test-Step03 {
     }
 
     $comparisonFolders = @(Get-ComparisonFolders $species)
-    $found = 0
-    foreach ($comparison in $comparisonFolders) {
-        $blastPath = Join-Path $comparison.Path ($comparison.Name + ".blast")
-        if (Test-Path -LiteralPath $blastPath -PathType Leaf) {
-            $found++
-        }
-        else {
-            $errors.Add("缺少已归位的 BLAST 文件：$blastPath")
-        }
-    }
-
-    $summary = "归位 BLAST $found/$($comparisonFolders.Count)"
-    return (New-ValidationResult $errors.ToArray() $summary)
-}
-
-function Test-ConfigStep {
-    param(
-        [ValidateSet("Different", "Same")]
-        [string]$Mode
-    )
-
-    $errors = New-Object System.Collections.Generic.List[string]
-    $species = @(Get-PipelineSpecies)
-    if ($species.Count -eq 0) {
-        $errors.Add("没有找到物种目录。")
-        return (New-ValidationResult $errors.ToArray() "没有物种")
-    }
-
-    $comparisonFolders = @(Get-ComparisonFolders $species)
-    if ($Mode -eq "Different") {
-        $comparisonFolders = @($comparisonFolders | Where-Object { -not $_.IsSame })
-    }
-    else {
-        $comparisonFolders = @($comparisonFolders | Where-Object { $_.IsSame })
-    }
-
-    if ($comparisonFolders.Count -eq 0) {
-        if ($Mode -eq "Different") {
-            return (New-ValidationResult @() "不同物种 WGDI 配置 0/0（单物种自比对）")
-        }
-        $errors.Add("没有找到需要生成配置的同物种比较目录。")
-        return (New-ValidationResult $errors.ToArray() "同物种 WGDI 配置 0/0")
-    }
-
     $complete = 0
     foreach ($comparison in $comparisonFolders) {
-        $runPath = Join-Path $comparison.Path "run.sh"
-        $configPath = Join-Path $comparison.Path "total.conf"
-        if ((Test-Path -LiteralPath $runPath -PathType Leaf) -and (Test-Path -LiteralPath $configPath -PathType Leaf)) {
-            $complete++
-        }
-        else {
-            $errors.Add("配置不完整：$($comparison.Path)")
-        }
-    }
+        $prefix = $comparison.Prefix
 
-    $summary = "WGDI 配置 $complete/$($comparisonFolders.Count)"
-    return (New-ValidationResult $errors.ToArray() $summary)
-}
-
-function Test-Step06 {
-    $errors = New-Object System.Collections.Generic.List[string]
-    $species = @(Get-PipelineSpecies)
-    if ($species.Count -eq 0) {
-        $errors.Add("没有找到物种目录。")
-        return (New-ValidationResult $errors.ToArray() "没有物种")
-    }
-
-    $comparisonFolders = @(Get-ComparisonFolders $species)
-    $complete = 0
-    foreach ($comparison in $comparisonFolders) {
-        $prefix = if ($comparison.IsSame) {
-            $comparison.BaseName
-        }
-        else {
-            $comparison.Name
-        }
-
+        $resultRoot = Join-Path $script:ProjectRoot "wgdi_output\results"
         $requiredNames = @(
             "$prefix.png",
-            "$prefix.icl",
-            "run.sh",
-            "total.conf"
+            "$prefix.icl"
         )
         if ($env:WGDI_KS -eq "true") {
             $requiredNames += @(
@@ -534,7 +491,7 @@ function Test-Step06 {
 
         $missing = @(
             $requiredNames | Where-Object {
-                $path = Join-Path $comparison.Path $_
+                $path = Join-Path $resultRoot $_
                 -not (Test-Path -LiteralPath $path -PathType Leaf) -or
                 (Get-Item -LiteralPath $path).Length -eq 0
             }
@@ -563,7 +520,7 @@ $script:Steps = @(
         }
         Validate = { Test-Step01 }
         Evidence = {
-            $path = Join-Path $script:ProjectRoot "Auto_pep"
+            $path = Join-Path $script:ProjectRoot "wgdi_input\blast"
             if (Test-Path -LiteralPath $path -PathType Container) {
                 return @(Get-ChildItem -LiteralPath $path -Recurse -File -ErrorAction SilentlyContinue |
                     Where-Object { $_.Name -like "*.db.*" -or $_.Name -like "*.blast" }).Count -gt 0
@@ -573,69 +530,29 @@ $script:Steps = @(
     },
     [pscustomobject]@{
         Number = 2
-        Script = "2run_pre_wgdi.sh"
-        Title = "创建 WGDI 比较目录并复制输入"
+        Script = "2gen_wgdi_conf.sh"
+        Title = "生成 WGDI 比较目录与配置（轻量布局，零复制）"
         Validate = { Test-Step02 }
         Evidence = {
-            $path = Join-Path $script:ProjectRoot "Auto_wgdi"
-            if (Test-Path -LiteralPath $path -PathType Container) {
-                return @(Get-ChildItem -LiteralPath $path -Directory -Filter "*_base" -ErrorAction SilentlyContinue).Count -gt 0
-            }
-            return $false
+            $species = @(Get-PipelineSpecies)
+            return @(Get-ComparisonFolders $species |
+                Where-Object {
+                    Test-Path -LiteralPath $_.Path -PathType Leaf
+                }).Count -gt 0
         }
     },
     [pscustomobject]@{
         Number = 3
-        Script = "3blast_to_wgdi.sh"
-        Title = "把 BLAST 结果移动到对应比较目录"
+        Script = "3run_wgdi.sh"
+        Title = "执行全部 WGDI 比较并校验产物"
         Validate = { Test-Step03 }
         Evidence = {
-            $path = Join-Path $script:ProjectRoot "Auto_wgdi"
-            if (Test-Path -LiteralPath $path -PathType Container) {
-                return @(Get-ChildItem -LiteralPath $path -Recurse -File -Filter "*.blast" -ErrorAction SilentlyContinue).Count -gt 0
-            }
-            return $false
-        }
-    },
-    [pscustomobject]@{
-        Number = 4
-        Script = "4run_wgdi_different.sh"
-        Title = "生成不同物种比较的 WGDI 配置"
-        Validate = { Test-ConfigStep "Different" }
-        Evidence = {
             $species = @(Get-PipelineSpecies)
+            $resultRoot = Join-Path $script:ProjectRoot "wgdi_output\results"
             return @(Get-ComparisonFolders $species |
                 Where-Object {
-                    -not $_.IsSame -and
-                    (Test-Path -LiteralPath (Join-Path $_.Path "run.sh") -PathType Leaf)
-                }).Count -gt 0
-        }
-    },
-    [pscustomobject]@{
-        Number = 5
-        Script = "5run_wgdi_same.sh"
-        Title = "生成同物种比较的 WGDI 配置"
-        Validate = { Test-ConfigStep "Same" }
-        Evidence = {
-            $species = @(Get-PipelineSpecies)
-            return @(Get-ComparisonFolders $species |
-                Where-Object {
-                    $_.IsSame -and
-                    (Test-Path -LiteralPath (Join-Path $_.Path "run.sh") -PathType Leaf)
-                }).Count -gt 0
-        }
-    },
-    [pscustomobject]@{
-        Number = 6
-        Script = "6run_wgdi.sh"
-        Title = "执行全部 WGDI 重复程序"
-        Validate = { Test-Step06 }
-        Evidence = {
-            $species = @(Get-PipelineSpecies)
-            return @(Get-ComparisonFolders $species |
-                Where-Object {
-                    (Test-Path -LiteralPath (Join-Path $_.Path "total.conf") -PathType Leaf) -and
-                    @(Get-ChildItem -LiteralPath $_.Path -File -Filter "*.icl" -ErrorAction SilentlyContinue).Count -gt 0
+                    (Test-Path -LiteralPath $_.Path -PathType Leaf) -and
+                    (Test-Path -LiteralPath (Join-Path $resultRoot ($_.Prefix + ".icl")) -PathType Leaf)
                 }).Count -gt 0
         }
     }
@@ -734,7 +651,7 @@ function Get-PipelineInputFingerprint {
 
 function Get-ScriptHash {
     param([string]$ScriptName)
-    $path = Join-Path $script:ProjectRoot $ScriptName
+    $path = Join-Path $PSScriptRoot $ScriptName
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
         return ""
     }
@@ -770,7 +687,7 @@ function Get-CondaCommandPrefix {
         [string]$EnvironmentName
     )
 
-    $localBin = Get-BashPath (Join-Path $script:ProjectRoot "bin")
+    $localBin = Get-BashPath (Join-Path $PSScriptRoot "bin")
     $pathEntries = @((Convert-ToBashSingleQuoted $localBin))
     if (-not [string]::IsNullOrWhiteSpace($BioinfoBin) -and (Test-Path -LiteralPath $BioinfoBin -PathType Container)) {
         $pathEntries += (Convert-ToBashSingleQuoted (Get-BashPath $BioinfoBin))
@@ -932,7 +849,7 @@ function Test-PipelinePrerequisites {
                 Where-Object {
                     $_.Name -notlike "Auto_*" -and
                     $_.Name -notlike "_pipeline_*" -and
-                    $_.Name -notin @("analysis_v2", "bin", "clean_v2", "code", "data", "dist", "external", "resources", "validation", "wgdi_input", "wgdi_run") -and
+                    $_.Name -notin @("analysis_v2", "bin", "blast", "clean_v2", "code", "config", "data", "dist", "external", "metadata", "plant-wgdi-preprocess", "resources", "validation", "wgdi_input", "wgdi_output", "wgdi_run") -and
                     $_.Name -notlike ".*"
                 }
         )
@@ -1011,21 +928,19 @@ function Test-PipelinePrerequisites {
         }
     }
 
-    if ($StepNumber -eq 2 -and -not (Test-Path -LiteralPath (Join-Path $script:ProjectRoot "folder_list.txt") -PathType Leaf)) {
-        $errors.Add("第 2 步需要第 1 步生成的 folder_list.txt。")
+    if ($StepNumber -eq 2 -and -not (Test-Path -LiteralPath (Join-Path $script:IndexRoot "species_map.tsv") -PathType Leaf)) {
+        $errors.Add("第 2 步需要第 1 步生成的 species_map.tsv。")
     }
 
-    if ($StepNumber -eq 3 -and -not (Test-Path -LiteralPath (Join-Path $script:ProjectRoot "Auto_pep") -PathType Container)) {
-        $errors.Add("第 3 步需要 Auto_pep 文件夹。")
+    if ($StepNumber -eq 3 -and -not (Test-Path -LiteralPath (Join-Path $script:ProjectRoot "wgdi_input\blast") -PathType Container)) {
+        $errors.Add("第 3 步需要 wgdi_input\blast 文件夹。")
     }
 
-    if ($StepNumber -ge 4 -and $StepNumber -le 6) {
-        if (-not (Test-Path -LiteralPath (Join-Path $script:ProjectRoot "folder_list.txt") -PathType Leaf)) {
-            $errors.Add("第 $StepNumber 步需要 folder_list.txt。")
-        }
+    if ($StepNumber -eq 3 -and -not (Test-Path -LiteralPath (Join-Path $script:IndexRoot "folder_list.txt") -PathType Leaf)) {
+        $errors.Add("第 3 步需要 folder_list.txt。")
     }
 
-    if ($StepNumber -eq 6 -and -not $SkipPreflight) {
+    if ($StepNumber -eq 3 -and -not $SkipPreflight) {
         try {
             $prefix = Get-CondaCommandPrefix $script:BashExecutable $CondaEnv
             $version = (
@@ -1038,16 +953,18 @@ function Test-PipelinePrerequisites {
             else {
                 Write-PipelineMessage "  WGDI 环境：$version" "DarkGray"
             }
-            foreach ($toolName in @("muscle", "yn00", "perl")) {
-                $resolvedTool = (
-                    & $script:BashExecutable -lc ($prefix + "command -v $toolName") 2>&1 |
-                        Out-String
-                ).Trim()
-                if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($resolvedTool)) {
-                    $errors.Add("WGDI 依赖不可用：$toolName。可通过 -BioinfoBin 或 PATH 配置。")
-                }
-                else {
-                    Write-PipelineMessage "  依赖 $toolName：$resolvedTool" "DarkGray"
+            if ($WithKs) {
+                foreach ($toolName in @("muscle", "yn00", "perl")) {
+                    $resolvedTool = (
+                        & $script:BashExecutable -lc ($prefix + "command -v $toolName") 2>&1 |
+                            Out-String
+                    ).Trim()
+                    if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($resolvedTool)) {
+                        $errors.Add("Ks 依赖不可用：$toolName。可通过 -BioinfoBin 或 PATH 配置。")
+                    }
+                    else {
+                        Write-PipelineMessage "  Ks 依赖 $toolName：$resolvedTool" "DarkGray"
+                    }
                 }
             }
         }
@@ -1100,7 +1017,7 @@ function Invoke-PipelineStep {
     $timestamp = (Get-Date).ToString("yyyyMMdd-HHmmss")
     $logPath = Join-Path $script:LogDirectory ("step{0}-{1}-{2}.log" -f $Step.Number, $Step.Script, $timestamp)
     $environmentPrefix = Get-CondaCommandPrefix $script:BashExecutable $CondaEnv
-    $scriptArgument = "./" + $Step.Script
+    $scriptArgument = (Join-Path $PSScriptRoot $Step.Script).Replace("\", "/")
     $bashCommand = $environmentPrefix + "bash " + (Convert-ToBashSingleQuoted $scriptArgument)
 
     Write-PipelineMessage "  开始执行：$($Step.Script)" "Cyan"
@@ -1213,7 +1130,7 @@ try {
 
     $script:BashExecutable = Resolve-BashExecutable $BashPath
     foreach ($step in $script:Steps) {
-        $scriptPath = Join-Path $script:ProjectRoot $step.Script
+        $scriptPath = Join-Path $PSScriptRoot $step.Script
         if (-not (Test-Path -LiteralPath $scriptPath -PathType Leaf)) {
             throw "缺少分析脚本：$scriptPath"
         }
@@ -1230,7 +1147,7 @@ try {
             $validation = & $step.Validate
             $mark = if ($validation.IsValid) { "完整" } else { "不完整" }
             $color = if ($validation.IsValid) { "Green" } else { "Yellow" }
-            Write-PipelineMessage ("[{0}/6] {1} | {2} | {3} | 状态判断：{4}" -f
+            Write-PipelineMessage ("[{0}/3] {1} | {2} | {3} | 状态判断：{4}" -f
                 $step.Number, $step.Script, $mark, $validation.Summary, $decision.Reason) $color
         }
         exit 0
@@ -1241,7 +1158,7 @@ try {
         foreach ($step in $script:Steps | Where-Object { $_.Number -ge $StartStep -and $_.Number -le $EndStep }) {
             $hash = Get-ScriptHash $step.Script
             $decision = Get-StepDecision $step $hash $currentInputFingerprint
-            Write-PipelineMessage ("[{0}/6] {1} -> {2}（{3}）" -f
+            Write-PipelineMessage ("[{0}/3] {1} -> {2}（{3}）" -f
                 $step.Number, $step.Script, $decision.Action, $decision.Reason)
         }
         exit 0
@@ -1267,7 +1184,7 @@ try {
             exit 2
         }
 
-        Write-PipelineMessage "HXC WGDI 分析总控（步骤 1–6；预处理/验收请先运行第 0 步）" "White"
+        Write-PipelineMessage "HXC WGDI 分析总控（步骤 1–3；预处理/验收请先运行第 0 步）" "White"
         Write-PipelineMessage "步骤范围：$StartStep-$EndStep | 项目目录：$script:ProjectRoot" "DarkGray"
         if ($RetryIncomplete) {
             Write-PipelineMessage "已启用：重新执行未完成步骤。" "Yellow"
@@ -1280,7 +1197,7 @@ try {
             $step = $script:Steps | Where-Object { $_.Number -eq $number }
             $hash = Get-ScriptHash $step.Script
             $decision = Get-StepDecision $step $hash $currentInputFingerprint
-            Write-PipelineMessage ("`n[{0}/6] {1} - {2}" -f $step.Number, $step.Script, $step.Title) "White"
+            Write-PipelineMessage ("`n[{0}/3] {1} - {2}" -f $step.Number, $step.Script, $step.Title) "White"
             Write-PipelineMessage "  状态判断：$($decision.Reason)" "DarkGray"
 
             switch ($decision.Action) {
@@ -1368,7 +1285,7 @@ try {
 
         $allComplete = @($allStatus | Where-Object { -not $_.Valid }).Count -eq 0
         if ($allComplete) {
-            Write-PipelineMessage "WGDI 分析步骤 1–6 及关键产物检查通过。" "Green"
+            Write-PipelineMessage "WGDI 分析步骤 1–3 及关键产物检查通过。" "Green"
             exit 0
         }
 

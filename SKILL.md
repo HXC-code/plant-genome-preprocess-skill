@@ -84,9 +84,15 @@ python -m pgci_preprocess run --sequence-mode from-map
 `from-map` 表示逐物种套用 `sequence_mode.tsv`：有染色体证据的走严格模式，
 scaffold-only 组装的物种才走 adaptive，不再需要人工记哪几个物种特殊。
 
-预处理产物统一写入 `wgdi_input/<Abbr>/`（每个物种一个目录，目录名就是缩写）。
-项目根因此只保留原始数据、`resources/`、skill 和这一个产物目录；旧项目的
-`analysis_v2/` 与根下兼容链接可用 `migrate-layout` 迁到新布局。
+新 Linux 机器的解释器与 WGDI 环境也必须现场确认：激活目标 conda/venv 后运行
+`discover`，或在 `WGDI_PYTHON` 中显式指定；启动器只检查显式变量、当前激活环境和
+项目内环境，不扫描其他用户目录或把某台机器的安装路径写死。
+
+项目根只保留 `data/`（原始数据）、skill、`README.md`、以及两个数据目录：
+`metadata/`（扫描清单、路径地图、序列模式表、`folder_list.txt`、`species_map.tsv`
+等索引；`resources/` 是指向它的兼容联接）和 `wgdi_input/`（预处理四件套、DIAMOND
+blast、扁平配置）。所有下游结果统一进 `wgdi_output/results/`，日志进 `logs/`、
+断点标记进 `state/`。旧 `analysis_v2/` 布局可用 `migrate-layout` 迁移。
 
 识别规则（与电脑和物种无关，按内容判断）：染色体证据只看 genome header /
 GFF seqid 的 `Chr1`、`Chr01`、`Ajul.Chr01`、`Chromosome 1` 等写法，`NW_…`
@@ -135,25 +141,23 @@ bash run_homology.sh        # 或 1run_diamond.sh / 1run_blast.sh
 ```
 
 物种内 + 物种间两两比对，默认 very-sensitive、e-value 1e-5；按 `wgdi_ready`
-与裁决状态跳过未就绪物种（`skipped_species.txt` 留痕）。
+与裁决状态跳过未就绪物种（`metadata/skipped_species.txt` 留痕）。
 
 ### 步骤 4：WGDI 共线性分析（必做）+ 可选 Ks
 
 ```bash
-bash 2run_pre_wgdi.sh
-bash 3blast_to_wgdi.sh
-python code/tools/generate_wgdi_configs.py --mode all   # 或 4/5 包装器
-bash 6run_wgdi.sh                                       # 核心：.png + .icl
+bash 2gen_wgdi_conf.sh all    # 生成扁平比较目录与相对路径配置（零复制）
+bash 3run_wgdi.sh             # 核心：.png + .icl（阶段级断点续跑）
 ```
 
 **可选 Ks 分支（仅用户明确要求时）**：
 
 ```bash
-WGDI_KS=true python code/tools/generate_wgdi_configs.py --mode all
-WGDI_KS=true bash 6run_wgdi.sh    # 追加 .ks/.bi.csv/.bi.c.csv/.bk.png/.kp.png/.pf.png
+WGDI_KS=true bash 2gen_wgdi_conf.sh all
+WGDI_KS=true bash 3run_wgdi.sh    # 追加 .ks/.bi.csv/.bi.c.csv/.bk.png/.kp.png/.pf.png
 ```
 
-Windows 总控：`run_all_pipeline.ps1`（1–6 步），加 `-WithKs` 启用 Ks。
+Windows 总控：`run_all_pipeline.ps1`（1–3 步），加 `-WithKs` 启用 Ks。
 原因：上游 blockinfo/correspondence 依赖 Ks 值，缺 Ks 时 correspondence 会
 过滤掉全部区块，故六个 Ks 阶段只在启用时运行。
 
@@ -225,7 +229,7 @@ ZIP 要求压缩包内只有一个非空数据文件。
 
 ```powershell
 cd pipeline\code
-python -m pytest -q        # 213 个用例；临时目录受限时加 --basetemp=<short-path>
+python -m pytest -q        # 259 个用例；临时目录受限时加 --basetemp=<short-path>
 ```
 
 ## 交接与复现
@@ -237,7 +241,8 @@ python -m pytest -q        # 213 个用例；临时目录受限时加 --basetemp
   PAL2NAL 由 `install_pal2nal.py` 从官方源安装，不随包分发。
 - CI 跑 pytest/ruff/mypy + 镜像漂移检查；代码变更先在 canonical 仓库落地再同步。
 - 预处理与下游比较是两个明确模式；"四件套就绪"不等于 WGDI 已完成。
-- `wgdi_input/<Abbr>/` 是唯一输出目录：四件套与全部追溯文件（gene_map、chr_map、
-  chromosome_map、removed_list、qc）都在这一层，直接把 WGDI 的 `-d` 指到这里即可；
-  不再写 `clean_v2`、也不再在根下生成 `<Abbr>/` 兼容链接。旧项目用
-  `pgci_preprocess migrate-layout` 一步改名并修好索引（`--dry-run` 可预演）。
+- `wgdi_input/<Abbr>/` 保存四件套与追溯文件；`wgdi_input/blast/` 保存 DIAMOND
+  结果；`wgdi_input/config/` 保存每个比较的扁平配置。`wgdi_output/results/`
+  保存全部点图与共线性块，`wgdi_output/logs/` 与 `wgdi_output/state/` 保存日志
+  和阶段级断点标记。配置全部用项目相对路径，项目可整体搬移。旧项目用
+  `pgci_preprocess migrate-layout` 迁移（`--dry-run` 可预演）。

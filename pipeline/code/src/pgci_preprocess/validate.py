@@ -12,7 +12,7 @@ from pathlib import Path
 
 from pgci_preprocess.artifact_naming import is_canonical_gene_id
 from pgci_preprocess.adjudication import gate_status_from_qc
-from pgci_preprocess.project_paths import is_legacy_output, output_dirname
+from pgci_preprocess.project_paths import index_file, is_legacy_output, output_dirname
 from pgci_preprocess.readiness import extract_qc_readiness
 from pgci_preprocess.species_names import load_species_names
 
@@ -387,7 +387,7 @@ def validate_project(options: ValidationOptions) -> ValidationReport:
     workspace, canonical_root = resolve_layout(options.project_root)
     index_path = canonical_root / INDEX_RELATIVE
     index_rows = _read_index(index_path)
-    report_path = options.report_path or workspace / "data-validation-report.tsv"
+    report_path = options.report_path or index_file(workspace, "data-validation-report.tsv")
     rows: list[dict[str, object]] = []
     names = load_species_names(canonical_root)
     # 没有缩写表时跳过命名审计：validate 只校验数据完整性，命名问题由

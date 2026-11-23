@@ -141,6 +141,26 @@ def runtime_environment(
     }
 
 
+def comparison_pairs(root: Path) -> list[tuple[str, str]]:
+    """Derive (left, right) pairs from the homology output layout.
+
+    ``wgdi_input/blast/<left>_pep/<left>_<right>.blast`` is the authoritative
+    BLAST location; results live in the single ``wgdi_output/results`` folder.
+    """
+
+    pairs: list[tuple[str, str]] = []
+    for pep_dir in sorted((root / "wgdi_input" / "blast").glob("*_pep")):
+        if not pep_dir.is_dir():
+            continue
+        left = pep_dir.name[: -len("_pep")]
+        for blast in sorted(pep_dir.glob("*.blast")):
+            stem = blast.stem
+            right = stem[len(left) + 1 :] if stem.startswith(f"{left}_") else ""
+            if right:
+                pairs.append((left, right))
+    return pairs
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("smoke_root", type=Path)
@@ -154,69 +174,79 @@ def main() -> int:
     root = args.smoke_root.resolve()
     output = (args.output or root / "smoke_report.json").resolve()
     fixture = json.loads((root / "fixture_manifest.json").read_text(encoding="utf-8"))
-    settings = read_key_value(root / "Auto_pep" / "diamond_run_settings.tsv")
+    settings = read_key_value(root / "wgdi_input" / "blast" / "diamond_run_settings.tsv")
     status = read_key_value(root / "smoke_status.tsv", skip_header=False)
 
     comparisons: list[dict[str, object]] = []
     all_ok = status.get("status") == "PASS"
     ks_enabled = status.get("ks_enabled", "true") == "true"
-    for base in sorted((root / "Auto_wgdi").glob("*_base")):
-        left = base.name[:-5]
-        for comparison in sorted(path for path in base.iterdir() if path.is_dir()):
-            right = comparison.name[len(left) + 1:]
-            stem = left if left == right else f"{left}_{right}"
-            names = {
-                "dotplot": f"{stem}.png",
-                "collinearity": f"{stem}.icl",
-            }
-            if ks_enabled:
-                names.update({
-                    "ks": f"{stem}.ks",
-                    "blockinfo": f"{stem}.bi.csv",
-                    "correspondence": f"{stem}.bi.c.csv",
-                    "blockks": f"{stem}.bk.png",
-                    "kspeaks": f"{stem}.kp.png",
-                    "peaksfit": f"{stem}.pf.png",
-                })
-            outputs: dict[str, object] = {}
-            comparison_ok = True
-            for stage, name in names.items():
-                path = comparison / name
-                ok = path.is_file() and path.stat().st_size > 0
-                comparison_ok = comparison_ok and ok
-                outputs[stage] = {
-                    "path": str(path.relative_to(root)),
-                    "exists_nonempty": ok,
-                    "bytes": path.stat().st_size if path.is_file() else 0,
-                    "sha256": sha256(path) if ok else "",
-                }
-            source_blast = root / "Auto_pep" / f"{left}_pep" / f"{left}_{right}.blast"
-            target_blast = comparison / f"{left}_{right}.blast"
-            preserved = source_blast.is_file() and target_blast.is_file()
-            if preserved:
-                preserved = sha256(source_blast) == sha256(target_blast)
-            comparison_ok = comparison_ok and preserved and (comparison / ".wgdi.done").is_file()
-            comparisons.append({
-                "left": left,
-                "right": right,
-                "status": "PASS" if comparison_ok else "FAIL",
-                "auto_pep_blast_preserved_and_identical": preserved,
-                "outputs": outputs,
+    for left, right in comparison_pairs(root):
+        stem = left if left == right else f"{left}_{right}"
+        comparison = root / "wgdi_output" / "results"
+        state = root / "wgdi_output" / "state"
+        names = {
+            "dotplot": f"{stem}.png",
+            "collinearity": f"{stem}.icl",
+        }
+        markers = [".done.dotplot", ".done.collinearity"]
+        if ks_enabled:
+            names.update({
+                "ks": f"{stem}.ks",
+                "blockinfo": f"{stem}.bi.csv",
+                "correspondence": f"{stem}.bi.c.csv",
+                "blockks": f"{stem}.bk.png",
+                "kspeaks": f"{stem}.kp.png",
+                "peaksfit": f"{stem}.pf.png",
             })
-            all_ok = all_ok and comparison_ok
+            markers += [
+                ".done.ks",
+                ".done.blockinfo",
+                ".done.correspondence",
+                ".done.blockks",
+                ".done.kspeaks",
+                ".done.peaksfit",
+            ]
+        outputs: dict[str, object] = {}
+        comparison_ok = True
+        for stage, name in names.items():
+            path = comparison / name
+            ok = path.is_file() and path.stat().st_size > 0
+            comparison_ok = comparison_ok and ok
+            outputs[stage] = {
+                "path": str(path.relative_to(root)),
+                "exists_nonempty": ok,
+                "bytes": path.stat().st_size if path.is_file() else 0,
+                "sha256": sha256(path) if ok else "",
+            }
+        # Single authoritative BLAST table under wgdi_input/blast.
+        source_blast = root / "wgdi_input" / "blast" / f"{left}_pep" / f"{left}_{right}.blast"
+        blast_ok = source_blast.is_file() and source_blast.stat().st_size > 0
+        markers_ok = all(
+            (state / f"{stem}{marker}").is_file() for marker in markers
+        )
+        comparison_ok = comparison_ok and blast_ok and markers_ok
+        comparisons.append({
+            "left": left,
+            "right": right,
+            "status": "PASS" if comparison_ok else "FAIL",
+            "auto_pep_blast_present": blast_ok,
+            "stage_markers_present": markers_ok,
+            "outputs": outputs,
+        })
+        all_ok = all_ok and comparison_ok
     all_ok = all_ok and bool(comparisons)
     all_ok = all_ok and settings.get("evalue") == status.get("diamond_evalue")
     all_ok = all_ok and settings.get("sensitivity") == status.get("diamond_sensitivity")
     synthetic = "synthetic" in fixture["selection"].get("method", "").lower()
     report = {
-        "schema_version": "wgdi-smoke-v3",
+        "schema_version": "wgdi-smoke-v4",
         "status": "PASS" if all_ok else "FAIL",
         "created_at": datetime.now().astimezone().isoformat(),
         "workflow_version": fixture.get("workflow_version", "unknown"),
         "scope": (
             "Isolated synthetic fixture" if synthetic else "Derived real-data fixture"
         )
-        + "; DIAMOND and scripts 2-6 actually executed. Step 0 is covered separately by preprocessing tests/validation.",
+        + "; DIAMOND, 2gen_wgdi_conf.sh and 3run_wgdi.sh actually executed. Step 0 is covered separately by preprocessing tests/validation.",
         "not_claimed": "This is not a full WGDI rerun of the 109-species dataset or a new biological WGD inference.",
         "smoke_root": "<isolated-workspace>" if args.public else str(root),
         "ks_enabled": ks_enabled,

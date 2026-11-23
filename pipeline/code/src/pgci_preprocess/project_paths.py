@@ -16,12 +16,49 @@ from pathlib import Path
 
 DATA_RELATIVE = Path("data")
 LEGACY_DOWNLOADS_RELATIVE = DATA_RELATIVE / "downloads"
-MACHINE_CONFIG_RELATIVE = Path("resources") / "machine_paths.json"
 
 # One container for every preprocessing product.  Each species gets a folder
 # named after its abbreviation, so WGDI can be pointed straight at
 # ``wgdi_input/<code>`` and the project root stays readable.
 OUTPUT_DIRNAME = "wgdi_input"
+# Scan metadata and the small pipeline indexes are named by content, not by
+# the historic "resources" label.  A compatibility alias keeps old projects
+# working; new projects write into metadata/.
+METADATA_DIRNAME = "metadata"
+LEGACY_METADATA_DIRNAME = "resources"
+MACHINE_CONFIG_RELATIVE = Path(METADATA_DIRNAME) / "machine_paths.json"
+
+
+def index_file(project_root: Path | str, name: str) -> Path:
+    """Resolve a small pipeline index with a lossless legacy fallback.
+
+    Existing metadata wins.  If a project was created while a compatibility
+    alias could not be made, the same file may still live in ``resources/`` or
+    at the project root; neither location should make the pipeline disagree
+    with the file that is actually present.
+    """
+
+    root = Path(project_root)
+    candidates = (
+        root / METADATA_DIRNAME / name,
+        root / LEGACY_METADATA_DIRNAME / name,
+        root / name,
+    )
+    for candidate in candidates:
+        if candidate.is_file():
+            return candidate
+    for candidate in candidates:
+        if candidate.parent.is_dir():
+            return candidate
+    return candidates[-1]
+
+
+def machine_config_file(project_root: Path | str) -> Path:
+    """Locate the scan path map in the canonical or legacy metadata folder."""
+
+    return index_file(project_root, "machine_paths.json")
+
+
 # Earlier releases wrote the same bundles to ``analysis_v2`` (and, before that,
 # a second ``clean_v2`` evidence layer).  Those names stay readable so an old
 # project keeps working until it is migrated with ``migrate-layout``.
@@ -51,7 +88,7 @@ def configured_data_root(project_root: Path | str) -> Path | None:
     rely on a symbolic link.
     """
 
-    config = Path(project_root) / MACHINE_CONFIG_RELATIVE
+    config = machine_config_file(project_root)
     if not config.is_file():
         return None
     try:
@@ -115,7 +152,7 @@ def configured_output_dirname(project_root: Path | str) -> str | None:
     directly under the project root, next to ``resources/``.
     """
 
-    config = Path(project_root) / MACHINE_CONFIG_RELATIVE
+    config = machine_config_file(project_root)
     if not config.is_file():
         return None
     try:

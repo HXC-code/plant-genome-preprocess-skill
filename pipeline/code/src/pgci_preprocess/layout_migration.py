@@ -21,8 +21,9 @@ from pathlib import Path
 
 from pgci_preprocess.project_paths import (
     LEGACY_OUTPUT_DIRNAMES,
-    MACHINE_CONFIG_RELATIVE,
     OUTPUT_DIRNAME,
+    index_file,
+    machine_config_file,
 )
 
 INDEX_RELATIVE = Path("resources") / "wgdi_v2_index.tsv"
@@ -144,7 +145,7 @@ def _remove_compat_dirs(
 
 
 def _update_config(project_root: Path) -> None:
-    config = project_root / MACHINE_CONFIG_RELATIVE
+    config = machine_config_file(project_root)
     if not config.is_file():
         return
     try:
@@ -163,7 +164,7 @@ def _update_config(project_root: Path) -> None:
 
 
 def _rewrite_report(project_root: Path, old_name: str, *, dry_run: bool) -> None:
-    report = project_root / REPORT_NAME
+    report = index_file(project_root, REPORT_NAME)
     if not report.is_file():
         return
     text = report.read_text(encoding="utf-8")

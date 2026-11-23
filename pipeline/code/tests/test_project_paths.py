@@ -5,7 +5,9 @@ from pathlib import Path
 
 from pgci_preprocess.project_paths import (
     downloads_root,
+    index_file,
     is_species_directory,
+    machine_config_file,
     relative_to_data,
     species_by_show_id,
     species_directories,
@@ -114,3 +116,24 @@ def test_relative_to_data_handles_both_layouts(tmp_path: Path) -> None:
     assert relative_to_data(old / "annotation.gff3", tmp_path) == (
         "6_Testales_Testaceae(Testus sextus)/annotation.gff3"
     )
+
+
+def test_pipeline_indexes_fall_back_without_a_metadata_alias(tmp_path: Path) -> None:
+    resources = tmp_path / "resources"
+    resources.mkdir()
+    (resources / "machine_paths.json").write_text("{}\n", encoding="utf-8")
+
+    assert index_file(tmp_path, "machine_paths.json") == resources / "machine_paths.json"
+    assert machine_config_file(tmp_path) == resources / "machine_paths.json"
+
+    metadata = tmp_path / "metadata"
+    metadata.mkdir()
+    (metadata / "machine_paths.json").write_text("{}\n", encoding="utf-8")
+    assert index_file(tmp_path, "machine_paths.json") == metadata / "machine_paths.json"
+
+
+def test_missing_index_prefers_existing_metadata_directory_for_writes(tmp_path: Path) -> None:
+    metadata = tmp_path / "metadata"
+    metadata.mkdir()
+
+    assert index_file(tmp_path, "species_map.tsv") == metadata / "species_map.tsv"

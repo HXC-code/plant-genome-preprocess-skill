@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build the self-contained pgci_preprocess + 0-6 WGDI workflow source release.
+"""Build the self-contained pgci_preprocess + 0-3 WGDI workflow source release.
 
 Source layout (this repository):
 
@@ -50,13 +50,11 @@ TOP_LEVEL_FILES = (
     "requirements-wgdi-validated.txt",
     "discover.py",
     "0check_data.sh",
+    "_pgci_env.sh",
     "1run_blast.sh",
     "1run_diamond.sh",
-    "2run_pre_wgdi.sh",
-    "3blast_to_wgdi.sh",
-    "4run_wgdi_different.sh",
-    "5run_wgdi_same.sh",
-    "6run_wgdi.sh",
+    "2gen_wgdi_conf.sh",
+    "3run_wgdi.sh",
     "bin/wgdi",
     "bin/wgdi_entry.py",
 )
@@ -155,7 +153,7 @@ def main() -> int:
         "version": VERSION,
         "created_utc": datetime.now(timezone.utc).isoformat(),
         "scope": (
-            "Canonical preprocessing source, tests, 0-6 execution scripts, wrappers, "
+            "Canonical preprocessing source, tests, 0-3 execution scripts, wrappers, "
             "release checks and installation guides; no raw data or generated results."
         ),
         "file_count": len(entries),

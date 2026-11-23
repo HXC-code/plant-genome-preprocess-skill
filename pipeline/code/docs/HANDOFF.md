@@ -10,7 +10,7 @@ disclosed before analysis.
 | Mode | Entry | Output |
 | --- | --- | --- |
 | Preprocess only | `python -m pgci_preprocess run` then `validate` | WGDI-ready pep/CDS/GFF/lens plus QC, chromosome_map/removed_list/qc_record |
-| Full comparison | `run_homology.sh`, scripts 2-3, config wrappers 4-5, `6run_wgdi.sh` | Pairwise homology, dotplots and collinearity blocks; Ks evidence only with `WGDI_KS=true` |
+| Full comparison | `run_homology.sh`, `2gen_wgdi_conf.sh`, `3run_wgdi.sh` | Pairwise homology, dotplots and collinearity blocks; Ks evidence only with `WGDI_KS=true` |
 
 SOP rules enforced by the engine: representative transcript = longest CDS,
 ties by stable transcript ID (never protein length or file order); CLI sequence
@@ -43,25 +43,25 @@ For the optional comparison layer:
 
 ```bash
 bash run_homology.sh                 # HOMOLOGY_ENGINE=diamond by default
-bash 2run_pre_wgdi.sh
-bash 3blast_to_wgdi.sh
-python code/tools/generate_wgdi_configs.py --mode all
-bash 6run_wgdi.sh                    # core: .png + .icl
-# Optional Ks branch (all three steps read the same switch):
-WGDI_KS=true python code/tools/generate_wgdi_configs.py --mode all
-WGDI_KS=true bash 6run_wgdi.sh       # adds .ks/.bi.csv/.bi.c.csv/.bk/.kp/.pf
+bash 2gen_wgdi_conf.sh all           # flat configs in wgdi_input/config, relative paths
+bash 3run_wgdi.sh                    # core: .png + .icl (stage-level resume)
+# Optional Ks branch (both steps read the same switch):
+WGDI_KS=true bash 2gen_wgdi_conf.sh all
+WGDI_KS=true bash 3run_wgdi.sh       # adds .ks/.bi.csv/.bi.c.csv/.bk/.kp/.pf
 ```
 
 The homology runner gates on the preprocessing QC: species with
 `wgdi_ready=no` (or no readable readiness record) are skipped and listed in
-`skipped_species.txt`; `HOMOLOGY_ALLOW_NOT_READY=true` overrides explicitly.
+`metadata/skipped_species.txt`; `HOMOLOGY_ALLOW_NOT_READY=true` overrides explicitly.
 `validate` applies the same gate (`--allow-not-ready` for archival checks).
 
 The numbered wrappers remain supported:
 
 - `1run_diamond.sh` and `1run_blast.sh` select the shared homology runner.
-- `4run_wgdi_different.sh` and `5run_wgdi_same.sh` select the shared config
-  generator.
+- `2gen_wgdi_conf.sh` writes flat `<pair>.conf` files to `wgdi_input/config/`
+  for `same`, `different` or `all` pairs; `3run_wgdi.sh` is the single shared
+  executor. Results go to `wgdi_output/results/` with logs in `logs/` and
+  resume markers in `state/`; no per-comparison folder or `run.sh` is emitted.
 
 ## Runtime ownership
 

@@ -36,8 +36,8 @@ blast 主要用于两个物种进行序列比对，可分为物种内部比对�
 | 1 数据收集并整理 | 用户按网址自行下载（优先测序最完整、发表最新）；`init-project` 注册本地文件，`prepare`/`batch` 批量路由；不可用物种在清单与失败记录中标注原因，不强制补全 | `resources/download_inventory.tsv`、失败原因记录 |
 | 1 确定染色体数目 | `run` 输出染色体清单；`chromosomes` 查看；`adjudicate` 人工确认签字（绑定 QC 版本+SHA-256） | `<Abbr>.chromosome_map.tsv`、裁决记录 |
 | 2 数据预处理 | `run`（代表转录本：CDS 最长优先 + 稳定 ID 字典序；严格染色体筛选为 CLI 默认，`--sequence-mode adaptive` 为碎片化组装逃生门）→ `validate` → `check-names` | `<Abbr>.pep/.cds/.new.gff/.lens` 四件套；`gene_map.tsv`、`removed_list.tsv`、`qc_record.md`、`qc.json` |
-| 3 DIAMOND 比对 | `run_homology.sh`（或 `1run_diamond.sh`/`1run_blast.sh`），物种内 + 物种间两两比对，默认 e-value 1e-5 | `Auto_pep/<A>_pep/<A>_<B>.blast`、点图输入 |
-| 4 WGDI 共线性 | `2run_pre_wgdi.sh` → `3blast_to_wgdi.sh` → `generate_wgdi_configs.py --mode all`（或 4/5 包装器）→ `6run_wgdi.sh`；默认只跑 dotplot + collinearity | `<prefix>.png`、`<prefix>.icl` |
+| 3 DIAMOND 比对 | `run_homology.sh`（或 `1run_diamond.sh`/`1run_blast.sh`），物种内 + 物种间两两比对，默认 e-value 1e-5 | `wgdi_input/blast/<A>_pep/<A>_<B>.blast`、点图输入 |
+| 4 WGDI 共线性 | `2gen_wgdi_conf.sh`（读 `species_map.tsv` 生成扁平比较目录与相对路径配置，零复制）→ `3run_wgdi.sh`；默认只跑 dotplot + collinearity | `<prefix>.png`、`<prefix>.icl` |
 | 4 可选 Ks 分支 | `WGDI_KS=true`（Windows 总控 `-WithKs`）追加 ks/blockinfo/correspondence/blockks/kspeaks/peaksfit 六阶段 | `.ks`、`.bi.csv`、`.bi.c.csv`、`.bk.png`、`.kp.png`、`.pf.png` |
 
 ## 明确不覆盖（第 5–8 步）

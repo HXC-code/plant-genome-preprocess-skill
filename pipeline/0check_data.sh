@@ -5,7 +5,14 @@ export PYTHONUTF8=1
 export PYTHONIOENCODING=utf-8
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+# Resolve the project root from the discover pointer when available; a bare
+# script directory is only the fallback for classic single-folder projects.
 PROJECT_ROOT="$SCRIPT_DIR"
+if [[ -f "$SCRIPT_DIR/_pgci_env.sh" ]]; then
+    # shellcheck source=_pgci_env.sh
+    source "$SCRIPT_DIR/_pgci_env.sh"
+    PROJECT_ROOT="$PGCI_PROJECT_ROOT"
+fi
 PROJECT_ROOT_EXPLICIT=false
 EXPECTED_COUNT=""
 PREPROCESS=false
