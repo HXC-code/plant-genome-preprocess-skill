@@ -1,526 +1,273 @@
-# 植物基因组 WGDI 预处理技能
+# Plant WGDI Preprocess
 
-**Plant Genome WGDI Preprocessing Skill**
+植物基因组 WGDI 与 DIAMOND 分析 skill。把本地下载的基因组注释整理成可验证、
+可追溯的 WGDI 输入，并继续完成 DIAMOND 同源比对、WGDI 点图和共线性块。
 
-`plant-wgdi-preprocess` 是面向植物比较基因组研究的 Agent Skill。它扫描本地下载的植物基因组数据，自动识别注释、genome、CDS 和蛋白文件，清洗并规范化为 WGDI 可直接使用的四件套：
+当前版本：**3.8.0**
+
+本仓库是 skill 包，同时包含完整可运行工程目录 `pipeline/`：
+
+- **Skill 仓库**：<https://github.com/HXC-code/plant-genome-preprocess-skill>
+- **程序仓**：<https://github.com/HXC-code/plant-genome-preprocess>
+- **Agent 使用说明**：[`SKILL.md`](SKILL.md)
+- **快速上手**：[`pipeline/QUICKSTART.md`](pipeline/QUICKSTART.md)
+- **验证门禁**：[`pipeline/VALIDATION.md`](pipeline/VALIDATION.md)
+
+## 覆盖范围
 
 ```text
-<Abbr>.pep
-<Abbr>.cds
-<Abbr>.new.gff
-<Abbr>.lens
+1. 本地数据整理、内容识别与同套组装配对
+2. WGDI 四件套预处理、染色体筛选、人工裁决与 QC
+3. DIAMOND 物种内和物种间两两同源比对
+4. WGDI 点图与共线性块
+   └── Ks 可选分支（默认关闭）
 ```
 
-预处理完成后，同一目录还保留染色体清单、基因映射、剔除记录和 QC，用于回答：
+本 skill **不包含**系统发育树、已发表树核对、多重共线性列表和共线性圈图。
+这些分别属于后续流程第 5–8 步。
 
-- 这个物种最终保留了多少条染色体/序列；
-- 每条染色体有多少个代表基因；
-- 哪些序列或基因为什么被剔除；
-- 当前结果是否适合交给后续 DIAMOND 和 WGDI 分析。
+## 主要能力
 
-当前代码版本：**3.8.0**
+- 跨机器扫描数据、工具和解释器，避免写死绝对路径。
+- 按文件内容识别 GFF/GFF3、GTF、GBFF、genome、CDS 和蛋白。
+- 自动配对同一套组装，避免混用注释和序列版本。
+- 统一注释层级、ID、region、坐标、链和序列长度。
+- 按“CDS 最长优先 + 稳定转录本 ID”选择代表转录本。
+- 默认启用严格染色体模式，为碎片化组装保留显式 adaptive 逃生门。
+- 输出可审计的基因映射、染色体映射、剔除记录和 QC。
+- 使用项目相对路径生成 DIAMOND、WGDI 配置并集中保存结果。
+- 阶段级断点续跑，输入或配置变化时自动重建对应阶段。
 
-- [程序仓](https://github.com/HXC-code/plant-genome-preprocess)
-- [完整快速上手](pipeline/QUICKSTART.md)
-- [数据格式与验证](pipeline/code/docs/data-validation.md)
-- [验证门禁](pipeline/VALIDATION.md)
-- [版本记录](CHANGELOG.md)
-
-## 这个 Skill 主要做什么
-
-| 能力 | 结果 |
-| --- | --- |
-| 跨机器数据扫描 | 自动找出数据根、代码根、项目根和可用工具 |
-| 文件角色识别 | 从文件内容识别 GFF/GFF3、GTF、GBFF、genome、CDS 和蛋白 |
-| 同一套组装配对 | 以注释为锚点匹配 genome、CDS 和 PEP，避免混用不同装配版本 |
-| 注释规范化 | 修复 gene/mRNA/CDS 层级、补充 region、统一 ID |
-| 代表转录本 | 每个基因保留一个代表转录本 |
-| 染色体筛选 | 默认保留有染色体证据的序列，也支持碎片化组装的 adaptive 模式 |
-| 基因数下限 | 默认移除代表基因数少于 100 的 WGDI 序列 |
-| 数据质控 | 检查 CDS、翻译、坐标、链、ID、taxon 和重复冲突 |
-| 可追溯输出 | 输出 gene map、chr map、chromosome map、removed list 和 QC |
-| 人工裁决 | 复核最终染色体数，记录复核人和判断依据 |
-
-DIAMOND、WGDI 点图和共线性分析是四件套的下游用途。本 Skill 的首页和实现重点是数据预处理与可交付输入构建。
-
-## 新项目目录
-
-v3.8 起推荐使用单层物种目录和单一输出目录：
+## 项目布局
 
 ```text
 <PROJECT_ROOT>/
 ├── data/
-│   ├── <show_id>_<Order>_<Family>(<Species>)/
-│   │   ├── <genome>
-│   │   ├── <gff>
-│   │   ├── <cds>
-│   │   └── <pep>
-│   └── ...
-│
-├── resources/
+│   └── <show_id>_<Order>_<Family>(<Species>)/
+│       ├── genome.fa*
+│       ├── annotation.gff*
+│       ├── cds.fa*
+│       └── protein.fa*
+├── metadata/
 │   ├── machine_paths.json
 │   ├── download_inventory.tsv
 │   ├── sequence_mode.tsv
 │   ├── discovery_report.tsv
-│   ├── species_abbreviations.tsv
-│   ├── format_exceptions.tsv
-│   ├── assembly_accessions.tsv
-│   ├── adjudications/
-│   │   └── <Abbr>.json
-│   └── wgdi_v2_index.tsv
-│
-└── wgdi_input/
-    ├── <Abbr1>/
-    │   ├── <Abbr1>.pep
-    │   ├── <Abbr1>.cds
-    │   ├── <Abbr1>.new.gff
-    │   ├── <Abbr1>.lens
-    │   ├── <Abbr1>.gene_map.tsv
-    │   ├── <Abbr1>.chr_map.tsv
-    │   ├── <Abbr1>.chromosome_map.tsv
-    │   ├── <Abbr1>.removed_list.tsv
-    │   ├── <Abbr1>.qc.json
-    │   └── <Abbr1>.qc_record.md
-    └── <Abbr2>/
-        └── ...
+│   ├── species_map.tsv
+│   └── adjudications/
+├── resources/                   # metadata/ 的兼容别名
+├── wgdi_input/
+│   ├── <Abbr>/                  # 四件套和追溯文件
+│   ├── blast/                   # DIAMOND 数据库、结果和设置
+│   └── config/                  # 扁平 <pair>.conf
+└── wgdi_output/
+    ├── results/                 # .png、.icl、可选 Ks 产物
+    ├── logs/
+    └── state/
 ```
-
-一个物种只有一个权威目录 `wgdi_input/<Abbr>/`。WGDI 可以直接使用该目录中的四件套。
-
-旧项目中的以下布局仍可读取：
-
-```text
-data/downloads/
-analysis_v2/
-clean_v2/
-```
-
-旧布局可以原地迁移：
-
-```powershell
-python -m pgci_preprocess migrate-layout --dry-run
-python -m pgci_preprocess migrate-layout
-```
-
-迁移会更新索引并清理经确认的旧兼容目录，不修改四件套内容。
 
 ## 安装
 
 要求 Python 3.11 或更高版本。
 
-```powershell
-cd pipeline\code
-python -m pip install -e ".[gbff]"
+```bash
+cd pipeline/code
+python3 -m pip install -e ".[gbff]"
 ```
 
-Core 预处理只使用 Python 标准库；处理 GBFF/GenBank 时需要 Biopython。
+普通预处理只需要 Python 标准库。GTF/GBFF 转换和部分测试需要 Biopython。
 
-## 快速开始
+下游工具：
 
-### 1. 换机器后先扫描数据
+| 功能 | 工具 |
+| --- | --- |
+| 同源比对 | DIAMOND，或 BLAST+ |
+| WGDI | `wgdi==0.75` |
+| Ks 分支 | MUSCLE、PAML `yn00`、Perl、PAL2NAL v14 |
+| Shell 入口 | Linux/WSL Bash；Windows 使用 Git Bash |
 
-`discover.py` 不需要先安装项目，使用任意 Python 3.11+ 即可运行。
+## 1. 新机器先扫描
 
-数据位于项目 `data/` 下：
+新机器上先确认 Python 和 WGDI 环境。skill 不扫描其他用户的 Linux 主目录；
+请激活目标 conda/venv、使用项目内环境，或显式提供解释器：
 
-```powershell
-python <skill>\pipeline\discover.py
+```bash
+export WGDI_PYTHON=/confirmed/path/to/python
 ```
 
-数据位于其他位置：
+扫描项目：
 
-```powershell
-python <skill>\pipeline\discover.py E:\raw_genomes --project-root D:\plant_project
+```bash
+python3 /path/to/plant-wgdi-preprocess/pipeline/discover.py \
+  /path/to/raw-data \
+  --project-root /path/to/project
 ```
 
-扫描会生成：
+数据已经在项目 `data/` 下时可省略数据参数：
+
+```bash
+python3 /path/to/plant-wgdi-preprocess/pipeline/discover.py
+```
+
+Windows PowerShell：
+
+```powershell
+python <skill>\pipeline\discover.py E:\raw_data --project-root D:\plant_project
+```
+
+扫描结果写入 `metadata/`，并记住项目根。之后命令可以省略 `--project-root`。
+
+可用以下命令检查环境：
+
+```bash
+python3 -m pgci_preprocess doctor
+bash /path/to/plant-wgdi-preprocess/pipeline/bin/wgdi --version
+```
+
+## 2. 建立项目和登记数据
+
+```bash
+python3 -m pgci_preprocess init-project --project-root /path/to/project
+```
+
+登记单个物种：
+
+```bash
+python3 -m pgci_preprocess init-project \
+  --project-root /path/to/project \
+  --show-id 2848 \
+  --scientific-name "Morus notabilis" \
+  --order Rosales \
+  --family Moraceae \
+  --genome genome.fasta.gz \
+  --gff annotation.gff3.gz \
+  --cds cds.fa.gz \
+  --pep pep.fa.gz
+```
+
+批量数据放入：
 
 ```text
-resources/machine_paths.json       本机路径地图
-resources/download_inventory.tsv   配对后的物种输入清单
-resources/sequence_mode.tsv        逐物种染色体模式
-resources/discovery_report.tsv     候选文件、角色和得分
+data/<show_id>_<Order>_<Family>(<Species>)/
 ```
 
-扫描后，后续命令不再需要每次传 `--project-root`。
+然后检查 `metadata/download_inventory.tsv`，使用 `prepare` / `batch` 批量路由。
 
-### 2. 检查环境与输入
+## 3. 预处理和人工裁决
 
-```powershell
-python -m pgci_preprocess doctor
+```bash
+python3 -m pgci_preprocess run --sequence-mode from-map
+python3 -m pgci_preprocess chromosomes --species <code>
 ```
 
-检查项目输入与可用工具：
+确认最终染色体数：
 
-```powershell
-python -m pgci_preprocess doctor --workflow full
-```
-
-### 3. 运行预处理
-
-按 `sequence_mode.tsv` 为每个物种选择模式：
-
-```powershell
-python -m pgci_preprocess run --sequence-mode from-map
-```
-
-含义：
-
-```text
-有染色体证据的物种 → chromosomes
-仅 scaffold 的碎片化组装 → adaptive
-```
-
-也可以统一强制严格染色体模式：
-
-```powershell
-python -m pgci_preprocess run --sequence-mode chromosomes
-```
-
-统一使用 adaptive：
-
-```powershell
-python -m pgci_preprocess run --sequence-mode adaptive
-```
-
-无染色体证据时，严格模式会报告：
-
-```text
-no_chromosome_sequences
-```
-
-经确认属于碎片化组装后，再使用 adaptive 模式。
-
-### 4. 查看染色体数与基因数
-
-```powershell
-python -m pgci_preprocess chromosomes --species <code>
-```
-
-也可以直接查看：
-
-```text
-wgdi_input/<Abbr>/<Abbr>.lens
-wgdi_input/<Abbr>/<Abbr>.chromosome_map.tsv
-```
-
-`lens` 固定三列：
-
-```text
-序列号    序列长度    代表基因数
-```
-
-因此：
-
-```text
-行数              = 最终保留的染色体/序列数
-第三列             = 每条序列的代表基因数
-第三列求和         = 进入 WGDI 的总基因数
-```
-
-示例：
-
-```text
-1	45753714	4210
-2	39802311	3980
-3	45120982	4521
-```
-
-表示保留 3 条序列，分别有 4210、3980、4521 个代表基因。
-
-严格染色体模式下，这些序列为染色体级序列；adaptive 模式下应称为 WGDI 序列，可能包含 scaffold。
-
-### 5. 人工确认染色体数
-
-```powershell
-python -m pgci_preprocess adjudicate `
-  --species <code> `
-  --confirmed-n <N> `
-  --decision accept `
-  --reviewer "<实际复核人>" `
+```bash
+python3 -m pgci_preprocess adjudicate \
+  --species <code> \
+  --confirmed-n <N> \
+  --decision accept \
+  --reviewer "<实际复核人>" \
   --rationale "<核型或文献依据>"
 ```
 
-查看裁决状态：
+严格验收：
 
-```powershell
-python -m pgci_preprocess adjudication-status --species <code>
+```bash
+python3 -m pgci_preprocess validate --require-adjudication
+python3 -m pgci_preprocess check-names
+python3 -m pgci_preprocess audit
 ```
 
-裁决记录绑定 QC 版本和 SHA-256。重跑产生新 QC 后，旧签字自动变为 `stale`。
+每个物种产出：
 
-### 6. 校验
-
-```powershell
-python -m pgci_preprocess validate
-python -m pgci_preprocess check-names
-python -m pgci_preprocess audit
+```text
+wgdi_input/<Abbr>/<Abbr>.pep
+wgdi_input/<Abbr>/<Abbr>.cds
+wgdi_input/<Abbr>/<Abbr>.new.gff
+wgdi_input/<Abbr>/<Abbr>.lens
 ```
 
-需要人工裁决门禁时：
+同时保留 `gene_map.tsv`、`chromosome_map.tsv`、`chr_map.tsv`、
+`removed_list.tsv`、`qc.json` 和 `qc_record.md`。
 
-```powershell
-python -m pgci_preprocess validate --require-adjudication
+## 4. DIAMOND 和 WGDI
+
+```bash
+cd /path/to/plant-wgdi-preprocess/pipeline
+bash run_homology.sh
+bash 2gen_wgdi_conf.sh all
+bash 3run_wgdi.sh
 ```
 
-## 单物种显式注册
+默认产物：
 
-没有自动扫描结果时，可以显式注册：
-
-```powershell
-python -m pgci_preprocess init-project `
-  --project-root D:\plant_project `
-  --show-id 2848 `
-  --scientific-name "Morus notabilis" `
-  --order Rosales `
-  --family Moraceae `
-  --genome D:\raw\Morus.genome.fasta.gz `
-  --gff D:\raw\Morus.gff3.gz `
-  --cds D:\raw\Morus.CDS.fasta.gz `
-  --pep D:\raw\Morus.Protein.faa.gz
+```text
+wgdi_input/blast/<A>_pep/<A>_<B>.blast
+wgdi_output/results/<pair>.png
+wgdi_output/results/<pair>.icl
 ```
 
-`--genome` 可以省略。显式注册要求 GFF/GFF3、CDS 和蛋白三个不同且非空的源文件。
+配置和结果全部使用项目相对路径。比较目录不再复制四件套、BLAST 或 `run.sh`，
+项目可以整体搬移。
 
-GTF 或 GBFF 可以先转换：
+### 可选 Ks
 
-```powershell
-python -m pgci_preprocess convert-annotation `
-  --input D:\raw\species.gtf.gz `
-  --output-dir D:\plant_project\data\derived `
-  --prefix species
+只有明确需要 Ks 时才执行：
+
+```bash
+WGDI_KS=true bash 2gen_wgdi_conf.sh all
+WGDI_KS=true bash 3run_wgdi.sh
 ```
 
-批量处理也可以自动路由 GTF/GBFF，或在已有 genome+GFF 时提取缺失的 CDS 和蛋白。
+Windows 总控：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File <skill>\pipeline\run_all_pipeline.ps1
+powershell -ExecutionPolicy Bypass -File <skill>\pipeline\run_all_pipeline.ps1 -WithKs
+```
 
 ## 输入格式
 
-### 注释文件
-
-| 类型 | 常见后缀 | 处理方式 |
-| --- | --- | --- |
-| GFF/GFF3 | `.gff`、`.gff3` | 直接识别并进入解析 |
-| GTF | `.gtf` | 转换为 GFF3 后继续 |
-| GenBank/GBFF | `.gbff`、`.gbk`、`.gb`、`.genbank` | 提取编码区 GFF3、CDS、蛋白，可导出 genome |
-| 功能注释 | `.annotations.csv`、`.csv`、`.tsv` | 七列功能表规范化为辅助元数据 |
-
-常见压缩组合同样支持，例如：
-
-```text
-species.gff.gz
-species.gff3.gz
-species.gtf.gz
-species.gbff.gz
-species.gbk.gz
-species.genbank.gz
-species.annotations.csv.gz
-```
-
-GTF 支持的注释行包括：
-
-```text
-gene
-transcript
-exon
-CDS
-start_codon
-stop_codon
-```
-
-GFF/GFF3 支持以下五种结构：
-
-```text
-standard
-transcript-only
-simplified5
-gene-span
-gene-CDS-direct
-```
-
-### 序列文件
-
-| 角色 | 常见后缀或组合名 |
+| 输入 | 支持范围 |
 | --- | --- |
-| genome | `.genome.fa`、`.genome.fasta`、`.genome.fna`、`.genome.fas`、`_genomic.fna`、`.fna` |
-| CDS | `.cds.fa`、`.cds.fasta`、`.cds.fna`、`.CDS.fasta`、`.cds.fas` |
-| 蛋白 | `.pep.fa`、`.pep.fasta`、`.protein.faa`、`.protein.fasta`、`.pro.fa`、`.faa` |
-| 通用 FASTA | `.fa`、`.fasta`、`.fna`、`.faa`、`.fas` |
+| 注释 | GFF/GFF3、GTF、GBFF/GenBank |
+| 序列 | genome、CDS、蛋白 FASTA |
+| 压缩 | gzip、bzip2、xz、单成员 ZIP |
+| 辅助信息 | 七列功能注释 CSV/TSV |
 
-序列角色由文件名语义、FASTA 首条记录和序列字符共同判定。文件使用通用 `.fa`、`.fasta` 时，建议文件名中包含 `genome`、`cds`、`protein`、`pep` 或 `pro` 等角色线索。
+非标准后缀只要能按内容识别，也可进入流程。`.lens` 是输出文件，不是输入。
 
-压缩组合示例：
+## 异常行为
 
-```text
-species.genome.fasta.gz
-species.genome.fa.gz
-species_genomic.fna.gz
-species.CDS.fasta.gz
-species.cds.fa.gz
-species.Protein.faa.gz
-species.pep.fa.gz
-species.pro.fa.gz
-```
-
-RNA/transcript FASTA 可以被扫描识别为辅助或参考数据，但不参与 WGDI 四件套的核心角色配对。
-
-### 压缩格式
-
-| 压缩 | 后缀 |
+| 情况 | 结果 |
 | --- | --- |
-| gzip | `.gz` |
-| bzip2 | `.bz2` |
-| xz | `.xz` |
-| ZIP | `.zip` |
+| 无染色体证据 | 严格模式报 `no_chromosome_sequences` |
+| 碎片化组装 | 人工确认后使用 `--sequence-mode adaptive` |
+| 只有 genome、没有注释 | 报 `annotation_missing` |
+| 没有 genome | 允许；由 CDS 和转录本坐标回填 |
+| GTF/GBFF | 自动或显式转换 |
+| 多套候选 | 评分选择，歧义时停止 |
+| 细胞器混入 | 推断排除并记录复核候选 |
+| 旧布局 | `migrate-layout` / `migrate-artifacts` 迁移 |
 
-压缩类型优先按文件魔数识别，后缀错误或省略时仍可尝试读取。
+## 验证
 
-ZIP 文件当前要求压缩包内只有一个非空数据文件。
-
-### 识别原则
-
-文件后缀用于提示。注释结构、FASTA 角色和压缩类型最终以内容判断：
-
-- 标准后缀有利于 `discover` 快速识别和自动配对；
-- 非标准后缀的文件如果内容符合 GFF、GTF、GBFF 或 FASTA，也可以进入读取流程；
-- `.lens` 是预处理输出，不需要提前准备；
-- 功能注释表作为辅助元数据，不替代 GFF/CDS/PEP；
-- 同名角色的多个候选可以写成 `A|B`，由扫描和路由选择唯一兼容文件。
-
-## 预处理规则
-
-### 代表转录本
-
-每个基因按以下顺序选择一个代表转录本：
-
-1. CDS 最长；
-2. CDS 等长时按 transcript ID 字典序；
-3. 再按 protein ID 稳定排序。
-
-### 染色体模式
-
-| 模式 | 行为 |
-| --- | --- |
-| `chromosomes` | 只保留有染色体证据的序列；无证据时失败关闭 |
-| `adaptive` | 没有明确染色体证据时，按基因数和覆盖率选择序列 |
-| `from-map` | 读取 `sequence_mode.tsv`，逐物种选择以上模式 |
-
-### 序列与基因下限
-
-| 参数 | CLI 默认 |
-| --- | ---: |
-| `--min-genes-per-sequence` | 50 |
-| `--coverage` | 0.90 |
-| `--max-sequences` | 200 |
-| `--min-genes-per-chromosome` | 100 |
-
-少于 100 个代表基因的序列会被移除，记录写入 `chr_map.tsv` 和 QC。
-
-### 可选全量快照
-
-默认不写筛选前的 `.all.*`。需要时：
-
-```powershell
-python -m pgci_preprocess run --keep-all
+```bash
+cd pipeline/code
+python3 -m pytest -q
+python3 -m ruff check src tests tools ../discover.py
+python3 -m mypy src
 ```
 
-已有 `.all.*` 且筛选参数已经定稿时，可以安全瘦身：
+当前测试为 259 项。完整验收记录和发布说明见
+[`pipeline/VALIDATION.md`](pipeline/VALIDATION.md) 与
+[`CHANGELOG.md`](CHANGELOG.md)。
 
-```powershell
-python -m pgci_preprocess prune --all-snapshots --dry-run
-python -m pgci_preprocess prune --all-snapshots
-```
+## 文档
 
-`prune` 会同步清理索引中的失效路径。
-
-## 关键输出
-
-### 四件套
-
-```text
-<Abbr>.pep
-<Abbr>.cds
-<Abbr>.new.gff
-<Abbr>.lens
-```
-
-### 追溯文件
-
-| 文件 | 用途 |
-| --- | --- |
-| `<Abbr>.gene_map.tsv` | 新基因 ID 与原始基因、转录本、蛋白 ID |
-| `<Abbr>.chr_map.tsv` | 原始序列、内部编号和保留/排除原因 |
-| `<Abbr>.chromosome_map.tsv` | 最终染色体数、长度和每条基因数 |
-| `<Abbr>.removed_list.tsv` | 全部剔除记录与原因 |
-| `<Abbr>.qc.json` | 机器可读 QC、输入指纹、阈值和异常 |
-| `<Abbr>.qc_record.md` | 人类可读 QC 摘要 |
-
-### 最小交付
-
-只交给 WGDI 使用时，至少需要：
-
-```text
-<Abbr>.pep
-<Abbr>.cds
-<Abbr>.new.gff
-<Abbr>.lens
-```
-
-其中 `.lens` 同时提供最终染色体数和每条染色体的代表基因数。
-
-## 命名
-
-物种缩写由属名首字母和种加词字母组成，优先三位，冲突后扩展。基因 ID 示例：
-
-```text
-Mun1g0001
-```
-
-旧 `s<show_id>` 项目可以迁移：
-
-```powershell
-python -m pgci_preprocess migrate-artifacts --dry-run
-python -m pgci_preprocess migrate-artifacts
-```
-
-## 常见问题
-
-| 现象 | 处理 |
-| --- | --- |
-| 换电脑后找不到项目 | 先运行 `pipeline/discover.py` |
-| 文件配对错误 | 查看 `resources/discovery_report.tsv` 和 `download_inventory.tsv` |
-| 报 `no_chromosome_sequences` | 检查 GFF/genome 的染色体 ID；确认碎片化后再用 adaptive |
-| 某条染色体消失 | 查看 `chr_map.tsv` 中的 `below_min_genes_per_chromosome` |
-| 想解释基因数为什么减少 | 查看 `removed_list.tsv` 和 `qc_record.md` |
-| 重跑后旧签字失效 | QC 已更新，需要重新执行 `adjudicate` |
-| 旧项目存在 `analysis_v2`/`clean_v2` | 使用 `migrate-layout --dry-run` 预演迁移 |
-| 需要全量候选快照 | 使用 `run --keep-all` |
-
-## 下游使用
-
-预处理完成后，四件套可直接交给 DIAMOND/BLAST 和 WGDI。后续点图、共线性及可选 Ks 命令见：
-
-```text
-pipeline/QUICKSTART.md
-pipeline/code/docs/WORKFLOW.md
-```
-
-预处理结果就绪表示四件套和追溯文件完成；下游共线性和生物学结论由后续分析继续。
-
-## 测试
-
-```powershell
-cd pipeline\code
-python -m pytest -q
-python -m ruff check src tests scripts tools
-python -m mypy src --ignore-missing-imports
-```
-
-## 版本与仓库
-
-- 当前代码版本：v3.8.0
-- 本仓库包含 Skill 调用说明、完整 `pipeline/` 运行副本和最新预处理目录约定
-- 程序实现以 `pipeline/code/` 为准
-
-## 许可
-
-MIT License。第三方工具按其上游许可使用，详见 [pipeline/THIRD_PARTY_NOTICES.md](pipeline/THIRD_PARTY_NOTICES.md)。
+- [Agent 执行规则](SKILL.md)
+- [快速上手](pipeline/QUICKSTART.md)
+- [实验室流程映射](pipeline/code/docs/WORKFLOW.md)
+- [数据校验说明](pipeline/code/docs/data-validation.md)
+- [程序仓说明](pipeline/code/README.md)
